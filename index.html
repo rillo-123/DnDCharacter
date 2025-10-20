@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PySheet · D&D 5e Character Sheet</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.7.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.7.1/core.js"></script>
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+    <header class="app-header">
+        <h1>PySheet</h1>
+        <p class="tagline">Offline-friendly D&D 5e character sheet powered by PyScript</p>
+    </header>
+
+    <main class="layout">
+        <nav class="tabs">
+            <button class="tab active" data-tab="overview" type="button">Overview</button>
+            <button class="tab" data-tab="skills" type="button">Skills</button>
+            <button class="tab" data-tab="combat" type="button">Combat</button>
+            <button class="tab" data-tab="inventory" type="button">Inventory</button>
+            <button class="tab" data-tab="spells" type="button">Spells</button>
+            <button class="tab" data-tab="manage" type="button">Manage</button>
+        </nav>
+
+        <section id="tab-overview" class="tab-panel active">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Identity</h2>
+                    <div class="grid grid-2">
+                        <label class="field">
+                            <span>Name</span>
+                            <input data-character-input type="text" id="name" placeholder="Rill the Bold">
+                        </label>
+                        <label class="field">
+                            <span>Class &amp; Level</span>
+                            <input data-character-input type="text" id="class" placeholder="Wizard 5">
+                        </label>
+                        <label class="field">
+                            <span>Race</span>
+                            <input data-character-input type="text" id="race" placeholder="High Elf">
+                        </label>
+                        <label class="field">
+                            <span>Background</span>
+                            <input data-character-input type="text" id="background" placeholder="Sage">
+                        </label>
+                        <label class="field">
+                            <span>Alignment</span>
+                            <input data-character-input type="text" id="alignment" placeholder="Neutral Good">
+                        </label>
+                        <label class="field">
+                            <span>Player Name</span>
+                            <input data-character-input type="text" id="player_name" placeholder="Carl">
+                        </label>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <h2>Level &amp; Proficiency</h2>
+                    <div class="grid grid-3">
+                        <label class="field">
+                            <span>Level</span>
+                            <input data-character-input type="number" min="1" max="20" id="level" value="1">
+                        </label>
+                        <div class="field readonly">
+                            <span>Proficiency Bonus</span>
+                            <output id="proficiency-bonus">+2</output>
+                        </div>
+                        <label class="field">
+                            <span>Inspiration</span>
+                            <input data-character-input type="number" min="0" id="inspiration" value="0">
+                        </label>
+                        <label class="field">
+                            <span>Spellcasting Ability</span>
+                            <select data-character-input id="spell_ability">
+                                <option value="int" selected>INT</option>
+                                <option value="wis">WIS</option>
+                                <option value="cha">CHA</option>
+                            </select>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="card abilities">
+                    <h2>Ability Scores</h2>
+                    <div class="abilities-grid">
+                        <div class="ability">
+                            <label for="str-score">STR</label>
+                            <input data-character-input type="number" min="1" max="30" id="str-score" value="10">
+                            <span class="modifier" id="str-mod">+0</span>
+                            <span class="saving-throw">Save: <span id="str-save">+0</span></span>
+                            <label class="checkbox">
+                                <input data-character-input type="checkbox" id="str-save-prof"> Proficient
+                            </label>
+                        </div>
+                        <div class="ability">
+                            <label for="dex-score">DEX</label>
+                            <input data-character-input type="number" min="1" max="30" id="dex-score" value="10">
+                            <span class="modifier" id="dex-mod">+0</span>
+                            <span class="saving-throw">Save: <span id="dex-save">+0</span></span>
+                            <label class="checkbox">
+                                <input data-character-input type="checkbox" id="dex-save-prof"> Proficient
+                            </label>
+                        </div>
+                        <div class="ability">
+                            <label for="con-score">CON</label>
+                            <input data-character-input type="number" min="1" max="30" id="con-score" value="10">
+                            <span class="modifier" id="con-mod">+0</span>
+                            <span class="saving-throw">Save: <span id="con-save">+0</span></span>
+                            <label class="checkbox">
+                                <input data-character-input type="checkbox" id="con-save-prof"> Proficient
+                            </label>
+                        </div>
+                        <div class="ability">
+                            <label for="int-score">INT</label>
+                            <input data-character-input type="number" min="1" max="30" id="int-score" value="10">
+                            <span class="modifier" id="int-mod">+0</span>
+                            <span class="saving-throw">Save: <span id="int-save">+0</span></span>
+                            <label class="checkbox">
+                                <input data-character-input type="checkbox" id="int-save-prof"> Proficient
+                            </label>
+                        </div>
+                        <div class="ability">
+                            <label for="wis-score">WIS</label>
+                            <input data-character-input type="number" min="1" max="30" id="wis-score" value="10">
+                            <span class="modifier" id="wis-mod">+0</span>
+                            <span class="saving-throw">Save: <span id="wis-save">+0</span></span>
+                            <label class="checkbox">
+                                <input data-character-input type="checkbox" id="wis-save-prof"> Proficient
+                            </label>
+                        </div>
+                        <div class="ability">
+                            <label for="cha-score">CHA</label>
+                            <input data-character-input type="number" min="1" max="30" id="cha-score" value="10">
+                            <span class="modifier" id="cha-mod">+0</span>
+                            <span class="saving-throw">Save: <span id="cha-save">+0</span></span>
+                            <label class="checkbox">
+                                <input data-character-input type="checkbox" id="cha-save-prof"> Proficient
+                            </label>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-skills" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Skills</h2>
+                    <table class="skills-table">
+                        <thead>
+                            <tr>
+                                <th>Skill</th>
+                                <th>Ability</th>
+                                <th>Proficient</th>
+                                <th>Expertise</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-skill="acrobatics">
+                                <td>Acrobatics</td>
+                                <td>DEX</td>
+                                <td><input data-character-input type="checkbox" id="acrobatics-prof"></td>
+                                <td><input data-character-input type="checkbox" id="acrobatics-exp"></td>
+                                <td><span id="acrobatics-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="animal_handling">
+                                <td>Animal Handling</td>
+                                <td>WIS</td>
+                                <td><input data-character-input type="checkbox" id="animal_handling-prof"></td>
+                                <td><input data-character-input type="checkbox" id="animal_handling-exp"></td>
+                                <td><span id="animal_handling-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="arcana">
+                                <td>Arcana</td>
+                                <td>INT</td>
+                                <td><input data-character-input type="checkbox" id="arcana-prof"></td>
+                                <td><input data-character-input type="checkbox" id="arcana-exp"></td>
+                                <td><span id="arcana-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="athletics">
+                                <td>Athletics</td>
+                                <td>STR</td>
+                                <td><input data-character-input type="checkbox" id="athletics-prof"></td>
+                                <td><input data-character-input type="checkbox" id="athletics-exp"></td>
+                                <td><span id="athletics-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="deception">
+                                <td>Deception</td>
+                                <td>CHA</td>
+                                <td><input data-character-input type="checkbox" id="deception-prof"></td>
+                                <td><input data-character-input type="checkbox" id="deception-exp"></td>
+                                <td><span id="deception-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="history">
+                                <td>History</td>
+                                <td>INT</td>
+                                <td><input data-character-input type="checkbox" id="history-prof"></td>
+                                <td><input data-character-input type="checkbox" id="history-exp"></td>
+                                <td><span id="history-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="insight">
+                                <td>Insight</td>
+                                <td>WIS</td>
+                                <td><input data-character-input type="checkbox" id="insight-prof"></td>
+                                <td><input data-character-input type="checkbox" id="insight-exp"></td>
+                                <td><span id="insight-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="intimidation">
+                                <td>Intimidation</td>
+                                <td>CHA</td>
+                                <td><input data-character-input type="checkbox" id="intimidation-prof"></td>
+                                <td><input data-character-input type="checkbox" id="intimidation-exp"></td>
+                                <td><span id="intimidation-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="investigation">
+                                <td>Investigation</td>
+                                <td>INT</td>
+                                <td><input data-character-input type="checkbox" id="investigation-prof"></td>
+                                <td><input data-character-input type="checkbox" id="investigation-exp"></td>
+                                <td><span id="investigation-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="medicine">
+                                <td>Medicine</td>
+                                <td>WIS</td>
+                                <td><input data-character-input type="checkbox" id="medicine-prof"></td>
+                                <td><input data-character-input type="checkbox" id="medicine-exp"></td>
+                                <td><span id="medicine-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="nature">
+                                <td>Nature</td>
+                                <td>INT</td>
+                                <td><input data-character-input type="checkbox" id="nature-prof"></td>
+                                <td><input data-character-input type="checkbox" id="nature-exp"></td>
+                                <td><span id="nature-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="perception">
+                                <td>Perception</td>
+                                <td>WIS</td>
+                                <td><input data-character-input type="checkbox" id="perception-prof"></td>
+                                <td><input data-character-input type="checkbox" id="perception-exp"></td>
+                                <td><span id="perception-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="performance">
+                                <td>Performance</td>
+                                <td>CHA</td>
+                                <td><input data-character-input type="checkbox" id="performance-prof"></td>
+                                <td><input data-character-input type="checkbox" id="performance-exp"></td>
+                                <td><span id="performance-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="persuasion">
+                                <td>Persuasion</td>
+                                <td>CHA</td>
+                                <td><input data-character-input type="checkbox" id="persuasion-prof"></td>
+                                <td><input data-character-input type="checkbox" id="persuasion-exp"></td>
+                                <td><span id="persuasion-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="religion">
+                                <td>Religion</td>
+                                <td>INT</td>
+                                <td><input data-character-input type="checkbox" id="religion-prof"></td>
+                                <td><input data-character-input type="checkbox" id="religion-exp"></td>
+                                <td><span id="religion-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="sleight_of_hand">
+                                <td>Sleight of Hand</td>
+                                <td>DEX</td>
+                                <td><input data-character-input type="checkbox" id="sleight_of_hand-prof"></td>
+                                <td><input data-character-input type="checkbox" id="sleight_of_hand-exp"></td>
+                                <td><span id="sleight_of_hand-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="stealth">
+                                <td>Stealth</td>
+                                <td>DEX</td>
+                                <td><input data-character-input type="checkbox" id="stealth-prof"></td>
+                                <td><input data-character-input type="checkbox" id="stealth-exp"></td>
+                                <td><span id="stealth-total">+0</span></td>
+                            </tr>
+                            <tr data-skill="survival">
+                                <td>Survival</td>
+                                <td>WIS</td>
+                                <td><input data-character-input type="checkbox" id="survival-prof"></td>
+                                <td><input data-character-input type="checkbox" id="survival-exp"></td>
+                                <td><span id="survival-total">+0</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="derived-metrics">
+                        <div>
+                            <span>Passive Perception</span>
+                            <strong id="passive-perception">10</strong>
+                        </div>
+                        <div>
+                            <span>Spell Save DC</span>
+                            <strong id="spell-save-dc">8</strong>
+                        </div>
+                        <div>
+                            <span>Spell Attack Bonus</span>
+                            <strong id="spell-attack">+0</strong>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-combat" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Combat</h2>
+                    <div class="grid grid-3">
+                        <label class="field">
+                            <span>Armor Class</span>
+                            <input data-character-input type="number" min="0" id="armor_class" value="10">
+                        </label>
+                        <label class="field">
+                            <span>Initiative</span>
+                            <output id="initiative">+0</output>
+                        </label>
+                        <label class="field">
+                            <span>Speed (ft)</span>
+                            <input data-character-input type="number" min="0" id="speed" value="30">
+                        </label>
+                        <label class="field">
+                            <span>Max HP</span>
+                            <input data-character-input type="number" min="1" id="max_hp" value="8">
+                        </label>
+                        <label class="field">
+                            <span>Current HP</span>
+                            <input data-character-input type="number" min="0" id="current_hp" value="8">
+                        </label>
+                        <label class="field">
+                            <span>Temporary HP</span>
+                            <input data-character-input type="number" min="0" id="temp_hp" value="0">
+                        </label>
+                        <label class="field">
+                            <span>Hit Dice</span>
+                            <input data-character-input type="text" id="hit_dice" placeholder="1d6">
+                        </label>
+                        <label class="field">
+                            <span>Death Saves (Successes)</span>
+                            <input data-character-input type="number" min="0" max="3" id="death_saves_success" value="0">
+                        </label>
+                        <label class="field">
+                            <span>Death Saves (Failures)</span>
+                            <input data-character-input type="number" min="0" max="3" id="death_saves_failure" value="0">
+                        </label>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-inventory" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Equipment &amp; Notes</h2>
+                    <div class="grid grid-2">
+                        <label class="field">
+                            <span>Equipment</span>
+                            <textarea data-character-input id="equipment" rows="6" placeholder="Quarterstaff, Spellbook, Component Pouch"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>Features &amp; Traits</span>
+                            <textarea data-character-input id="features" rows="6" placeholder="Arcane Recovery, Ritual Casting"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>Attacks &amp; Spellcasting</span>
+                            <textarea data-character-input id="attacks" rows="6" placeholder="Fire Bolt +5 (1d10), Quarterstaff +1 (1d6)"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>Notes</span>
+                            <textarea data-character-input id="notes" rows="6" placeholder="Allies, goals, patron, etc."></textarea>
+                        </label>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-spells" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Spellbook</h2>
+                    <div class="grid grid-2">
+                        <label class="field">
+                            <span>Spell Notes</span>
+                            <textarea data-character-input id="spell_notes" rows="4" placeholder="Prepared spells, ritual notes, components"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>Cantrips</span>
+                            <textarea data-character-input id="spells_cantrips" rows="4" placeholder="Fire Bolt, Mage Hand"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>1st-level Spells</span>
+                            <textarea data-character-input id="spells_level_1" rows="4" placeholder="Shield, Magic Missile"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>2nd-level Spells</span>
+                            <textarea data-character-input id="spells_level_2" rows="4" placeholder="Misty Step, Mirror Image"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>3rd-level Spells</span>
+                            <textarea data-character-input id="spells_level_3" rows="4" placeholder="Fireball, Counterspell"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>4th-level Spells</span>
+                            <textarea data-character-input id="spells_level_4" rows="4" placeholder="Dimension Door, Polymorph"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>5th-level Spells</span>
+                            <textarea data-character-input id="spells_level_5" rows="4" placeholder="Wall of Force, Telekinesis"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>6th-level Spells</span>
+                            <textarea data-character-input id="spells_level_6" rows="4" placeholder="Disintegrate"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>7th-level Spells</span>
+                            <textarea data-character-input id="spells_level_7" rows="4" placeholder="Teleport"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>8th-level Spells</span>
+                            <textarea data-character-input id="spells_level_8" rows="4" placeholder="Mind Blank"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>9th-level Spells</span>
+                            <textarea data-character-input id="spells_level_9" rows="4" placeholder="Wish"></textarea>
+                        </label>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-manage" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card actions">
+                    <h2>Manage Data</h2>
+                    <div class="actions-row">
+                        <button id="save-btn" py-click="save_character">Save to Browser</button>
+                        <button id="reset-btn" py-click="reset_character">Reset</button>
+                        <button id="export-btn" py-click="export_character">Export JSON</button>
+                        <label class="import-btn">
+                            <input type="file" id="import-file" accept="application/json">
+                            Import JSON
+                        </label>
+                    </div>
+                    <p class="hint">Data is stored locally in your browser using localStorage so it follows you on your Chromebook.</p>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <span>Built with <a href="https://pyscript.net" target="_blank" rel="noreferrer">PyScript</a>.</span>
+        <span>Project source: <code>DnDCharacter</code></span>
+    </footer>
+
+    <py-config>
+        packages = []
+    </py-config>
+    <py-script src="assets/py/character.py"></py-script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabButtons = document.querySelectorAll('.tab');
+            const panels = document.querySelectorAll('.tab-panel');
+
+            tabButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const targetId = `tab-${button.dataset.tab}`;
+                    tabButtons.forEach((btn) => btn.classList.toggle('active', btn === button));
+                    panels.forEach((panel) => panel.classList.toggle('active', panel.id === targetId));
+                });
+            });
+        });
+    </script>
+</body>
+</html>
