@@ -2,10 +2,14 @@
 
 import copy
 import json
+import re
+import uuid
+from html import escape
 from math import floor
 
 from js import Blob, URL, console, document, window
 from pyodide.ffi import create_proxy
+from pyodide.http import pyfetch
 
 LOCAL_STORAGE_KEY = "pysheet.character.v1"
 
@@ -46,6 +50,193 @@ SPELL_FIELDS = {
     "level_9": "spells_level_9",
 }
 
+OPEN5E_SPELLS_ENDPOINT = "https://api.open5e.com/spells/?limit=200&ordering=name"
+OPEN5E_MAX_PAGES = 15
+MAX_SPELL_RENDER = 200
+SPELL_LIBRARY_STORAGE_KEY = "pysheet.spells.v1"
+SPELL_CACHE_VERSION = 3
+SPELL_LIBRARY_STATE = {
+    "loaded": False,
+    "loading": False,
+    "spells": [],
+    "class_options": [],
+    "last_profile_signature": "",
+}
+
+SPELL_CLASS_SYNONYMS = {
+    "artificer": ["artificer"],
+    "bard": ["bard"],
+    "cleric": ["cleric"],
+    "druid": ["druid"],
+    "paladin": ["paladin"],
+    "ranger": ["ranger"],
+    "sorcerer": ["sorcerer"],
+    "warlock": ["warlock"],
+    "wizard": ["wizard"],
+    "fighter": ["fighter", "eldritch knight", "arcane archer"],
+    "rogue": ["rogue", "arcane trickster"],
+    "monk": ["monk"],
+    "barbarian": ["barbarian"],
+    "blood hunter": ["blood hunter", "bloodhunter"],
+}
+
+SPELL_CLASS_DISPLAY_NAMES = {
+    "artificer": "Artificer",
+    "bard": "Bard",
+    "cleric": "Cleric",
+    "druid": "Druid",
+    "paladin": "Paladin",
+    "ranger": "Ranger",
+    "sorcerer": "Sorcerer",
+    "warlock": "Warlock",
+    "wizard": "Wizard",
+    "fighter": "Fighter (Eldritch Knight)",
+    "rogue": "Rogue (Arcane Trickster)",
+    "monk": "Monk",
+    "barbarian": "Barbarian",
+    "blood hunter": "Blood Hunter",
+}
+
+CLASS_CASTING_PROGRESSIONS = {
+    "artificer": "half_up",
+    "bard": "full",
+    "cleric": "full",
+    "druid": "full",
+    "paladin": "half",
+    "ranger": "half",
+    "sorcerer": "full",
+    "warlock": "pact",
+    "wizard": "full",
+    "fighter": "third",
+    "rogue": "third",
+    "monk": "none",
+    "barbarian": "none",
+    "blood hunter": "half",
+}
+
+SPELLCASTING_PROGRESSION_TABLES = {
+    "none": [0] * 21,
+    "full": [
+        0,
+        1,
+        1,
+        2,
+        2,
+        3,
+        3,
+        4,
+        4,
+        5,
+        5,
+        6,
+        6,
+        7,
+        7,
+        8,
+        8,
+        9,
+        9,
+        9,
+        9,
+    ],
+    "half": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        3,
+        3,
+        4,
+        4,
+        4,
+        4,
+        5,
+        5,
+        5,
+        5,
+    ],
+    "half_up": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        3,
+        3,
+        4,
+        4,
+        4,
+        4,
+        5,
+        5,
+        5,
+        5,
+    ],
+    "third": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        4,
+        4,
+    ],
+    "pact": [
+        0,
+        1,
+        1,
+        2,
+        2,
+        3,
+        3,
+        4,
+        4,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+    ],
+}
+
+MAX_RESOURCES = 12
+MAX_INVENTORY_ITEMS = 50
+CURRENCY_ORDER = ["pp", "gp", "ep", "sp", "cp"]
+
 DEFAULT_STATE = {
     "identity": {
         "name": "",
@@ -71,16 +262,21 @@ DEFAULT_STATE = {
         "current_hp": 8,
         "temp_hp": 0,
         "hit_dice": "1d6",
+        "hit_dice_available": 1,
         "death_saves_success": 0,
         "death_saves_failure": 0,
     },
+    "inventory": {
+        "items": [],
+        "currency": {key: 0 for key in CURRENCY_ORDER},
+    },
     "notes": {
-        "equipment": "",
         "features": "",
         "attacks": "",
         "notes": "",
     },
     "spells": {key: "" for key in SPELL_FIELDS},
+    "resources": [],
 }
 
 _EVENT_PROXIES = []
@@ -144,12 +340,175 @@ def set_text(element_id: str, value: str):
     element.innerText = value
 
 
+def set_html(element_id: str, html: str):
+    element = get_element(element_id)
+    if element is None:
+        return
+    element.innerHTML = html
+
+
 def ability_modifier(score: int) -> int:
     return floor((score - 10) / 2)
 
 
 def format_bonus(value: int) -> str:
     return f"{value:+d}"
+
+
+def generate_id(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8]}"
+
+
+def clamp(value: int, minimum: int | None = None, maximum: int | None = None) -> int:
+    if minimum is not None and value < minimum:
+        value = minimum
+    if maximum is not None and value > maximum:
+        value = maximum
+    return value
+
+
+def parse_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def parse_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def is_truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lower = value.strip().lower()
+        return lower in {"true", "yes", "1"}
+    return False
+
+
+def normalize_class_token(token: str | None) -> str | None:
+    if not token:
+        return None
+    cleaned = token.replace("’", "'")
+    cleaned = re.sub(r"\(.*?\)", "", cleaned)
+    cleaned = cleaned.replace("-", " ")
+    cleaned = " ".join(cleaned.lower().split())
+    if not cleaned:
+        return None
+    for canonical, synonyms in SPELL_CLASS_SYNONYMS.items():
+        if cleaned == canonical:
+            return canonical
+        if cleaned in synonyms:
+            return canonical
+        for synonym in synonyms:
+            if cleaned == synonym:
+                return canonical
+    for canonical, synonyms in SPELL_CLASS_SYNONYMS.items():
+        if cleaned.startswith(canonical):
+            return canonical
+        for synonym in synonyms:
+            if cleaned.startswith(synonym):
+                return canonical
+    return None
+
+
+def extract_character_classes(raw_text: str | None = None) -> list[dict]:
+    if raw_text is None:
+        raw_text = get_text_value("class")
+    if not raw_text:
+        return []
+    segments = re.split(r"[\+/,&]+", raw_text)
+    entries: list[dict] = []
+    for segment in segments:
+        part = segment.strip()
+        if not part:
+            continue
+        lower_part = part.lower()
+        level_match = re.search(r"(\d+)", part)
+        level = int(level_match.group(1)) if level_match else None
+        if level_match:
+            name_part = part[: level_match.start()].strip()
+        else:
+            name_part = part.strip()
+        if not name_part:
+            name_part = part.strip()
+        canonical = normalize_class_token(name_part)
+        if canonical is None:
+            canonical = normalize_class_token(lower_part)
+        if canonical is None:
+            continue
+        entries.append({
+            "key": canonical,
+            "level": level,
+            "raw": lower_part,
+        })
+    return entries
+
+
+def determine_progression_key(class_key: str, raw_text: str) -> str:
+    base = CLASS_CASTING_PROGRESSIONS.get(class_key, "none")
+    lowered = raw_text or ""
+    if class_key == "fighter":
+        if "eldritch" in lowered or "arcane archer" in lowered:
+            return "third"
+        return "none"
+    if class_key == "rogue":
+        if "arcane trickster" in lowered:
+            return "third"
+        return "none"
+    return base
+
+
+def get_progression_table(progression_key: str) -> list[int]:
+    return SPELLCASTING_PROGRESSION_TABLES.get(
+        progression_key, SPELLCASTING_PROGRESSION_TABLES["none"]
+    )
+
+
+def compute_spellcasting_profile(
+    raw_text: str | None = None,
+    fallback_level: int | None = None,
+) -> dict:
+    entries = extract_character_classes(raw_text)
+    if fallback_level is None:
+        fallback_level = get_numeric_value("level", 1)
+    fallback_level = max(1, int(fallback_level or 1))
+
+    allowed_classes: list[str] = []
+    max_spell_level = -1
+    has_progression = False
+
+    for entry in entries:
+        class_key = entry["key"]
+        class_level = entry["level"] if entry["level"] is not None else fallback_level
+        class_level = max(1, min(int(class_level or fallback_level), 20))
+        progression = determine_progression_key(class_key, entry["raw"])
+        if progression == "none":
+            continue
+        has_progression = True
+        table = get_progression_table(progression)
+        level_cap = table[class_level] if class_level < len(table) else table[-1]
+        if class_key not in allowed_classes:
+            allowed_classes.append(class_key)
+        if level_cap > max_spell_level:
+            max_spell_level = level_cap
+
+    if not has_progression:
+        max_spell_level = -1
+    elif max_spell_level < 0:
+        max_spell_level = 0
+
+    return {
+        "entries": entries,
+        "allowed_classes": allowed_classes,
+        "max_spell_level": max_spell_level,
+    }
 
 
 def compute_proficiency(level: int) -> int:
@@ -203,6 +562,27 @@ def update_calculations(*_args):
     set_text("spell-save-dc", str(spell_save_dc))
     set_text("spell-attack", format_bonus(spell_attack))
 
+    current_hp = get_numeric_value("current_hp", 0)
+    max_hp = get_numeric_value("max_hp", 0)
+    temp_hp = get_numeric_value("temp_hp", 0)
+    if max_hp > 0:
+        hp_status = f"{current_hp} / {max_hp}"
+    else:
+        hp_status = str(current_hp)
+    if temp_hp > 0:
+        hp_status = f"{hp_status} (+{temp_hp} temp)"
+    set_text("hp-status", hp_status)
+
+    hit_dice_available = get_numeric_value("hit_dice_available", 0)
+    hit_dice_cap = max(0, get_numeric_value("level", 1))
+    if hit_dice_cap > 0:
+        hit_dice_status = f"{hit_dice_available} / {hit_dice_cap}"
+    else:
+        hit_dice_status = str(hit_dice_available)
+    set_text("hit-dice-status", hit_dice_status)
+
+    update_equipment_totals()
+
 
 def collect_character_data() -> dict:
     data = {
@@ -226,6 +606,7 @@ def collect_character_data() -> dict:
             "current_hp": get_numeric_value("current_hp", 8),
             "temp_hp": get_numeric_value("temp_hp", 0),
             "hit_dice": get_text_value("hit_dice"),
+            "hit_dice_available": get_numeric_value("hit_dice_available", 0),
             "death_saves_success": get_numeric_value("death_saves_success", 0),
             "death_saves_failure": get_numeric_value("death_saves_failure", 0),
         },
@@ -234,6 +615,11 @@ def collect_character_data() -> dict:
             "features": get_text_value("features"),
             "attacks": get_text_value("attacks"),
             "notes": get_text_value("notes"),
+        },
+        "inventory": {
+            # items collected from the equipment table DOM
+            "items": [],
+            "currency": {key: get_numeric_value(f"currency-{key}", 0) for key in CURRENCY_ORDER},
         },
         "spells": {
             key: get_text_value(element_id) for key, element_id in SPELL_FIELDS.items()
@@ -251,6 +637,29 @@ def collect_character_data() -> dict:
             "proficient": get_checkbox(f"{skill}-prof"),
             "expertise": get_checkbox(f"{skill}-exp"),
         }
+
+    # collect equipment items from the table
+    items = []
+    tbody = get_element("equipment-table-body")
+    if tbody is not None:
+        rows = tbody.querySelectorAll("tr[data-item-id]")
+        for row in rows:
+            item_id = row.getAttribute("data-item-id")
+            name_el = row.querySelector("input[data-item-field='name']")
+            qty_el = row.querySelector("input[data-item-field='qty']")
+            cost_el = row.querySelector("input[data-item-field='cost']")
+            weight_el = row.querySelector("input[data-item-field='weight']")
+            notes_el = row.querySelector("input[data-item-field='notes']")
+            item = {
+                "id": item_id,
+                "name": name_el.value if name_el is not None else "",
+                "qty": parse_int(qty_el.value if qty_el is not None else 0, 0),
+                "cost": parse_float(cost_el.value if cost_el is not None else 0.0, 0.0),
+                "weight": parse_float(weight_el.value if weight_el is not None else 0.0, 0.0),
+                "notes": notes_el.value if notes_el is not None else "",
+            }
+            items.append(item)
+    data["inventory"]["items"] = items
 
     return data
 
@@ -285,6 +694,7 @@ def populate_form(data: dict):
     set_form_value("current_hp", combat.get("current_hp", 8))
     set_form_value("temp_hp", combat.get("temp_hp", 0))
     set_form_value("hit_dice", combat.get("hit_dice", ""))
+    set_form_value("hit_dice_available", combat.get("hit_dice_available", 0))
     set_form_value("death_saves_success", combat.get("death_saves_success", 0))
     set_form_value("death_saves_failure", combat.get("death_saves_failure", 0))
 
@@ -299,6 +709,638 @@ def populate_form(data: dict):
         set_form_value(element_id, spells.get(key, ""))
 
     update_calculations()
+
+    # populate currency and equipment
+    inv = data.get("inventory", {})
+    currency = inv.get("currency", {})
+    for key in CURRENCY_ORDER:
+        set_form_value(f"currency-{key}", currency.get(key, 0))
+
+    items = get_equipment_items_from_data(data)
+    render_equipment_table(items)
+    update_equipment_totals()
+
+
+def format_money(value: float) -> str:
+    try:
+        return f"{value:.2f}"
+    except Exception:
+        return str(value)
+
+
+def format_weight(value: float) -> str:
+    try:
+        return f"{value:.2f}"
+    except Exception:
+        return str(value)
+
+
+def format_spell_level_label(level_int: int) -> str:
+    if level_int <= 0:
+        return "Cantrip"
+    remainder = level_int % 100
+    if 10 <= remainder <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(level_int % 10, "th")
+    return f"{level_int}{suffix}-level"
+
+
+def _coerce_spell_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return "\n".join(str(part) for part in value if part)
+    return str(value)
+
+
+def _make_paragraphs(text: str) -> str:
+    if not text:
+        return ""
+    paragraphs = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped:
+            paragraphs.append(f"<p>{escape(stripped)}</p>")
+    return "".join(paragraphs)
+
+
+def sanitize_spell_record(raw: dict) -> dict:
+    name = raw.get("name") or "Unknown Spell"
+    slug_source = raw.get("slug") or name
+    slug = re.sub(r"[^a-z0-9]+", "-", slug_source.lower()).strip("-")
+
+    level_value = raw.get("level_int")
+    if level_value is None:
+        level_value = raw.get("level")
+    level_int = parse_int(level_value, 0)
+    level_label = format_spell_level_label(level_int)
+
+    classes_field = raw.get("dnd_class") or raw.get("classes") or ""
+    classes_raw = [token.strip() for token in re.split(r"[;,/]+", classes_field) if token.strip()]
+    classes: list[str] = []
+    for token in classes_raw:
+        canonical = normalize_class_token(token)
+        if canonical and canonical not in classes:
+            classes.append(canonical)
+    classes_display = [SPELL_CLASS_DISPLAY_NAMES.get(c, c.title()) for c in classes]
+
+    school = (raw.get("school") or "").title()
+    casting_time = raw.get("casting_time") or ""
+    range_text = raw.get("range") or ""
+    components = raw.get("components") or ""
+    material = raw.get("material") or ""
+    duration = raw.get("duration") or ""
+    ritual = is_truthy(raw.get("ritual"))
+    concentration = is_truthy(raw.get("concentration"))
+
+    desc_text = _coerce_spell_text(raw.get("desc"))
+    higher_text = _coerce_spell_text(raw.get("higher_level"))
+    desc_html = _make_paragraphs(desc_text)
+    higher_html = _make_paragraphs(higher_text)
+    description_html = desc_html
+    if higher_html:
+        description_html += "<p class=\"spell-section-title\">At Higher Levels</p>" + higher_html
+
+    source = raw.get("document__title") or raw.get("document__slug") or raw.get("document") or ""
+
+    search_fields = [
+        name,
+        classes_field,
+        desc_text,
+        higher_text,
+        school,
+        casting_time,
+        range_text,
+        components,
+        material,
+        duration,
+        source,
+    ]
+    search_blob = " ".join(part for part in search_fields if part).lower()
+
+    return {
+        "slug": slug,
+        "name": name,
+        "level_int": level_int,
+        "level_label": level_label,
+        "school": school,
+        "casting_time": casting_time,
+        "range": range_text,
+        "components": components,
+        "material": material,
+        "duration": duration,
+        "ritual": ritual,
+        "concentration": concentration,
+        "classes": classes,
+        "classes_display": classes_display,
+        "description_html": description_html,
+        "search_blob": search_blob,
+        "source": source,
+    }
+
+
+def sanitize_spell_list(raw_spells: list[dict]) -> list[dict]:
+    sanitized = [sanitize_spell_record(spell) for spell in raw_spells]
+    sanitized.sort(key=lambda item: (item["level_int"], item["name"].lower()))
+    return sanitized
+
+
+def rehydrate_cached_spell(record: dict) -> dict:
+    classes = []
+    for token in record.get("classes", []):
+        canonical = normalize_class_token(token)
+        if canonical and canonical not in classes:
+            classes.append(canonical)
+    classes_display = record.get("classes_display") or [
+        SPELL_CLASS_DISPLAY_NAMES.get(c, c.title()) for c in classes
+    ]
+    return {
+        "slug": record.get("slug", ""),
+        "name": record.get("name", "Unknown Spell"),
+        "level_int": parse_int(record.get("level_int"), 0),
+        "level_label": record.get("level_label", format_spell_level_label(parse_int(record.get("level_int"), 0))),
+        "school": record.get("school", ""),
+        "casting_time": record.get("casting_time", ""),
+        "range": record.get("range", ""),
+        "components": record.get("components", ""),
+        "material": record.get("material", ""),
+        "duration": record.get("duration", ""),
+        "ritual": bool(record.get("ritual", False)),
+        "concentration": bool(record.get("concentration", False)),
+        "classes": classes,
+        "classes_display": classes_display,
+        "description_html": record.get("description_html", ""),
+        "search_blob": (record.get("search_blob", "") or "").lower(),
+        "source": record.get("source", ""),
+    }
+
+
+def load_spell_cache() -> list[dict] | None:
+    cached = window.localStorage.getItem(SPELL_LIBRARY_STORAGE_KEY)
+    if not cached:
+        return None
+    try:
+        payload = json.loads(cached)
+    except Exception as exc:
+        console.warn(f"PySheet: failed to parse spell cache ({exc})")
+        return None
+    if payload.get("version") != SPELL_CACHE_VERSION:
+        return None
+    spells = payload.get("spells")
+    if not isinstance(spells, list):
+        return None
+    rehydrated: list[dict] = []
+    for record in spells:
+        try:
+            if not isinstance(record, dict):
+                continue
+            rehydrated.append(rehydrate_cached_spell(record))
+        except Exception as exc:
+            console.warn(f"PySheet: skipping cached spell due to error ({exc})")
+    if not rehydrated:
+        return None
+    rehydrated.sort(key=lambda item: (item["level_int"], item["name"].lower()))
+    return rehydrated
+
+
+def save_spell_cache(spells: list[dict]) -> None:
+    payload = {"version": SPELL_CACHE_VERSION, "spells": spells}
+    try:
+        window.localStorage.setItem(SPELL_LIBRARY_STORAGE_KEY, json.dumps(payload))
+    except Exception as exc:
+        console.warn(f"PySheet: unable to store spell cache ({exc})")
+
+
+async def fetch_open5e_spells() -> list[dict]:
+    spells: list[dict] = []
+    url = OPEN5E_SPELLS_ENDPOINT
+    pages = 0
+    while url and pages < OPEN5E_MAX_PAGES:
+        response = await pyfetch(url)
+        if not response.ok:
+            raise RuntimeError(f"Open5e request failed ({response.status})")
+        data = await response.json()
+        results = data.get("results", [])
+        if isinstance(results, list):
+            spells.extend(results)
+        url = data.get("next")
+        pages += 1
+    return spells
+
+
+def update_spell_library_status(message: str):
+    status_el = get_element("spell-library-status")
+    if status_el is not None:
+        status_el.innerText = message
+
+
+def populate_spell_class_filter(spells: list[dict]):
+    select_el = get_element("spell-class-filter")
+    if select_el is None:
+        return
+    class_set = {}
+    for spell in spells:
+        for class_key in spell.get("classes", []):
+            label = SPELL_CLASS_DISPLAY_NAMES.get(class_key, class_key.title())
+            class_set[class_key] = label
+    options = ["<option value=\"\">Any class</option>"]
+    sorted_classes = sorted(class_set.items(), key=lambda item: item[1])
+    for class_key, label in sorted_classes:
+        options.append(
+            f"<option value=\"{escape(class_key)}\">{escape(label)}</option>"
+        )
+    select_el.innerHTML = "".join(options)
+    SPELL_LIBRARY_STATE["class_options"] = [class_key for class_key, _ in sorted_classes]
+
+
+def build_spell_card_html(spell: dict) -> str:
+    meta_parts: list[str] = []
+    level_label = spell.get("level_label")
+    if level_label:
+        meta_parts.append(level_label)
+    school = spell.get("school")
+    if school:
+        meta_parts.append(school)
+    meta_text = " · ".join(part for part in meta_parts if part)
+    tags = []
+    if spell.get("ritual"):
+        tags.append("<span class=\"spell-tag\">Ritual</span>")
+    if spell.get("concentration"):
+        tags.append("<span class=\"spell-tag\">Concentration</span>")
+    tags_html = "".join(tags)
+
+    properties = []
+    casting_time = spell.get("casting_time")
+    if casting_time:
+        properties.append(
+            f"<div><dt>Casting Time</dt><dd>{escape(casting_time)}</dd></div>"
+        )
+    range_text = spell.get("range")
+    if range_text:
+        properties.append(f"<div><dt>Range</dt><dd>{escape(range_text)}</dd></div>")
+    components = spell.get("components")
+    material = spell.get("material")
+    if components:
+        comp_text = escape(components)
+        if material:
+            comp_text = f"{comp_text} ({escape(material)})"
+        properties.append(f"<div><dt>Components</dt><dd>{comp_text}</dd></div>")
+    duration = spell.get("duration")
+    if duration:
+        properties.append(f"<div><dt>Duration</dt><dd>{escape(duration)}</dd></div>")
+    properties_html = ""
+    if properties:
+        properties_html = "<dl class=\"spell-properties\">" + "".join(properties) + "</dl>"
+
+    classes_display = spell.get("classes_display", [])
+    classes_html = ""
+    if classes_display:
+        classes_html = (
+            "<div class=\"spell-classes\"><strong>Classes: </strong>"
+            + escape(", ".join(classes_display))
+            + "</div>"
+        )
+
+    description_html = spell.get("description_html") or ""
+    if description_html:
+        description_html = f"<div class=\"spell-text\">{description_html}</div>"
+
+    body_html = (
+        "<div class=\"spell-body\">"
+        + properties_html
+        + classes_html
+        + description_html
+        + "</div>"
+    )
+
+    summary_parts = [
+        "<summary>",
+        "<div class=\"spell-summary\">",
+        f"<span class=\"spell-name\">{escape(spell.get('name', 'Spell'))}</span>",
+    ]
+    if meta_text:
+        summary_parts.append(f"<span class=\"spell-meta\">{escape(meta_text)}</span>")
+    summary_parts.append("</div>")
+    if tags_html:
+        summary_parts.append(f"<div class=\"spell-tags\">{tags_html}</div>")
+    summary_parts.append("</summary>")
+    summary_html = "".join(summary_parts)
+
+    return f"<details class=\"spell-card\">{summary_html}{body_html}</details>"
+
+
+def render_spell_results(spells: list[dict]) -> tuple[int, bool, int]:
+    results_el = get_element("spell-library-results")
+    if results_el is None:
+        return 0, False, 0
+    if not spells:
+        results_el.innerHTML = (
+            "<div class=\"spell-library-empty\">No spells match your filters.</div>"
+        )
+        return 0, False, 0
+    limited = spells[:MAX_SPELL_RENDER]
+    cards_html = "".join(build_spell_card_html(spell) for spell in limited)
+    truncated = len(spells) > MAX_SPELL_RENDER
+    if truncated:
+        cards_html += (
+            f"<div class=\"spell-library-empty\">Showing first {MAX_SPELL_RENDER} spells. Refine your filters for more precise results.</div>"
+        )
+    results_el.innerHTML = cards_html
+    return len(limited), truncated, len(spells)
+
+
+def apply_spell_filters(auto_select: bool = False):
+    profile = compute_spellcasting_profile()
+    profile_signature = ",".join(profile["allowed_classes"]) + f"|{profile['max_spell_level']}"
+    if profile_signature != SPELL_LIBRARY_STATE.get("last_profile_signature"):
+        SPELL_LIBRARY_STATE["last_profile_signature"] = profile_signature
+        if not auto_select:
+            auto_select = True
+
+    if not SPELL_LIBRARY_STATE.get("loaded"):
+        update_spell_library_status("Spells not loaded yet. Click \"Load Spells\" to fetch the Open5e SRD.")
+        return
+
+    search_el = get_element("spell-search")
+    level_el = get_element("spell-level-filter")
+    class_el = get_element("spell-class-filter")
+
+    search_term = ""
+    if search_el is not None:
+        search_term = search_el.value.strip().lower()
+
+    level_filter = None
+    if level_el is not None and level_el.value.strip() != "":
+        level_filter = parse_int(level_el.value, None)
+
+    selected_class = ""
+    if class_el is not None:
+        selected_class = class_el.value.strip()
+
+    allowed_classes = profile["allowed_classes"]
+    max_spell_level = profile["max_spell_level"]
+
+    if auto_select and class_el is not None and allowed_classes:
+        if selected_class not in allowed_classes:
+            for class_key in allowed_classes:
+                option_value = class_key
+                if option_value in SPELL_LIBRARY_STATE.get("class_options", []) or class_el.querySelector(f"option[value='{class_key}']") is not None:
+                    class_el.value = class_key
+                    selected_class = class_key
+                    break
+
+    filtered: list[dict] = []
+    spells = SPELL_LIBRARY_STATE.get("spells", [])
+    allowed_set = set(allowed_classes)
+    for spell in spells:
+        spell_level = spell.get("level_int", 0)
+        if max_spell_level is not None and spell_level > max_spell_level:
+            continue
+        spell_classes = set(spell.get("classes", []))
+        if selected_class:
+            if selected_class not in spell_classes:
+                continue
+        elif allowed_set:
+            if not spell_classes.intersection(allowed_set):
+                continue
+        if level_filter is not None and spell_level != level_filter:
+            continue
+        if search_term and search_term not in spell.get("search_blob", ""):
+            continue
+        filtered.append(spell)
+
+    displayed, truncated, total_filtered = render_spell_results(filtered)
+
+    if allowed_classes:
+        class_caption = ", ".join(
+            SPELL_CLASS_DISPLAY_NAMES.get(c, c.title()) for c in allowed_classes
+        )
+    else:
+        class_caption = "Any class"
+
+    if selected_class:
+        class_caption = SPELL_CLASS_DISPLAY_NAMES.get(selected_class, selected_class.title())
+
+    if max_spell_level is None:
+        level_caption = "all spell levels"
+    elif max_spell_level < 0:
+        level_caption = "no spellcasting"
+    elif max_spell_level == 0:
+        level_caption = "cantrips only"
+    else:
+        level_caption = f"spell level ≤ {max_spell_level}"
+
+    if total_filtered == 0:
+        status_message = f"No spells match your character filters ({class_caption}, {level_caption})."
+    else:
+        status_message = f"Showing {displayed} of {total_filtered} spells ({class_caption}, {level_caption})."
+        if truncated:
+            status_message += " Refine your search to see more results."
+
+    update_spell_library_status(status_message)
+
+
+async def load_spell_library(_event=None):
+    if SPELL_LIBRARY_STATE.get("loading"):
+        return
+
+    button = get_element("spells-load-btn")
+    if button is not None:
+        button.disabled = True
+    SPELL_LIBRARY_STATE["loading"] = True
+    update_spell_library_status("Loading spells from Open5e...")
+
+    try:
+        cached_spells = load_spell_cache()
+        if cached_spells:
+            SPELL_LIBRARY_STATE["spells"] = cached_spells
+            SPELL_LIBRARY_STATE["loaded"] = True
+            populate_spell_class_filter(cached_spells)
+            apply_spell_filters(auto_select=True)
+            update_spell_library_status("Loaded spells from cache. Filters apply to your current class and level.")
+            return
+
+        raw_spells = await fetch_open5e_spells()
+        sanitized = sanitize_spell_list(raw_spells)
+        SPELL_LIBRARY_STATE["spells"] = sanitized
+        SPELL_LIBRARY_STATE["loaded"] = True
+        populate_spell_class_filter(sanitized)
+        save_spell_cache(sanitized)
+        apply_spell_filters(auto_select=True)
+        update_spell_library_status("Loaded latest Open5e SRD spells.")
+    except Exception as exc:
+        console.error(f"PySheet: failed to load spell library - {exc}")
+        update_spell_library_status("Unable to load spells. Check your connection and try again.")
+    finally:
+        SPELL_LIBRARY_STATE["loading"] = False
+        if button is not None:
+            button.disabled = False
+
+
+def handle_spell_filter_change(_event=None):
+    apply_spell_filters(auto_select=False)
+
+
+def _create_equipment_row(item: dict) -> any:
+    """Return a DOM <tr> element for the given item dict."""
+    tbody = get_element("equipment-table-body")
+    if tbody is None:
+        return None
+    tr = document.createElement("tr")
+    tr.setAttribute("data-item-id", item.get("id", generate_id("item")))
+
+    def mk_cell(html_content):
+        td = document.createElement("td")
+        td.innerHTML = html_content
+        return td
+
+    # name
+    name_html = f"<input data-item-field='name' type='text' value=\"{escape(item.get('name',''))}\" />"
+    tr.appendChild(mk_cell(name_html))
+
+    # qty
+    qty_html = f"<input data-item-field='qty' type='number' min='0' value=\"{int(item.get('qty',1))}\" />"
+    tr.appendChild(mk_cell(qty_html))
+
+    # cost
+    cost_html = f"<input data-item-field='cost' type='number' step='0.01' min='0' value=\"{format_money(item.get('cost',0))}\" />"
+    tr.appendChild(mk_cell(cost_html))
+
+    # weight
+    weight_html = f"<input data-item-field='weight' type='number' step='0.01' min='0' value=\"{format_weight(item.get('weight',0))}\" />"
+    tr.appendChild(mk_cell(weight_html))
+
+    # notes
+    notes_html = f"<input data-item-field='notes' type='text' value=\"{escape(item.get('notes',''))}\" />"
+    tr.appendChild(mk_cell(notes_html))
+
+    # remove button
+    remove_html = "<button class='equipment-remove' type='button'>Remove</button>"
+    tr.appendChild(mk_cell(remove_html))
+
+    return tr
+
+
+def render_equipment_table(items: list[dict]):
+    tbody = get_element("equipment-table-body")
+    wrapper = get_element("equipment-table-wrapper")
+    empty_state = get_element("equipment-empty-state")
+    if tbody is None or wrapper is None or empty_state is None:
+        return
+    # clear
+    tbody.innerHTML = ""
+    if not items:
+        wrapper.classList.remove("has-items")
+        empty_state.style.display = "block"
+        return
+    wrapper.classList.add("has-items")
+    empty_state.style.display = "none"
+    for item in items:
+        row = _create_equipment_row(item)
+        if row is None:
+            continue
+        tbody.appendChild(row)
+
+    # attach listeners to inputs and remove buttons
+    rows = tbody.querySelectorAll("tr[data-item-id]")
+    for row in rows:
+        item_id = row.getAttribute("data-item-id")
+        inputs = row.querySelectorAll("input[data-item-field]")
+        for inp in inputs:
+            proxy = create_proxy(lambda e, iid=item_id: handle_equipment_input(e, iid))
+            inp.addEventListener("input", proxy)
+            _EVENT_PROXIES.append(proxy)
+        remove_btn = row.querySelector(".equipment-remove")
+        if remove_btn is not None:
+            proxy_rm = create_proxy(lambda e, iid=item_id: remove_equipment_item(iid))
+            remove_btn.addEventListener("click", proxy_rm)
+            _EVENT_PROXIES.append(proxy_rm)
+
+
+def get_equipment_items_from_data(data: dict) -> list:
+    inv = data.get("inventory") or {}
+    items = inv.get("items") or []
+    # ensure shape
+    sanitized = []
+    for it in items:
+        sanitized.append({
+            "id": it.get("id") or generate_id("item"),
+            "name": it.get("name", ""),
+            "qty": int(it.get("qty", 0)),
+            "cost": float(it.get("cost", 0.0)),
+            "weight": float(it.get("weight", 0.0)),
+            "notes": it.get("notes", ""),
+        })
+    return sanitized
+
+
+def add_equipment_item(_event=None):
+    tbody = get_element("equipment-table-body")
+    if tbody is None:
+        return
+    new_item = {"id": generate_id("item"), "name": "", "qty": 1, "cost": 0.0, "weight": 0.0, "notes": ""}
+    items = [new_item]
+    # append existing items
+    existing = get_equipment_items_from_dom()
+    items = existing + items
+    render_equipment_table(items)
+    update_equipment_totals()
+
+
+def get_equipment_items_from_dom() -> list:
+    tbody = get_element("equipment-table-body")
+    result = []
+    if tbody is None:
+        return result
+    rows = tbody.querySelectorAll("tr[data-item-id]")
+    for row in rows:
+        item_id = row.getAttribute("data-item-id")
+        name_el = row.querySelector("input[data-item-field='name']")
+        qty_el = row.querySelector("input[data-item-field='qty']")
+        cost_el = row.querySelector("input[data-item-field='cost']")
+        weight_el = row.querySelector("input[data-item-field='weight']")
+        notes_el = row.querySelector("input[data-item-field='notes']")
+        item = {
+            "id": item_id,
+            "name": name_el.value if name_el is not None else "",
+            "qty": parse_int(qty_el.value if qty_el is not None else 0, 0),
+            "cost": parse_float(cost_el.value if cost_el is not None else 0.0, 0.0),
+            "weight": parse_float(weight_el.value if weight_el is not None else 0.0, 0.0),
+            "notes": notes_el.value if notes_el is not None else "",
+        }
+        result.append(item)
+    return result
+
+
+def handle_equipment_input(event, item_id=None):
+    # any change to equipment updates totals
+    update_equipment_totals()
+
+
+def remove_equipment_item(item_id: str):
+    tbody = get_element("equipment-table-body")
+    if tbody is None:
+        return
+    row = tbody.querySelector(f"tr[data-item-id='{item_id}']")
+    if row is not None:
+        tbody.removeChild(row)
+    update_equipment_totals()
+
+
+def update_equipment_totals():
+    items = get_equipment_items_from_dom()
+    total_weight = 0.0
+    total_cost = 0.0
+    for it in items:
+        q = float(it.get("qty", 0))
+        w = float(it.get("weight", 0.0))
+        c = float(it.get("cost", 0.0))
+        total_weight += q * w
+        total_cost += q * c
+    set_text("equipment-total-weight", format_weight(total_weight))
+    set_text("equipment-total-cost", format_money(total_cost))
+
 
 
 def save_character(_event=None):
@@ -354,8 +1396,15 @@ def handle_import(event):
     event.target.value = ""
 
 
-def handle_input_event(_event):
+def handle_input_event(event=None):
     update_calculations()
+    if SPELL_LIBRARY_STATE.get("loaded"):
+        target_id = ""
+        if event is not None and hasattr(event, "target"):
+            target = event.target
+            target_id = getattr(target, "id", "")
+        auto = target_id in {"class", "level"}
+        apply_spell_filters(auto_select=auto)
 
 
 def register_event_listeners():
@@ -375,6 +1424,24 @@ def register_event_listeners():
         proxy_import = create_proxy(handle_import)
         import_input.addEventListener("change", proxy_import)
         _EVENT_PROXIES.append(proxy_import)
+
+    spell_search = get_element("spell-search")
+    if spell_search is not None:
+        proxy_spell_search = create_proxy(handle_spell_filter_change)
+        spell_search.addEventListener("input", proxy_spell_search)
+        _EVENT_PROXIES.append(proxy_spell_search)
+
+    spell_level_filter = get_element("spell-level-filter")
+    if spell_level_filter is not None:
+        proxy_spell_level = create_proxy(handle_spell_filter_change)
+        spell_level_filter.addEventListener("change", proxy_spell_level)
+        _EVENT_PROXIES.append(proxy_spell_level)
+
+    spell_class_filter = get_element("spell-class-filter")
+    if spell_class_filter is not None:
+        proxy_spell_class = create_proxy(handle_spell_filter_change)
+        spell_class_filter.addEventListener("change", proxy_spell_class)
+        _EVENT_PROXIES.append(proxy_spell_class)
 
 
 def load_initial_state():

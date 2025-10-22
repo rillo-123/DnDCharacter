@@ -339,6 +339,10 @@
                             <input data-character-input type="text" id="hit_dice" placeholder="1d6">
                         </label>
                         <label class="field">
+                            <span>Hit Dice Remaining</span>
+                            <input data-character-input type="number" min="0" id="hit_dice_available" value="1">
+                        </label>
+                        <label class="field">
                             <span>Death Saves (Successes)</span>
                             <input data-character-input type="number" min="0" max="3" id="death_saves_success" value="0">
                         </label>
@@ -347,6 +351,36 @@
                             <input data-character-input type="number" min="0" max="3" id="death_saves_failure" value="0">
                         </label>
                     </div>
+                    <div class="health-controls" id="health-controls">
+                        <section class="health-group">
+                            <div class="health-group-header">
+                                <h3>Hit Point Adjustments</h3>
+                                <span class="health-status" id="hp-status">0 / 0</span>
+                            </div>
+                            <div class="health-buttons">
+                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="-10" data-adjust-min="0" data-adjust-max-id="max_hp">-10</button>
+                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="-5" data-adjust-min="0" data-adjust-max-id="max_hp">-5</button>
+                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="max_hp">-1</button>
+                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="1" data-adjust-min="0" data-adjust-max-id="max_hp">+1</button>
+                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="5" data-adjust-min="0" data-adjust-max-id="max_hp">+5</button>
+                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="10" data-adjust-min="0" data-adjust-max-id="max_hp">+10</button>
+                                <button type="button" class="outline" data-adjust-target="current_hp" data-adjust-set-id="max_hp">Set to Max</button>
+                            </div>
+                            <p class="hint">Use these buttons to apply damage or healing quickly. Hit points are clamped between 0 and your maximum.</p>
+                        </section>
+                        <section class="health-group">
+                            <div class="health-group-header">
+                                <h3>Hit Dice Tracker</h3>
+                                <span class="health-status" id="hit-dice-status">0 / 0</span>
+                            </div>
+                            <div class="health-buttons">
+                                <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="level">Spend 1</button>
+                                <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="1" data-adjust-min="0" data-adjust-max-id="level">Recover 1</button>
+                                <button type="button" class="outline" data-adjust-target="hit_dice_available" data-adjust-set-id="level">Refill to Level</button>
+                            </div>
+                            <p class="hint">Track hit dice spent during short rests. Values are limited between 0 and your character level.</p>
+                        </section>
+                    </div>
                 </section>
             </div>
         </section>
@@ -354,12 +388,61 @@
         <section id="tab-inventory" class="tab-panel">
             <div class="panel-grid">
                 <section class="card">
-                    <h2>Equipment &amp; Notes</h2>
+                    <h2>Equipment &amp; Wealth</h2>
+                    <div class="equipment-toolbar">
+                        <div class="equipment-actions">
+                            <button id="equipment-add-btn" type="button" py-click="add_equipment_item">Add Item</button>
+                        </div>
+                        <div class="equipment-totals">
+                            <span>Total Weight: <strong id="equipment-total-weight">0</strong></span>
+                            <span>Total Cost: <strong id="equipment-total-cost">0</strong></span>
+                        </div>
+                    </div>
+                    <div class="equipment-table-wrapper">
+                        <table class="equipment-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Qty</th>
+                                    <th>Cost (ea)</th>
+                                    <th>Weight (ea)</th>
+                                    <th>Notes</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="equipment-table-body"></tbody>
+                        </table>
+                        <div class="equipment-empty" id="equipment-empty-state">No equipment yet. Click <strong>Add Item</strong> to start building your pack.</div>
+                    </div>
+                    <div class="currency-card">
+                        <h3>Coin Pouch</h3>
+                        <div class="currency-grid">
+                            <label class="currency-field">
+                                <span>PP</span>
+                                <input data-character-input data-currency-field="pp" type="number" min="0" id="currency-pp" value="0">
+                            </label>
+                            <label class="currency-field">
+                                <span>GP</span>
+                                <input data-character-input data-currency-field="gp" type="number" min="0" id="currency-gp" value="0">
+                            </label>
+                            <label class="currency-field">
+                                <span>EP</span>
+                                <input data-character-input data-currency-field="ep" type="number" min="0" id="currency-ep" value="0">
+                            </label>
+                            <label class="currency-field">
+                                <span>SP</span>
+                                <input data-character-input data-currency-field="sp" type="number" min="0" id="currency-sp" value="0">
+                            </label>
+                            <label class="currency-field">
+                                <span>CP</span>
+                                <input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0">
+                            </label>
+                        </div>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>Features, Attacks &amp; Notes</h2>
                     <div class="grid grid-2">
-                        <label class="field">
-                            <span>Equipment</span>
-                            <textarea data-character-input id="equipment" rows="6" placeholder="Quarterstaff, Spellbook, Component Pouch"></textarea>
-                        </label>
                         <label class="field">
                             <span>Features &amp; Traits</span>
                             <textarea data-character-input id="features" rows="6" placeholder="Arcane Recovery, Ritual Casting"></textarea>
@@ -379,6 +462,32 @@
 
         <section id="tab-spells" class="tab-panel">
             <div class="panel-grid">
+                <section class="card spell-library-card">
+                    <h2>Spell Library</h2>
+                    <p class="hint">Load the full 5e SRD spell list (via Open5e) and filter by name, level, or class.</p>
+                    <div class="spell-library-controls">
+                        <button id="spells-load-btn" type="button" py-click="load_spell_library">Load Spells</button>
+                        <input type="search" id="spell-search" placeholder="Search spell name or text">
+                        <select id="spell-level-filter">
+                            <option value="">Any level</option>
+                            <option value="0">Cantrip (0)</option>
+                            <option value="1">Level 1</option>
+                            <option value="2">Level 2</option>
+                            <option value="3">Level 3</option>
+                            <option value="4">Level 4</option>
+                            <option value="5">Level 5</option>
+                            <option value="6">Level 6</option>
+                            <option value="7">Level 7</option>
+                            <option value="8">Level 8</option>
+                            <option value="9">Level 9</option>
+                        </select>
+                        <select id="spell-class-filter">
+                            <option value="">Any class</option>
+                        </select>
+                    </div>
+                    <div class="spell-library-status" id="spell-library-status">Spells not loaded yet. Click "Load Spells" to fetch the Open5e catalog or restore cached data.</div>
+                    <div class="spell-library-results" id="spell-library-results"></div>
+                </section>
                 <section class="card">
                     <h2>Spellbook</h2>
                     <div class="grid grid-2">
@@ -433,6 +542,12 @@
 
         <section id="tab-manage" class="tab-panel">
             <div class="panel-grid">
+                <section class="card resources-card">
+                    <h2>Resource Trackers</h2>
+                    <p class="hint">Use these for class features like Rage, Ki, Channel Divinity, or any custom counters.</p>
+                    <div id="resource-list" class="resource-list"></div>
+                    <button id="resource-add-btn" type="button" py-click="add_resource">Add Resource</button>
+                </section>
                 <section class="card actions">
                     <h2>Manage Data</h2>
                     <div class="actions-row">
