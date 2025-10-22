@@ -639,6 +639,11 @@ body {
     overflow: hidden;
 }
 
+.spell-card.selected {
+    border-color: rgba(96, 165, 250, 0.55);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
+
 .spell-card summary {
     list-style: none;
     cursor: pointer;
@@ -659,8 +664,44 @@ body {
     min-width: 0;
 }
 
+.spell-summary-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+}
+
+.spell-action {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(96, 165, 250, 0.5);
+    color: #bfdbfe;
+    padding: 0.3rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.spell-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(59, 130, 246, 0.35);
+}
+
+.spell-action.selected,
+.spell-action:active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.65), rgba(99, 102, 241, 0.65));
+    border-color: rgba(129, 140, 248, 0.7);
+    color: #f8fafc;
+}
+
 .spell-card[open] summary {
     border-bottom-color: rgba(148, 163, 184, 0.2);
+}
+
+.spell-card.selected summary {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.35), rgba(129, 140, 248, 0.35));
 }
 
 .spell-card summary::-webkit-details-marker {
@@ -755,6 +796,217 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: #a5b4fc;
+}
+
+.spellbook-card .spellbook-layout {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.spellbook-prepared,
+.spellbook-slots {
+    background: rgba(30, 41, 59, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 1rem;
+    padding: 1rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.spellbook-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #bfdbfe;
+    letter-spacing: 0.05em;
+}
+
+.spellbook-empty {
+    padding: 1rem;
+    border-radius: 0.85rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px dashed rgba(148, 163, 184, 0.3);
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.spellbook-levels {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.spellbook-level {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 0.85rem;
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.spellbook-level header h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #facc15;
+}
+
+.spellbook-level ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.spellbook-spell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    background: rgba(30, 41, 59, 0.55);
+    border-radius: 0.7rem;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.spellbook-name {
+    font-weight: 600;
+    color: #e0f2fe;
+}
+
+.spellbook-source {
+    font-size: 0.75rem;
+    color: #a5b4fc;
+    margin-left: auto;
+    margin-right: 0.5rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.spellbook-remove {
+    background: transparent;
+    border: 1px solid rgba(248, 113, 113, 0.6);
+    color: #fecaca;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.spellbook-remove:hover {
+    background: rgba(248, 113, 113, 0.15);
+    transform: translateY(-1px);
+}
+
+.spellbook-remove:active {
+    transform: translateY(0);
+}
+
+.spellbook-card .outline {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    color: #bae6fd;
+    padding: 0.55rem 1.1rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.2s ease;
+}
+
+.spellbook-card .outline:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(56, 189, 248, 0.35);
+}
+
+.spellbook-card .outline:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.spell-notes-field {
+    margin-top: 1.5rem;
+}
+
+.spell-slots {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.spell-slots-empty {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.slot-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    background: rgba(15, 23, 42, 0.55);
+    border-radius: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.slot-row.pact-row {
+    border-color: rgba(192, 132, 252, 0.45);
+}
+
+.slot-label {
+    font-size: 0.85rem;
+    color: #bfdbfe;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.slot-status {
+    font-size: 0.9rem;
+    color: #fef9c3;
+    font-weight: 600;
+}
+
+.slot-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.slot-buttons button {
+    background: rgba(30, 41, 59, 0.75);
+    border: 1px solid rgba(59, 130, 246, 0.45);
+    color: #bfdbfe;
+    padding: 0.35rem 0.7rem;
+    border-radius: 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.slot-buttons button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+}
+
+.slot-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .resource-list {

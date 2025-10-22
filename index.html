@@ -464,7 +464,7 @@
             <div class="panel-grid">
                 <section class="card spell-library-card">
                     <h2>Spell Library</h2>
-                    <p class="hint">Load the full 5e SRD spell list (via Open5e) and filter by name, level, or class.</p>
+                    <p class="hint">Load the full 5e SRD spell list (via Open5e), filter it to your class and level, then use the buttons to add or remove spells.</p>
                     <div class="spell-library-controls">
                         <button id="spells-load-btn" type="button" py-click="load_spell_library">Load Spells</button>
                         <input type="search" id="spell-search" placeholder="Search spell name or text">
@@ -488,54 +488,30 @@
                     <div class="spell-library-status" id="spell-library-status">Spells not loaded yet. Click "Load Spells" to fetch the Open5e catalog or restore cached data.</div>
                     <div class="spell-library-results" id="spell-library-results"></div>
                 </section>
-                <section class="card">
-                    <h2>Spellbook</h2>
-                    <div class="grid grid-2">
-                        <label class="field">
-                            <span>Spell Notes</span>
-                            <textarea data-character-input id="spell_notes" rows="4" placeholder="Prepared spells, ritual notes, components"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>Cantrips</span>
-                            <textarea data-character-input id="spells_cantrips" rows="4" placeholder="Fire Bolt, Mage Hand"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>1st-level Spells</span>
-                            <textarea data-character-input id="spells_level_1" rows="4" placeholder="Shield, Magic Missile"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>2nd-level Spells</span>
-                            <textarea data-character-input id="spells_level_2" rows="4" placeholder="Misty Step, Mirror Image"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>3rd-level Spells</span>
-                            <textarea data-character-input id="spells_level_3" rows="4" placeholder="Fireball, Counterspell"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>4th-level Spells</span>
-                            <textarea data-character-input id="spells_level_4" rows="4" placeholder="Dimension Door, Polymorph"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>5th-level Spells</span>
-                            <textarea data-character-input id="spells_level_5" rows="4" placeholder="Wall of Force, Telekinesis"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>6th-level Spells</span>
-                            <textarea data-character-input id="spells_level_6" rows="4" placeholder="Disintegrate"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>7th-level Spells</span>
-                            <textarea data-character-input id="spells_level_7" rows="4" placeholder="Teleport"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>8th-level Spells</span>
-                            <textarea data-character-input id="spells_level_8" rows="4" placeholder="Mind Blank"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>9th-level Spells</span>
-                            <textarea data-character-input id="spells_level_9" rows="4" placeholder="Wish"></textarea>
-                        </label>
+                <section class="card spellbook-card">
+                    <h2>Prepared Spellbook</h2>
+                    <p class="hint">Spells you add from the library appear here along with your current slots. Spend and recover slots as you cast, then reset them after a long rest.</p>
+                    <div class="spellbook-layout">
+                        <div class="spellbook-prepared">
+                            <header class="spellbook-header">
+                                <h3>Your Spells</h3>
+                            </header>
+                            <div id="spellbook-empty-state" class="spellbook-empty">No spells prepared yet. Use the Spell Library to add spells.</div>
+                            <div id="spellbook-levels" class="spellbook-levels"></div>
+                        </div>
+                        <div class="spellbook-slots">
+                            <header class="spellbook-header">
+                                <h3>Spell Slots</h3>
+                            </header>
+                            <div id="spell-slots" class="spell-slots"></div>
+                            <div id="pact-slots" class="spell-slots"></div>
+                            <button id="spell-slots-reset" type="button" class="outline" py-click="reset_spell_slots">Long Rest Reset</button>
+                        </div>
                     </div>
+                    <label class="field spell-notes-field">
+                        <span>Spell Notes</span>
+                        <textarea data-character-input id="spell_notes" rows="4" placeholder="Prepared rituals, component reminders, or other quick notes."></textarea>
+                    </label>
                 </section>
             </div>
         </section>

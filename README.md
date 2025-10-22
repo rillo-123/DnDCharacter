@@ -7,6 +7,7 @@ PySheet is a browser-first character sheet for Dungeons & Dragons 5th Edition. I
 - Live ability modifier, proficiency, saving throw, and skill calculations
 - Spellcasting DC/attack computations with selectable spellcasting ability
 - Integrated spell library search (powered by Open5e) with filters by name, level, and class
+- Interactive spellbook manager with add/remove controls, automatic class-level validation, and spell slot tracking with long-rest reset
 - Quick hit point buttons, hit-dice tracking, and customizable resource counters for class abilities
 - Tabbed layout for overview, skills, combat, inventory, spells, and data management
 - Local storage persistence so your sheet survives refreshes and offline sessions
@@ -53,6 +54,7 @@ DnDCharacter/
 - Once fetched, the normalized spell catalog is cached in `localStorage` so it’s available next session without reloading.
 - Hold the **Alt** key while clicking **Load Spells** to force a refresh if you want to pull the latest Open5e data.
 - The spell catalog is saved in browser `localStorage`; clear site data or force-refresh to remove or update it.
+- Use the **Add**/**Remove** buttons on each spell card to curate your prepared list. The right-hand panel groups selections by level, tracks slots spent/recovered, and includes a **Long Rest Reset** control that instantly restores all slots.
 
 ## Tracking Health & Class Resources
 
@@ -70,7 +72,7 @@ DnDCharacter/
 
 ## Ideas for Future Enhancements
 
-- Add spell slot tracking, conditions, or inventory weight calculations
+- Add condition tracking, automated consumable management, or inventory weight calculations
 - Provide multiple character slots with quick switching
 - Integrate dice rolling via PyScript or Web APIs
 - Offer print-friendly or PDF export layouts

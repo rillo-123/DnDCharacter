@@ -5,7 +5,7 @@ import json
 import re
 import uuid
 from html import escape
-from math import floor
+from math import ceil, floor
 
 from js import Blob, URL, console, document, window
 from pyodide.ffi import create_proxy
@@ -38,16 +38,6 @@ SKILLS = {
 
 SPELL_FIELDS = {
     "notes": "spell_notes",
-    "cantrips": "spells_cantrips",
-    "level_1": "spells_level_1",
-    "level_2": "spells_level_2",
-    "level_3": "spells_level_3",
-    "level_4": "spells_level_4",
-    "level_5": "spells_level_5",
-    "level_6": "spells_level_6",
-    "level_7": "spells_level_7",
-    "level_8": "spells_level_8",
-    "level_9": "spells_level_9",
 }
 
 OPEN5E_SPELLS_ENDPOINT = "https://api.open5e.com/spells/?limit=200&ordering=name"
@@ -61,7 +51,19 @@ SPELL_LIBRARY_STATE = {
     "spells": [],
     "class_options": [],
     "last_profile_signature": "",
+    "spell_map": {},
 }
+
+
+def set_spell_library_data(spells: list[dict] | None):
+    spell_list = spells or []
+    SPELL_LIBRARY_STATE["spells"] = spell_list
+    SPELL_LIBRARY_STATE["spell_map"] = {
+        spell.get("slug"): spell
+        for spell in spell_list
+        if isinstance(spell, dict) and spell.get("slug")
+    }
+
 
 SPELL_CLASS_SYNONYMS = {
     "artificer": ["artificer"],
@@ -233,6 +235,61 @@ SPELLCASTING_PROGRESSION_TABLES = {
     ],
 }
 
+# Standard slot counts for full casters by caster level (PHB p. 201)
+STANDARD_SLOT_TABLE = {
+    0: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    1: [2, 0, 0, 0, 0, 0, 0, 0, 0],
+    2: [3, 0, 0, 0, 0, 0, 0, 0, 0],
+    3: [4, 2, 0, 0, 0, 0, 0, 0, 0],
+    4: [4, 3, 0, 0, 0, 0, 0, 0, 0],
+    5: [4, 3, 2, 0, 0, 0, 0, 0, 0],
+    6: [4, 3, 3, 0, 0, 0, 0, 0, 0],
+    7: [4, 3, 3, 1, 0, 0, 0, 0, 0],
+    8: [4, 3, 3, 2, 0, 0, 0, 0, 0],
+    9: [4, 3, 3, 3, 1, 0, 0, 0, 0],
+    10: [4, 3, 3, 3, 2, 0, 0, 0, 0],
+    11: [4, 3, 3, 3, 2, 1, 0, 0, 0],
+    12: [4, 3, 3, 3, 2, 1, 0, 0, 0],
+    13: [4, 3, 3, 3, 2, 1, 1, 0, 0],
+    14: [4, 3, 3, 3, 2, 1, 1, 0, 0],
+    15: [4, 3, 3, 3, 2, 1, 1, 1, 0],
+    16: [4, 3, 3, 3, 2, 1, 1, 1, 0],
+    17: [4, 3, 3, 3, 2, 1, 1, 1, 1],
+    18: [4, 3, 3, 3, 3, 1, 1, 1, 1],
+    19: [4, 3, 3, 3, 3, 2, 1, 1, 1],
+    20: [4, 3, 3, 3, 3, 2, 2, 1, 1],
+}
+
+PACT_MAGIC_TABLE = {
+    0: {"slots": 0, "level": 0},
+    1: {"slots": 1, "level": 1},
+    2: {"slots": 2, "level": 1},
+    3: {"slots": 2, "level": 2},
+    4: {"slots": 2, "level": 2},
+    5: {"slots": 2, "level": 3},
+    6: {"slots": 2, "level": 3},
+    7: {"slots": 2, "level": 4},
+    8: {"slots": 2, "level": 4},
+    9: {"slots": 2, "level": 5},
+    10: {"slots": 2, "level": 5},
+    11: {"slots": 3, "level": 5},
+    12: {"slots": 3, "level": 5},
+    13: {"slots": 3, "level": 5},
+    14: {"slots": 3, "level": 5},
+    15: {"slots": 3, "level": 5},
+    16: {"slots": 3, "level": 5},
+    17: {"slots": 4, "level": 5},
+    18: {"slots": 4, "level": 5},
+    19: {"slots": 4, "level": 5},
+    20: {"slots": 4, "level": 5},
+}
+
+SPELLCASTING_STATE = {
+    "prepared": [],
+    "slots_used": {level: 0 for level in range(1, 10)},
+    "pact_used": 0,
+}
+
 MAX_RESOURCES = 12
 MAX_INVENTORY_ITEMS = 50
 CURRENCY_ORDER = ["pp", "gp", "ep", "sp", "cp"]
@@ -276,6 +333,11 @@ DEFAULT_STATE = {
         "notes": "",
     },
     "spells": {key: "" for key in SPELL_FIELDS},
+    "spellcasting": {
+        "prepared": [],
+        "slots_used": {level: 0 for level in range(1, 10)},
+        "pact_used": 0,
+    },
     "resources": [],
 }
 
@@ -511,6 +573,416 @@ def compute_spellcasting_profile(
     }
 
 
+def reset_spellcasting_state():
+    SPELLCASTING_STATE["prepared"] = []
+    SPELLCASTING_STATE["slots_used"] = {level: 0 for level in range(1, 10)}
+    SPELLCASTING_STATE["pact_used"] = 0
+
+
+def get_spell_by_slug(slug: str | None) -> dict | None:
+    if not slug:
+        return None
+    spell_map = SPELL_LIBRARY_STATE.get("spell_map") or {}
+    if slug in spell_map:
+        return spell_map[slug]
+    for spell in SPELL_LIBRARY_STATE.get("spells", []):
+        if spell.get("slug") == slug:
+            return spell
+    return None
+
+
+def normalize_prepared_entry(entry: dict) -> dict | None:
+    slug = (entry or {}).get("slug")
+    if not slug:
+        return None
+    record = get_spell_by_slug(slug)
+    name = entry.get("name") if entry else None
+    level = parse_int(entry.get("level") if entry else None, 0)
+    source = entry.get("source") if entry else ""
+    if record:
+        name = record.get("name", name)
+        level = record.get("level_int", level)
+        source = record.get("source", source)
+    if not name:
+        name = slug.replace("-", " ").title()
+    return {
+        "slug": slug,
+        "name": name,
+        "level": level,
+        "source": source,
+    }
+
+
+def sort_prepared_spells():
+    SPELLCASTING_STATE["prepared"].sort(
+        key=lambda item: (item.get("level", 0), item.get("name", "").lower())
+    )
+
+
+def load_spellcasting_state(state: dict | None):
+    reset_spellcasting_state()
+    if not state:
+        sort_prepared_spells()
+        render_spellbook()
+        render_spell_slots()
+        return
+
+    prepared = []
+    for entry in state.get("prepared", []):
+        normalized = normalize_prepared_entry(entry)
+        if normalized:
+            prepared.append(normalized)
+    SPELLCASTING_STATE["prepared"] = prepared
+    sort_prepared_spells()
+
+    slots_used = state.get("slots_used", {})
+    for level in range(1, 10):
+        value = slots_used.get(level)
+        if value is None:
+            value = slots_used.get(str(level), 0)
+        SPELLCASTING_STATE["slots_used"][level] = clamp(parse_int(value, 0), 0)
+
+    SPELLCASTING_STATE["pact_used"] = clamp(
+        parse_int(state.get("pact_used", 0), 0), 0
+    )
+
+    render_spellbook()
+    render_spell_slots()
+
+
+def sync_prepared_spells_with_library():
+    if not SPELLCASTING_STATE["prepared"]:
+        return
+    changed = False
+    for entry in SPELLCASTING_STATE["prepared"]:
+        record = get_spell_by_slug(entry.get("slug"))
+        if not record:
+            continue
+        if entry.get("name") != record.get("name"):
+            entry["name"] = record["name"]
+            changed = True
+        if entry.get("level") != record.get("level_int"):
+            entry["level"] = record.get("level_int", entry.get("level", 0))
+            changed = True
+        source = record.get("source")
+        if source and entry.get("source") != source:
+            entry["source"] = source
+            changed = True
+    if changed:
+        sort_prepared_spells()
+        render_spellbook()
+
+
+def get_prepared_slug_set() -> set[str]:
+    return {entry.get("slug") for entry in SPELLCASTING_STATE["prepared"] if entry.get("slug")}
+
+
+def is_spell_prepared(slug: str | None) -> bool:
+    if not slug:
+        return False
+    return slug in get_prepared_slug_set()
+
+
+def add_spell_to_spellbook(slug: str):
+    if not slug or is_spell_prepared(slug):
+        return
+    record = get_spell_by_slug(slug)
+    if record is None:
+        console.warn(f"PySheet: unable to add spell '{slug}' – not in library")
+        return
+    profile = compute_spellcasting_profile()
+    max_level = profile.get("max_spell_level")
+    if max_level is not None and max_level >= 0 and record.get("level_int", 0) > max_level:
+        console.warn("PySheet: cannot add spell above available level")
+        return
+    allowed = profile.get("allowed_classes", [])
+    spell_classes = set(record.get("classes", []))
+    if allowed and not spell_classes.intersection(set(allowed)):
+        console.warn("PySheet: spell not available to current classes")
+        return
+
+    SPELLCASTING_STATE["prepared"].append(
+        {
+            "slug": slug,
+            "name": record.get("name", slug.title()),
+            "level": record.get("level_int", 0),
+            "source": record.get("source", ""),
+        }
+    )
+    sort_prepared_spells()
+    render_spellbook()
+    render_spell_slots(compute_spell_slot_summary(profile))
+    apply_spell_filters(auto_select=False)
+
+
+def remove_spell_from_spellbook(slug: str):
+    if not slug:
+        return
+    before = len(SPELLCASTING_STATE["prepared"])
+    SPELLCASTING_STATE["prepared"] = [
+        entry for entry in SPELLCASTING_STATE["prepared"] if entry.get("slug") != slug
+    ]
+    if len(SPELLCASTING_STATE["prepared"]) != before:
+        render_spellbook()
+        apply_spell_filters(auto_select=False)
+
+
+def render_spellbook():
+    container = get_element("spellbook-levels")
+    empty_state = get_element("spellbook-empty-state")
+    if container is None or empty_state is None:
+        return
+
+    prepared = SPELLCASTING_STATE["prepared"]
+    if not prepared:
+        empty_state.style.display = "block"
+        container.innerHTML = ""
+        return
+
+    empty_state.style.display = "none"
+    groups: dict[int, list[dict]] = {}
+    for entry in prepared:
+        level = entry.get("level", 0)
+        groups.setdefault(level, []).append(entry)
+
+    sections: list[str] = []
+    for level in sorted(groups.keys()):
+        spells = sorted(
+            groups[level], key=lambda item: item.get("name", "").lower()
+        )
+        heading = "Cantrips" if level == 0 else format_spell_level_label(level)
+        items_html = []
+        for spell in spells:
+            slug = spell.get("slug", "")
+            name = spell.get("name", "Unknown Spell")
+            source = spell.get("source", "")
+            source_html = (
+                f"<span class=\"spellbook-source\">{escape(source)}</span>"
+                if source
+                else ""
+            )
+            items_html.append(
+                "<li class=\"spellbook-spell\" data-spell-slug=\""
+                + escape(slug)
+                + "\">"
+                + f"<span class=\"spellbook-name\">{escape(name)}</span>"
+                + source_html
+                + f"<button type=\"button\" class=\"spellbook-remove\" data-remove-spell=\"{escape(slug)}\">Remove</button>"
+                + "</li>"
+            )
+        sections.append(
+            "<section class=\"spellbook-level\">"
+            + f"<header><h3>{escape(heading)}</h3></header>"
+            + "<ul>"
+            + "".join(items_html)
+            + "</ul></section>"
+        )
+
+    container.innerHTML = "".join(sections)
+
+    buttons = container.querySelectorAll("button[data-remove-spell]")
+    for button in buttons:
+        slug = button.getAttribute("data-remove-spell")
+        if not slug:
+            continue
+        proxy = create_proxy(lambda event, s=slug: handle_remove_spell_click(event, s))
+        button.addEventListener("click", proxy)
+        _EVENT_PROXIES.append(proxy)
+
+
+def compute_spell_slot_summary(profile: dict | None = None) -> dict:
+    if profile is None:
+        profile = compute_spellcasting_profile()
+
+    fallback_level = get_numeric_value("level", 1)
+    caster_points = 0.0
+    warlock_level = 0
+
+    for entry in profile.get("entries", []):
+        class_level = entry.get("level")
+        if class_level is None:
+            class_level = fallback_level
+        class_level = max(1, min(int(class_level or fallback_level), 20))
+        progression = determine_progression_key(entry.get("key"), entry.get("raw", ""))
+        if progression == "full":
+            caster_points += class_level
+        elif progression == "half":
+            caster_points += class_level / 2
+        elif progression == "half_up":
+            caster_points += ceil(class_level / 2)
+        elif progression == "third":
+            caster_points += class_level / 3
+        elif progression == "pact":
+            warlock_level += class_level
+
+    effective_level = int(min(caster_points, 20))
+    if effective_level < 0:
+        effective_level = 0
+    slot_counts = STANDARD_SLOT_TABLE.get(effective_level, STANDARD_SLOT_TABLE[0])
+    level_slots = {level: slot_counts[level - 1] for level in range(1, 10)}
+
+    warlock_level = max(0, min(int(warlock_level), 20))
+    pact_info = PACT_MAGIC_TABLE.get(warlock_level, PACT_MAGIC_TABLE[20])
+
+    return {
+        "levels": level_slots,
+        "pact": pact_info,
+        "effective_level": effective_level,
+    }
+
+
+def normalize_spell_slot_usage(slot_summary: dict):
+    levels = slot_summary.get("levels", {})
+    for level in range(1, 10):
+        max_slots = levels.get(level, 0)
+        current = SPELLCASTING_STATE["slots_used"].get(level, 0)
+        SPELLCASTING_STATE["slots_used"][level] = clamp(current, 0, max_slots)
+
+    pact_max = slot_summary.get("pact", {}).get("slots", 0)
+    SPELLCASTING_STATE["pact_used"] = clamp(
+        SPELLCASTING_STATE.get("pact_used", 0), 0, pact_max
+    )
+
+
+def render_spell_slots(slot_summary: dict | None = None):
+    slots_container = get_element("spell-slots")
+    pact_container = get_element("pact-slots")
+    reset_button = get_element("spell-slots-reset")
+    if slots_container is None or reset_button is None:
+        return
+
+    if slot_summary is None:
+        slot_summary = compute_spell_slot_summary()
+
+    normalize_spell_slot_usage(slot_summary)
+
+    rows = []
+    total_available_levels = 0
+    for level in range(1, 10):
+        max_slots = slot_summary["levels"].get(level, 0)
+        if max_slots <= 0:
+            continue
+        total_available_levels += max_slots
+        used = SPELLCASTING_STATE["slots_used"].get(level, 0)
+        available = max_slots - used
+        spend_disabled = " disabled" if available <= 0 else ""
+        recover_disabled = " disabled" if used <= 0 else ""
+        rows.append(
+            "<div class=\"slot-row\">"
+            + f"<div class=\"slot-label\">{escape(format_spell_level_label(level))}</div>"
+            + f"<div class=\"slot-status\">{available} / {max_slots} available</div>"
+            + "<div class=\"slot-buttons\">"
+            + f"<button type=\"button\" data-slot-level=\"{level}\" data-slot-delta=\"1\"{spend_disabled}>Spend</button>"
+            + f"<button type=\"button\" data-slot-level=\"{level}\" data-slot-delta=\"-1\"{recover_disabled}>Recover</button>"
+            + "</div></div>"
+        )
+
+    if rows:
+        slots_container.innerHTML = "".join(rows)
+    else:
+        slots_container.innerHTML = "<p class=\"spell-slots-empty\">No spell slots available at your current level.</p>"
+
+    buttons = slots_container.querySelectorAll("button[data-slot-level]")
+    for button in buttons:
+        level = parse_int(button.getAttribute("data-slot-level"), None)
+        delta = parse_int(button.getAttribute("data-slot-delta"), 0)
+        if level is None:
+            continue
+        proxy = create_proxy(
+            lambda event, lvl=level, d=delta: handle_slot_button(event, lvl, d)
+        )
+        button.addEventListener("click", proxy)
+        _EVENT_PROXIES.append(proxy)
+
+    pact_info = slot_summary.get("pact", {"slots": 0, "level": 0})
+    if pact_container is not None:
+        if pact_info.get("slots", 0) <= 0:
+            pact_container.innerHTML = ""
+            pact_container.style.display = "none"
+        else:
+            pact_container.style.display = ""
+            used = SPELLCASTING_STATE.get("pact_used", 0)
+            available = pact_info["slots"] - used
+            spend_disabled = " disabled" if available <= 0 else ""
+            recover_disabled = " disabled" if used <= 0 else ""
+            pact_container.innerHTML = (
+                "<div class=\"slot-row pact-row\">"
+                + f"<div class=\"slot-label\">Pact Slots (Level {pact_info['level']})</div>"
+                + f"<div class=\"slot-status\">{available} / {pact_info['slots']} available</div>"
+                + "<div class=\"slot-buttons\">"
+                + f"<button type=\"button\" data-pact-delta=\"1\"{spend_disabled}>Spend</button>"
+                + f"<button type=\"button\" data-pact-delta=\"-1\"{recover_disabled}>Recover</button>"
+                + "</div></div>"
+            )
+            pact_buttons = pact_container.querySelectorAll("button[data-pact-delta]")
+            for button in pact_buttons:
+                delta = parse_int(button.getAttribute("data-pact-delta"), 0)
+                proxy = create_proxy(
+                    lambda event, d=delta: handle_pact_slot_button(event, d)
+                )
+                button.addEventListener("click", proxy)
+                _EVENT_PROXIES.append(proxy)
+
+    any_slots = total_available_levels > 0 or pact_info.get("slots", 0) > 0
+    reset_button.disabled = not any_slots
+
+
+def adjust_spell_slot(level: int, delta: int):
+    slot_summary = compute_spell_slot_summary()
+    max_slots = slot_summary["levels"].get(level, 0)
+    if max_slots <= 0:
+        SPELLCASTING_STATE["slots_used"][level] = 0
+        render_spell_slots(slot_summary)
+        return
+    current = SPELLCASTING_STATE["slots_used"].get(level, 0)
+    current = clamp(current + delta, 0, max_slots)
+    SPELLCASTING_STATE["slots_used"][level] = current
+    render_spell_slots(slot_summary)
+
+
+def adjust_pact_slot(delta: int):
+    slot_summary = compute_spell_slot_summary()
+    pact_max = slot_summary.get("pact", {}).get("slots", 0)
+    current = clamp(SPELLCASTING_STATE.get("pact_used", 0) + delta, 0, pact_max)
+    SPELLCASTING_STATE["pact_used"] = current
+    render_spell_slots(slot_summary)
+
+
+def reset_spell_slots(_event=None):
+    for level in range(1, 10):
+        SPELLCASTING_STATE["slots_used"][level] = 0
+    SPELLCASTING_STATE["pact_used"] = 0
+    render_spell_slots()
+
+
+def handle_add_spell_click(event, slug: str):
+    if event is not None:
+        event.stopPropagation()
+        event.preventDefault()
+    add_spell_to_spellbook(slug)
+
+
+def handle_remove_spell_click(event, slug: str):
+    if event is not None:
+        event.stopPropagation()
+        event.preventDefault()
+    remove_spell_from_spellbook(slug)
+
+
+def handle_slot_button(event, level: int, delta: int):
+    if event is not None:
+        event.stopPropagation()
+        event.preventDefault()
+    adjust_spell_slot(level, delta)
+
+
+def handle_pact_slot_button(event, delta: int):
+    if event is not None:
+        event.stopPropagation()
+        event.preventDefault()
+    adjust_pact_slot(delta)
+
+
 def compute_proficiency(level: int) -> int:
     level = max(1, min(20, level))
     return 2 + (level - 1) // 4
@@ -582,6 +1054,11 @@ def update_calculations(*_args):
     set_text("hit-dice-status", hit_dice_status)
 
     update_equipment_totals()
+
+    slot_summary = compute_spell_slot_summary(
+        compute_spellcasting_profile()
+    )
+    render_spell_slots(slot_summary)
 
 
 def collect_character_data() -> dict:
@@ -661,6 +1138,15 @@ def collect_character_data() -> dict:
             items.append(item)
     data["inventory"]["items"] = items
 
+    data["spellcasting"] = {
+        "prepared": copy.deepcopy(SPELLCASTING_STATE.get("prepared", [])),
+        "slots_used": {
+            str(level): SPELLCASTING_STATE.get("slots_used", {}).get(level, 0)
+            for level in range(1, 10)
+        },
+        "pact_used": SPELLCASTING_STATE.get("pact_used", 0),
+    }
+
     return data
 
 
@@ -708,6 +1194,7 @@ def populate_form(data: dict):
     for key, element_id in SPELL_FIELDS.items():
         set_form_value(element_id, spells.get(key, ""))
 
+    load_spellcasting_state(data.get("spellcasting"))
     update_calculations()
 
     # populate currency and equipment
@@ -955,6 +1442,9 @@ def populate_spell_class_filter(spells: list[dict]):
 
 
 def build_spell_card_html(spell: dict) -> str:
+    slug = spell.get("slug", "")
+    prepared = is_spell_prepared(slug)
+
     meta_parts: list[str] = []
     level_label = spell.get("level_label")
     if level_label:
@@ -963,12 +1453,22 @@ def build_spell_card_html(spell: dict) -> str:
     if school:
         meta_parts.append(school)
     meta_text = " · ".join(part for part in meta_parts if part)
+
     tags = []
     if spell.get("ritual"):
         tags.append("<span class=\"spell-tag\">Ritual</span>")
     if spell.get("concentration"):
         tags.append("<span class=\"spell-tag\">Concentration</span>")
     tags_html = "".join(tags)
+
+    action = "remove" if prepared else "add"
+    action_label = "Remove" if prepared else "Add"
+    action_button = (
+        f"<button type=\"button\" class=\"spell-action{' selected' if prepared else ''}\" "
+        f"data-spell-action=\"{action}\" data-spell-slug=\"{escape(slug)}\">{action_label}</button>"
+        if slug
+        else ""
+    )
 
     properties = []
     casting_time = spell.get("casting_time")
@@ -1024,10 +1524,24 @@ def build_spell_card_html(spell: dict) -> str:
     summary_parts.append("</div>")
     if tags_html:
         summary_parts.append(f"<div class=\"spell-tags\">{tags_html}</div>")
+    if action_button:
+        summary_parts.append(
+            f"<div class=\"spell-summary-actions\">{action_button}</div>"
+        )
     summary_parts.append("</summary>")
     summary_html = "".join(summary_parts)
 
-    return f"<details class=\"spell-card\">{summary_html}{body_html}</details>"
+    class_list = ["spell-card"]
+    if prepared:
+        class_list.append("selected")
+    classes_attr = " ".join(class_list)
+
+    return (
+        f"<details class=\"{classes_attr}\" data-spell-slug=\"{escape(slug)}\">"
+        + summary_html
+        + body_html
+        + "</details>"
+    )
 
 
 def render_spell_results(spells: list[dict]) -> tuple[int, bool, int]:
@@ -1047,7 +1561,31 @@ def render_spell_results(spells: list[dict]) -> tuple[int, bool, int]:
             f"<div class=\"spell-library-empty\">Showing first {MAX_SPELL_RENDER} spells. Refine your filters for more precise results.</div>"
         )
     results_el.innerHTML = cards_html
+    attach_spell_card_handlers(results_el)
     return len(limited), truncated, len(spells)
+
+
+def attach_spell_card_handlers(container):
+    if container is None:
+        return
+    buttons = container.querySelectorAll("button[data-spell-action]")
+    for button in buttons:
+        slug = button.getAttribute("data-spell-slug") or ""
+        action = (button.getAttribute("data-spell-action") or "").lower()
+        if not slug or action not in {"add", "remove"}:
+            continue
+        proxy = create_proxy(
+            lambda event, s=slug, a=action: handle_spell_card_action(event, a, s)
+        )
+        button.addEventListener("click", proxy)
+        _EVENT_PROXIES.append(proxy)
+
+
+def handle_spell_card_action(event, action: str, slug: str):
+    if action == "add":
+        handle_add_spell_click(event, slug)
+    elif action == "remove":
+        handle_remove_spell_click(event, slug)
 
 
 def apply_spell_filters(auto_select: bool = False):
@@ -1154,18 +1692,20 @@ async def load_spell_library(_event=None):
     try:
         cached_spells = load_spell_cache()
         if cached_spells:
-            SPELL_LIBRARY_STATE["spells"] = cached_spells
+            set_spell_library_data(cached_spells)
             SPELL_LIBRARY_STATE["loaded"] = True
             populate_spell_class_filter(cached_spells)
+            sync_prepared_spells_with_library()
             apply_spell_filters(auto_select=True)
             update_spell_library_status("Loaded spells from cache. Filters apply to your current class and level.")
             return
 
         raw_spells = await fetch_open5e_spells()
         sanitized = sanitize_spell_list(raw_spells)
-        SPELL_LIBRARY_STATE["spells"] = sanitized
+        set_spell_library_data(sanitized)
         SPELL_LIBRARY_STATE["loaded"] = True
         populate_spell_class_filter(sanitized)
+        sync_prepared_spells_with_library()
         save_spell_cache(sanitized)
         apply_spell_filters(auto_select=True)
         update_spell_library_status("Loaded latest Open5e SRD spells.")
