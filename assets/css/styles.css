@@ -11,20 +11,32 @@ body {
 }
 
 .app-header {
+    padding: 1.5rem 1rem 0.75rem;
+    display: flex;
+    justify-content: center;
+    background: transparent;
+}
+
+.header-content {
     text-align: center;
-    padding: 2rem 1rem 1rem;
-    background: linear-gradient(135deg, #1d4ed8, #312e81);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
 }
 
-.app-header h1 {
+.header-content h1 {
     margin: 0;
-    font-size: 2.8rem;
-    letter-spacing: 0.04em;
+    font-size: 2.4rem;
+    letter-spacing: 0.05em;
+    color: #f8fafc;
 }
 
-.tagline {
-    margin: 0.5rem 0 0;
-    color: #c7d2fe;
+.header-content p {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #cbd5f5;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .layout {
