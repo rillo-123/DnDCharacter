@@ -23,7 +23,8 @@ DnDCharacter/
     ├── css/
     │   └── styles.css      # Styling for the application
     └── py/
-        └── character.py    # PyScript logic executed in the browser
+      ├── character_models.py  # Domain models used by the PyScript controller
+      └── character.py         # PyScript logic executed in the browser
 ```
 
 > Tip: VS Code may flag the `js` and `pyodide` imports in `character.py`. These modules are provided by PyScript at runtime, so those warnings can be ignored for this project.

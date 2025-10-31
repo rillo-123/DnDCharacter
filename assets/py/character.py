@@ -1,19 +1,63 @@
 """PyScript driver for the PySheet D&D 5e character web app."""
 
 import copy
+import importlib.util
 import json
 import re
+import sys
 import uuid
 from html import escape
 from math import ceil, floor
+from pathlib import Path
 
 from js import Blob, URL, console, document, window
 from pyodide.ffi import create_proxy
-from pyodide.http import pyfetch
+from pyodide.http import open_url, pyfetch
+from types import ModuleType
+
+MODULE_DIR = (
+    Path(__file__).resolve().parent
+    if "__file__" in globals()
+    else (Path.cwd() / "assets" / "py")
+)
+if str(MODULE_DIR) not in sys.path:
+    sys.path.append(str(MODULE_DIR))
+
+try:
+    from character_models import Character, CharacterFactory, DEFAULT_ABILITY_KEYS
+except ModuleNotFoundError:
+    module_candidates = [
+        MODULE_DIR / "character_models.py",
+        Path.cwd() / "assets" / "py" / "character_models.py",
+    ]
+    loaded = False
+    for module_path in module_candidates:
+        try:
+            if module_path.exists():
+                spec = importlib.util.spec_from_file_location("character_models", module_path)
+                if spec is None or spec.loader is None:
+                    continue
+                module = importlib.util.module_from_spec(spec)
+                sys.modules["character_models"] = module
+                spec.loader.exec_module(module)
+            else:
+                source = open_url("assets/py/character_models.py").read()
+                module = ModuleType("character_models")
+                exec(source, module.__dict__)
+                sys.modules["character_models"] = module
+            Character = module.Character
+            CharacterFactory = module.CharacterFactory
+            DEFAULT_ABILITY_KEYS = module.DEFAULT_ABILITY_KEYS
+            loaded = True
+            break
+        except Exception:
+            continue
+    if not loaded:
+        raise
 
 LOCAL_STORAGE_KEY = "pysheet.character.v1"
 
-ABILITY_ORDER = ["str", "dex", "con", "int", "wis", "cha"]
+ABILITY_ORDER = list(DEFAULT_ABILITY_KEYS)
 
 SKILLS = {
     "acrobatics": {"ability": "dex", "label": "Acrobatics"},
@@ -742,6 +786,7 @@ DEFAULT_STATE = {
         "background": "Sage",
         "alignment": "Neutral Good",
         "player_name": "",
+        "subclass": "",
     },
     "level": 1,
     "inspiration": 0,
@@ -1061,6 +1106,34 @@ def gather_scores() -> dict:
     return {ability: get_numeric_value(f"{ability}-score", 10) for ability in ABILITY_ORDER}
 
 
+def snapshot_character_from_form() -> Character:
+    identity = {
+        "name": get_text_value("name"),
+        "class": get_text_value("class"),
+        "race": get_text_value("race"),
+        "background": get_text_value("background"),
+        "alignment": get_text_value("alignment"),
+        "player_name": get_text_value("player_name"),
+    }
+
+    abilities = {}
+    for ability in ABILITY_ORDER:
+        abilities[ability] = {
+            "score": get_numeric_value(f"{ability}-score", 10),
+            "save_proficient": get_checkbox(f"{ability}-save-prof"),
+        }
+
+    data = {
+        "identity": identity,
+        "level": get_numeric_value("level", 1),
+        "inspiration": get_numeric_value("inspiration", 0),
+        "spell_ability": get_text_value("spell_ability") or "int",
+        "abilities": abilities,
+    }
+
+    return CharacterFactory.from_dict(data)
+
+
 def update_calculations(*_args):
     scores = gather_scores()
     level = get_numeric_value("level", 1)
@@ -1210,33 +1283,35 @@ def collect_character_data() -> dict:
 
     data["spellcasting"] = SPELLCASTING_MANAGER.export_state()
 
-    return data
+    character = CharacterFactory.from_dict(data)
+    return character.to_dict()
 
 
 def populate_form(data: dict):
-    identity = data.get("identity", {})
-    set_form_value("name", identity.get("name", ""))
-    set_form_value("class", identity.get("class", ""))
-    set_form_value("race", identity.get("race", ""))
-    set_form_value("background", identity.get("background", ""))
-    set_form_value("alignment", identity.get("alignment", ""))
-    set_form_value("player_name", identity.get("player_name", ""))
+    character = CharacterFactory.from_dict(data)
+    normalized = character.to_dict()
 
-    set_form_value("level", data.get("level", 1))
-    set_form_value("inspiration", data.get("inspiration", 0))
-    set_form_value("spell_ability", data.get("spell_ability", "int"))
+    set_form_value("name", character.name)
+    set_form_value("class", character.class_text)
+    set_form_value("race", character.race)
+    set_form_value("background", character.background)
+    set_form_value("alignment", character.alignment)
+    set_form_value("player_name", character.player_name)
+
+    set_form_value("level", character.level)
+    set_form_value("inspiration", character.inspiration)
+    set_form_value("spell_ability", character.spell_ability)
 
     for ability in ABILITY_ORDER:
-        ability_state = data.get("abilities", {}).get(ability, {})
-        set_form_value(f"{ability}-score", ability_state.get("score", 10))
-        set_form_value(f"{ability}-save-prof", ability_state.get("save_proficient", False))
+        set_form_value(f"{ability}-score", character.attributes[ability])
+        set_form_value(f"{ability}-save-prof", character.attributes.is_proficient(ability))
 
     for skill in SKILLS:
-        skill_state = data.get("skills", {}).get(skill, {})
+        skill_state = normalized.get("skills", {}).get(skill, {})
         set_form_value(f"{skill}-prof", skill_state.get("proficient", False))
         set_form_value(f"{skill}-exp", skill_state.get("expertise", False))
 
-    combat = data.get("combat", {})
+    combat = normalized.get("combat", {})
     set_form_value("armor_class", combat.get("armor_class", 10))
     set_form_value("speed", combat.get("speed", 30))
     set_form_value("max_hp", combat.get("max_hp", 8))
@@ -1247,26 +1322,26 @@ def populate_form(data: dict):
     set_form_value("death_saves_success", combat.get("death_saves_success", 0))
     set_form_value("death_saves_failure", combat.get("death_saves_failure", 0))
 
-    notes = data.get("notes", {})
+    notes = normalized.get("notes", {})
     set_form_value("equipment", notes.get("equipment", ""))
     set_form_value("features", notes.get("features", ""))
     set_form_value("attacks", notes.get("attacks", ""))
     set_form_value("notes", notes.get("notes", ""))
 
-    spells = data.get("spells", {})
+    spells = normalized.get("spells", {})
     for key, element_id in SPELL_FIELDS.items():
         set_form_value(element_id, spells.get(key, ""))
 
-    load_spellcasting_state(data.get("spellcasting"))
+    load_spellcasting_state(normalized.get("spellcasting"))
     update_calculations()
 
     # populate currency and equipment
-    inv = data.get("inventory", {})
+    inv = normalized.get("inventory", {})
     currency = inv.get("currency", {})
     for key in CURRENCY_ORDER:
         set_form_value(f"currency-{key}", currency.get(key, 0))
 
-    items = get_equipment_items_from_data(data)
+    items = get_equipment_items_from_data(normalized)
     render_equipment_table(items)
     update_equipment_totals()
 
@@ -1608,27 +1683,9 @@ def build_spell_card_html(spell: dict) -> str:
 
 
 def update_header_display():
-    name = (get_text_value("name") or "").strip()
-    if not name:
-        name = "Unnamed Hero"
-
-    class_text = (get_text_value("class") or "").strip()
-    if not class_text:
-        level = get_numeric_value("level", 1)
-        class_text = f"Level {level}"
-
-    race_text = (get_text_value("race") or "").strip()
-
-    summary_parts: list[str] = []
-    if class_text:
-        summary_parts.append(class_text)
-    if race_text:
-        summary_parts.append(race_text)
-
-    summary = " · ".join(summary_parts) if summary_parts else "Ready for adventure"
-
-    set_text("character-header-name", name)
-    set_text("character-header-summary", summary)
+    character = snapshot_character_from_form()
+    set_text("character-header-name", character.display_name())
+    set_text("character-header-summary", character.header_summary())
 
 
 def render_spell_results(spells: list[dict]) -> tuple[int, bool, int]:
