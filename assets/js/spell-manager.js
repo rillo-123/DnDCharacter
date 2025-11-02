@@ -1,6 +1,8 @@
 // Spell Manager for PySheet D&D Character Sheet
 // Manages spell selection, filtering, and display
 
+const MAX_SPELL_LEVEL = 9; // D&D 5e has spell levels 1-9 (plus cantrips at level 0)
+
 class SpellManager {
   constructor() {
     this.chosenSpells = [];
@@ -241,12 +243,12 @@ class SpellManager {
     }
     
     // Adjust array size if character level changed
-    while (this.currentSpellSlots.length < 9) {
+    while (this.currentSpellSlots.length < MAX_SPELL_LEVEL) {
       this.currentSpellSlots.push(0);
     }
 
     let html = '';
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < MAX_SPELL_LEVEL; i++) {
       const max = maxSlots[i];
       const current = Math.min(this.currentSpellSlots[i] || max, max);
       
@@ -350,11 +352,16 @@ class SpellManager {
   }
 
   getSpellId(spellName) {
-    return spellName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    // Convert spell name to a consistent ID format
+    // Handles spaces, apostrophes, and special characters
+    const id = spellName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    // Ensure the ID is not empty
+    return id || 'unknown-spell';
   }
 
   getSpellById(spellId) {
-    return SPELL_DATABASE[spellId];
+    // Return the spell from the database, or undefined if not found
+    return SPELL_DATABASE[spellId] || undefined;
   }
 
   saveChosenSpells() {
@@ -391,7 +398,7 @@ class SpellManager {
       if (stored) {
         const slots = JSON.parse(stored);
         // Validate and use stored slots
-        if (Array.isArray(slots) && slots.length === 9) {
+        if (Array.isArray(slots) && slots.length === MAX_SPELL_LEVEL) {
           this.currentSpellSlots = slots;
         }
       }
