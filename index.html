@@ -378,56 +378,83 @@
         </section>
 
         <section id="tab-spells" class="tab-panel">
-            <div class="panel-grid">
-                <section class="card">
-                    <h2>Spellbook</h2>
-                    <div class="grid grid-2">
-                        <label class="field">
-                            <span>Spell Notes</span>
-                            <textarea data-character-input id="spell_notes" rows="4" placeholder="Prepared spells, ritual notes, components"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>Cantrips</span>
-                            <textarea data-character-input id="spells_cantrips" rows="4" placeholder="Fire Bolt, Mage Hand"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>1st-level Spells</span>
-                            <textarea data-character-input id="spells_level_1" rows="4" placeholder="Shield, Magic Missile"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>2nd-level Spells</span>
-                            <textarea data-character-input id="spells_level_2" rows="4" placeholder="Misty Step, Mirror Image"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>3rd-level Spells</span>
-                            <textarea data-character-input id="spells_level_3" rows="4" placeholder="Fireball, Counterspell"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>4th-level Spells</span>
-                            <textarea data-character-input id="spells_level_4" rows="4" placeholder="Dimension Door, Polymorph"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>5th-level Spells</span>
-                            <textarea data-character-input id="spells_level_5" rows="4" placeholder="Wall of Force, Telekinesis"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>6th-level Spells</span>
-                            <textarea data-character-input id="spells_level_6" rows="4" placeholder="Disintegrate"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>7th-level Spells</span>
-                            <textarea data-character-input id="spells_level_7" rows="4" placeholder="Teleport"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>8th-level Spells</span>
-                            <textarea data-character-input id="spells_level_8" rows="4" placeholder="Mind Blank"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>9th-level Spells</span>
-                            <textarea data-character-input id="spells_level_9" rows="4" placeholder="Wish"></textarea>
-                        </label>
+            <div class="spells-container">
+                <!-- Spell Slots Section -->
+                <section class="card spell-slots-card">
+                    <h2>Spell Slots</h2>
+                    <div id="spell-slots-container" class="spell-slots-grid">
+                        <!-- Will be populated by JavaScript -->
                     </div>
                 </section>
+
+                <!-- Two-pane layout -->
+                <div class="spells-two-pane">
+                    <!-- Left Pane: Available Spells -->
+                    <section class="card spells-left-pane">
+                        <h2>Available Spells</h2>
+                        <div class="spell-filters">
+                            <label class="field">
+                                <span>Filter by Class</span>
+                                <select id="spell-class-filter">
+                                    <option value="all">All Classes</option>
+                                    <option value="wizard">Wizard</option>
+                                    <option value="cleric">Cleric</option>
+                                    <option value="sorcerer">Sorcerer</option>
+                                    <option value="warlock">Warlock</option>
+                                    <option value="druid">Druid</option>
+                                    <option value="bard">Bard</option>
+                                    <option value="paladin">Paladin</option>
+                                    <option value="ranger">Ranger</option>
+                                </select>
+                            </label>
+                            <label class="field">
+                                <span>Filter by Level</span>
+                                <select id="spell-level-filter">
+                                    <option value="all">All Levels</option>
+                                    <option value="0">Cantrips</option>
+                                    <option value="1">1st Level</option>
+                                    <option value="2">2nd Level</option>
+                                    <option value="3">3rd Level</option>
+                                    <option value="4">4th Level</option>
+                                    <option value="5">5th Level</option>
+                                    <option value="6">6th Level</option>
+                                    <option value="7">7th Level</option>
+                                    <option value="8">8th Level</option>
+                                    <option value="9">9th Level</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div id="available-spells-list" class="spells-scrollbox">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </section>
+
+                    <!-- Right Pane: Chosen Spells -->
+                    <section class="card spells-right-pane">
+                        <h2>Your Spells</h2>
+                        <div id="chosen-spells-list" class="spells-scrollbox">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Spell Detail Modal -->
+            <div id="spell-detail-modal" class="spell-modal" style="display: none;">
+                <div class="spell-modal-content">
+                    <h3 id="spell-modal-name"></h3>
+                    <div class="spell-modal-meta">
+                        <span id="spell-modal-level"></span>
+                        <span id="spell-modal-school"></span>
+                    </div>
+                    <div class="spell-modal-details">
+                        <p><strong>Casting Time:</strong> <span id="spell-modal-casting-time"></span></p>
+                        <p><strong>Range:</strong> <span id="spell-modal-range"></span></p>
+                        <p><strong>Components:</strong> <span id="spell-modal-components"></span></p>
+                        <p><strong>Duration:</strong> <span id="spell-modal-duration"></span></p>
+                    </div>
+                    <div id="spell-modal-description" class="spell-modal-description"></div>
+                </div>
             </div>
         </section>
 
@@ -459,6 +486,8 @@
         packages = []
     </py-config>
     <py-script src="assets/py/character.py"></py-script>
+    <script src="assets/js/spells.js"></script>
+    <script src="assets/js/spell-manager.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const tabButtons = document.querySelectorAll('.tab');
