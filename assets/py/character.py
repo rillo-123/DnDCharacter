@@ -1,16 +1,22 @@
 """PyScript driver for the PySheet D&D 5e character web app."""
 
+import asyncio
 import copy
 import importlib.util
 import json
 import re
 import sys
 import uuid
+from datetime import datetime
 from html import escape
 from math import ceil, floor
 from pathlib import Path
 
 from js import Blob, URL, console, document, window
+try:
+    from pyodide import JsException
+except ImportError:  # Pyodide >=0.23 exposes JsException under pyodide.ffi
+    from pyodide.ffi import JsException  # type: ignore
 from pyodide.ffi import create_proxy
 from pyodide.http import open_url, pyfetch
 from types import ModuleType
@@ -93,10 +99,520 @@ SPELL_LIBRARY_STATE = {
     "loaded": False,
     "loading": False,
     "spells": [],
-    "class_options": [],
+    "class_options": list(CharacterFactory.supported_classes()),
     "last_profile_signature": "",
     "spell_map": {},
 }
+
+SUPPORTED_SPELL_CLASSES = set(CharacterFactory.supported_classes())
+
+_EVENT_PROXIES: list = []
+
+
+AUTO_EXPORT_DELAY_MS = 2000
+AUTO_EXPORT_MAX_EVENTS = 15
+_AUTO_EXPORT_TIMER_ID: int | None = None
+_AUTO_EXPORT_PROXY = None
+_AUTO_EXPORT_SUPPRESS = False
+_LAST_AUTO_EXPORT_SNAPSHOT = ""
+_AUTO_EXPORT_EVENT_COUNT = 0
+_AUTO_EXPORT_FILE_HANDLE = None
+_AUTO_EXPORT_DISABLED = False
+_AUTO_EXPORT_SUPPORT_WARNED = False
+_AUTO_EXPORT_DIRECTORY_HANDLE = None
+_AUTO_EXPORT_LAST_FILENAME = ""
+_AUTO_EXPORT_SETUP_PROMPTED = False
+
+
+def _normalize_export_basename(candidate: str | None) -> str:
+    if not candidate:
+        candidate = "character"
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "_", candidate.strip())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    if not cleaned:
+        return "character"
+    return cleaned
+
+
+def _build_export_filename(data: dict, *, now: datetime | None = None) -> str:
+    if now is None:
+        now = datetime.now()
+    raw_name = (data.get("identity", {}).get("name") or "character").strip()
+    base_name = _normalize_export_basename(raw_name)
+    date_stamp = now.strftime("%Y%m%d")
+    level_value = 0
+    try:
+        level_value = int(data.get("level", 0))
+    except (TypeError, ValueError):
+        level_value = 0
+    if level_value <= 0:
+        level_value = 0
+    level_part = f"lvl_{level_value}"
+    return f"{base_name}_{date_stamp}_{level_part}.json"
+
+
+async def _ensure_directory_write_permission(handle) -> bool:
+    if handle is None:
+        return False
+    query_permission = getattr(handle, "queryPermission", None)
+    request_permission = getattr(handle, "requestPermission", None)
+    if query_permission is None or request_permission is None:
+        return True
+    try:
+        status = await query_permission({"mode": "readwrite"})
+    except JsException as exc:
+        console.warn(f"PySheet: directory permission query failed - {exc}")
+        status = None
+    if status == "granted":
+        return True
+    if status == "denied":
+        return False
+    try:
+        status = await request_permission({"mode": "readwrite"})
+    except JsException as exc:
+        console.warn(f"PySheet: directory permission request failed - {exc}")
+        return False
+    return status == "granted"
+
+
+def _ensure_auto_export_proxy():
+    global _AUTO_EXPORT_PROXY
+    if _AUTO_EXPORT_PROXY is None:
+        def _auto_export_callback(*_args):
+            global _AUTO_EXPORT_TIMER_ID
+            _AUTO_EXPORT_TIMER_ID = None
+            async def _run_auto_export():
+                global _AUTO_EXPORT_EVENT_COUNT
+                try:
+                    await export_character(auto=True)
+                except Exception as exc:
+                    console.error(f"PySheet: auto-export failed - {exc}")
+                finally:
+                    _AUTO_EXPORT_EVENT_COUNT = 0
+
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_run_auto_export())
+            except RuntimeError:
+                asyncio.run(_run_auto_export())
+        _AUTO_EXPORT_PROXY = create_proxy(_auto_export_callback)
+        _EVENT_PROXIES.append(_AUTO_EXPORT_PROXY)
+    return _AUTO_EXPORT_PROXY
+
+
+def schedule_auto_export():
+    global _AUTO_EXPORT_TIMER_ID, _AUTO_EXPORT_EVENT_COUNT
+    if _AUTO_EXPORT_SUPPRESS or _AUTO_EXPORT_DISABLED:
+        return
+    _AUTO_EXPORT_EVENT_COUNT = min(_AUTO_EXPORT_EVENT_COUNT + 1, AUTO_EXPORT_MAX_EVENTS)
+    proxy = _ensure_auto_export_proxy()
+    if _AUTO_EXPORT_TIMER_ID is not None:
+        window.clearTimeout(_AUTO_EXPORT_TIMER_ID)
+    remaining = AUTO_EXPORT_MAX_EVENTS - _AUTO_EXPORT_EVENT_COUNT
+    interval = AUTO_EXPORT_DELAY_MS
+    if remaining <= 0:
+        interval = int(AUTO_EXPORT_DELAY_MS * 0.25)
+    _AUTO_EXPORT_TIMER_ID = window.setTimeout(proxy, interval)
+
+
+def _supports_persistent_auto_export() -> bool:
+    return bool(
+        hasattr(window, "showDirectoryPicker")
+        or hasattr(window, "showSaveFilePicker")
+    )
+
+
+async def _ensure_auto_export_directory(auto_trigger: bool = True):
+    global _AUTO_EXPORT_DIRECTORY_HANDLE, _AUTO_EXPORT_DISABLED
+    if _AUTO_EXPORT_DIRECTORY_HANDLE is not None:
+        return _AUTO_EXPORT_DIRECTORY_HANDLE
+    if not hasattr(window, "showDirectoryPicker"):
+        return None
+    try:
+        handle = await window.showDirectoryPicker()
+    except JsException as exc:
+        name = getattr(exc, "name", "")
+        if name == "AbortError":
+            if auto_trigger:
+                console.log("PySheet: auto-export directory not selected; disabling auto-export until manual export")
+                _AUTO_EXPORT_DISABLED = True
+        elif name in {"NotAllowedError", "SecurityError"}:
+            console.warn("PySheet: directory picker requires a user gesture; use Export JSON to set it up")
+            if auto_trigger:
+                _AUTO_EXPORT_DISABLED = True
+        else:
+            console.warn(f"PySheet: auto-export directory picker error - {exc}")
+        return None
+    has_permission = await _ensure_directory_write_permission(handle)
+    if not has_permission:
+        console.log("PySheet: directory lacks write permission; disabling auto-export until manual export")
+        if auto_trigger:
+            _AUTO_EXPORT_DISABLED = True
+        return None
+    if not hasattr(handle, "getFileHandle"):
+        console.warn("PySheet: selected directory handle cannot create files; falling back to file picker")
+        return None
+    _AUTO_EXPORT_DIRECTORY_HANDLE = handle
+    console.log("PySheet: auto-export directory selected")
+    return handle
+
+
+async def _ensure_auto_export_file_handle(target_name: str, auto_trigger: bool = True):
+    global _AUTO_EXPORT_FILE_HANDLE, _AUTO_EXPORT_DISABLED, _AUTO_EXPORT_LAST_FILENAME
+    if not hasattr(window, "showSaveFilePicker"):
+        return None
+    if _AUTO_EXPORT_FILE_HANDLE is not None:
+        existing_name = getattr(_AUTO_EXPORT_FILE_HANDLE, "name", None)
+        if existing_name and existing_name != target_name:
+            _AUTO_EXPORT_FILE_HANDLE = None
+        else:
+            _AUTO_EXPORT_LAST_FILENAME = existing_name or target_name
+            return _AUTO_EXPORT_FILE_HANDLE
+    options = {
+        "suggestedName": target_name,
+        "types": [
+            {
+                "description": "Character JSON",
+                "accept": {"application/json": [".json"]},
+            }
+        ],
+    }
+    try:
+        handle = await window.showSaveFilePicker(options)
+    except JsException as exc:
+        # AbortError fires when the user dismisses the picker; treat as a simple skip.
+        name = getattr(exc, "name", "")
+        if name == "AbortError":
+            if auto_trigger:
+                console.log("PySheet: auto-export file target not selected; disabling auto-export until manual export")
+                _AUTO_EXPORT_DISABLED = True
+        elif name in {"NotAllowedError", "SecurityError"}:
+            console.warn("PySheet: file picker requires a user gesture; use Export JSON to set it up")
+            if auto_trigger:
+                _AUTO_EXPORT_DISABLED = True
+        else:
+            console.warn(f"PySheet: auto-export file picker error - {exc}")
+        return None
+    _AUTO_EXPORT_FILE_HANDLE = handle
+    _AUTO_EXPORT_LAST_FILENAME = getattr(handle, "name", target_name)
+    console.log("PySheet: auto-export file selected")
+    return handle
+
+
+async def _write_auto_export_file(handle, payload: str):
+    try:
+        writable = await handle.createWritable()
+        await writable.write(payload)
+        await writable.close()
+    except JsException as exc:
+        raise RuntimeError(f"failed to write auto-export file ({exc})")
+
+
+async def _attempt_persistent_export(
+    payload: str,
+    proposed_filename: str,
+    *,
+    auto: bool,
+    allow_prompt: bool,
+) -> bool:
+    global _AUTO_EXPORT_DIRECTORY_HANDLE, _AUTO_EXPORT_FILE_HANDLE
+    global _AUTO_EXPORT_DISABLED, _AUTO_EXPORT_LAST_FILENAME, _LAST_AUTO_EXPORT_SNAPSHOT
+    global _AUTO_EXPORT_SETUP_PROMPTED
+
+    if not _supports_persistent_auto_export():
+        return False
+
+    need_prompt = (
+        allow_prompt
+        and not _AUTO_EXPORT_SETUP_PROMPTED
+        and _AUTO_EXPORT_DIRECTORY_HANDLE is None
+        and _AUTO_EXPORT_FILE_HANDLE is None
+    )
+    if need_prompt:
+        wants_setup = False
+        try:
+            wants_setup = window.confirm(
+                "Enable automatic JSON exports? Select OK to choose a folder for saving updates automatically."
+            )
+        except JsException:
+            wants_setup = False
+        _AUTO_EXPORT_SETUP_PROMPTED = True
+        if wants_setup:
+            handle = await _ensure_auto_export_directory(auto_trigger=False)
+            if handle is None:
+                await _ensure_auto_export_file_handle(proposed_filename, auto_trigger=False)
+
+    if _AUTO_EXPORT_DIRECTORY_HANDLE is not None:
+        try:
+            file_handle = await _AUTO_EXPORT_DIRECTORY_HANDLE.getFileHandle(
+                proposed_filename,
+                {"create": True},
+            )
+        except JsException as exc:
+            console.warn(f"PySheet: unable to open auto-export file in directory ({exc})")
+            if auto:
+                _AUTO_EXPORT_DIRECTORY_HANDLE = None
+        else:
+            try:
+                await _write_auto_export_file(file_handle, payload)
+            except Exception as exc:
+                console.warn(f"PySheet: auto-export write failed for directory target ({exc})")
+                if auto:
+                    _AUTO_EXPORT_DIRECTORY_HANDLE = None
+            else:
+                _AUTO_EXPORT_LAST_FILENAME = getattr(file_handle, "name", proposed_filename)
+                _LAST_AUTO_EXPORT_SNAPSHOT = payload
+                verb = "auto-exported" if auto else "exported"
+                console.log(f"PySheet: {verb} character JSON to {_AUTO_EXPORT_LAST_FILENAME}")
+                _AUTO_EXPORT_DISABLED = False
+                return True
+
+    handle = _AUTO_EXPORT_FILE_HANDLE
+    if handle is not None:
+        existing_name = getattr(handle, "name", "")
+        if existing_name and existing_name != proposed_filename and allow_prompt:
+            _AUTO_EXPORT_FILE_HANDLE = None
+            handle = None
+        if handle is None and allow_prompt:
+            handle = await _ensure_auto_export_file_handle(proposed_filename, auto_trigger=False)
+        if handle is not None:
+            try:
+                await _write_auto_export_file(handle, payload)
+            except Exception as exc:
+                console.warn(f"PySheet: auto-export write failed for file handle ({exc})")
+                if auto:
+                    _AUTO_EXPORT_FILE_HANDLE = None
+            else:
+                _AUTO_EXPORT_LAST_FILENAME = getattr(handle, "name", proposed_filename)
+                _LAST_AUTO_EXPORT_SNAPSHOT = payload
+                verb = "auto-exported" if auto else "exported"
+                console.log(f"PySheet: {verb} character JSON to {_AUTO_EXPORT_LAST_FILENAME}")
+                _AUTO_EXPORT_DISABLED = False
+                return True
+
+    return False
+
+
+LOCAL_SPELLS_FALLBACK = [
+    {
+        "name": "Cure Wounds",
+        "slug": "cure-wounds",
+        "level": 1,
+        "school": "evocation",
+        "casting_time": "1 action",
+        "range": "Touch",
+        "components": "V, S",
+        "material": "",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "A creature you touch regains a number of hit points equal to 1d8 + your spellcasting ability modifier.",
+            "This spell has no effect on undead or constructs.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d8 for each slot level above 1st.",
+        "dnd_class": "Bard, Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Healing Word",
+        "slug": "healing-word",
+        "level": 1,
+        "school": "evocation",
+        "casting_time": "1 bonus action",
+        "range": "60 feet",
+        "components": "V",
+        "material": "",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "A creature of your choice that you can see within range regains hit points equal to 1d4 + your spellcasting ability modifier.",
+            "This spell has no effect on undead or constructs.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d4 for each slot level above 1st.",
+        "dnd_class": "Bard, Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Guiding Bolt",
+        "slug": "guiding-bolt",
+        "level": 1,
+        "school": "evocation",
+        "casting_time": "1 action",
+        "range": "120 feet",
+        "components": "V, S",
+        "material": "",
+        "duration": "1 round",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "A flash of light streaks toward a creature of your choice within range. Make a ranged spell attack against the target.",
+            "On a hit, the target takes 4d6 radiant damage, and the next attack roll made against this target before the end of your next turn has advantage.",
+        ],
+        "higher_level": "The damage increases by 1d6 for each slot level above 1st.",
+        "dnd_class": "Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Bless",
+        "slug": "bless",
+        "level": 1,
+        "school": "enchantment",
+        "casting_time": "1 action",
+        "range": "30 feet",
+        "components": "V, S, M",
+        "material": "A sprinkling of holy water",
+        "duration": "Concentration, up to 1 minute",
+        "ritual": False,
+        "concentration": True,
+        "desc": [
+            "You bless up to three creatures of your choice within range. Whenever a target makes an attack roll or a saving throw before the spell ends, the target can roll a d4 and add the number rolled to the attack roll or saving throw.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 2nd level or higher, you can target one additional creature for each slot level above 1st.",
+        "dnd_class": "Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Faerie Fire",
+        "slug": "faerie-fire",
+        "level": 1,
+        "school": "evocation",
+        "casting_time": "1 action",
+        "range": "60 feet",
+        "components": "V",
+        "material": "",
+        "duration": "Concentration, up to 1 minute",
+        "ritual": False,
+        "concentration": True,
+        "desc": [
+            "Each object in a 20-foot cube within range is outlined in blue, green, or violet light. Any creature in the area when the spell is cast is also outlined in light if it fails a Dexterity saving throw.",
+            "For the duration, objects and affected creatures shed dim light in a 10-foot radius and attack rolls against affected creatures have advantage.",
+        ],
+        "higher_level": "",
+        "dnd_class": "Bard",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Sacred Flame",
+        "slug": "sacred-flame",
+        "level": 0,
+        "school": "evocation",
+        "casting_time": "1 action",
+        "range": "60 feet",
+        "components": "V, S",
+        "material": "",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "Flame-like radiance descends on a creature you can see within range. The target must succeed on a Dexterity saving throw or take 1d8 radiant damage.",
+            "The target gains no benefit from cover for this saving throw.",
+        ],
+        "higher_level": "The spell's damage increases by 1d8 when you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).",
+        "dnd_class": "Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Detect Magic",
+        "slug": "detect-magic",
+        "level": 1,
+        "school": "divination",
+        "casting_time": "1 action",
+        "range": "Self",
+        "components": "V, S",
+        "material": "",
+        "duration": "Concentration, up to 10 minutes",
+        "ritual": True,
+        "concentration": True,
+        "desc": [
+            "For the duration, you sense the presence of magic within 30 feet of you.",
+            "If you sense magic in this way, you can use your action to see a faint aura around any visible creature or object in the area that bears magic, and you learn its school of magic, if any.",
+        ],
+        "higher_level": "",
+        "dnd_class": "Bard, Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Prayer of Healing",
+        "slug": "prayer-of-healing",
+        "level": 2,
+        "school": "evocation",
+        "casting_time": "10 minutes",
+        "range": "30 feet",
+        "components": "V",
+        "material": "",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "Up to six creatures of your choice that you can see within range each regain hit points equal to 2d8 + your spellcasting ability modifier.",
+            "This spell has no effect on undead or constructs.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 3rd level or higher, the healing increases by 1d8 for each slot level above 2nd.",
+        "dnd_class": "Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Shatter",
+        "slug": "shatter",
+        "level": 2,
+        "school": "evocation",
+        "casting_time": "1 action",
+        "range": "60 feet",
+        "components": "V, S, M",
+        "material": "A chip of mica",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "A sudden loud ringing noise, painfully intense, erupts from a point of your choice within range.",
+            "Each creature in a 10-foot-radius sphere centered on that point must make a Constitution saving throw, taking 3d8 thunder damage on a failed save, or half as much damage on a successful one.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 3rd level or higher, the damage increases by 1d8 for each slot level above 2nd.",
+        "dnd_class": "Bard",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Hold Person",
+        "slug": "hold-person",
+        "level": 2,
+        "school": "enchantment",
+        "casting_time": "1 action",
+        "range": "60 feet",
+        "components": "V, S, M",
+        "material": "A small, straight piece of iron",
+        "duration": "Concentration, up to 1 minute",
+        "ritual": False,
+        "concentration": True,
+        "desc": [
+            "Choose a humanoid that you can see within range. The target must succeed on a Wisdom saving throw or be paralyzed for the duration.",
+            "At the end of each of its turns, the target can make another Wisdom saving throw. On a success, the spell ends on the target.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 3rd level or higher, you can target one additional humanoid for each slot level above 2nd.",
+        "dnd_class": "Bard, Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Vicious Mockery",
+        "slug": "vicious-mockery",
+        "level": 0,
+        "school": "enchantment",
+        "casting_time": "1 action",
+        "range": "60 feet",
+        "components": "V",
+        "material": "",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "You unleash a string of insults laced with subtle enchantments at a creature you can see within range. If the target can hear you, it must succeed on a Wisdom saving throw or take 1d4 psychic damage and have disadvantage on the next attack roll it makes before the end of its next turn.",
+        ],
+        "higher_level": "The damage increases by 1d4 when you reach 5th level (2d4), 11th level (3d4), and 17th level (4d4).",
+        "dnd_class": "Bard",
+        "document__title": "SRD",
+    },
+]
 
 
 def set_spell_library_data(spells: list[dict] | None):
@@ -359,10 +875,12 @@ class SpellcastingManager:
         name = entry.get("name") if entry else None
         level = parse_int(entry.get("level") if entry else None, 0)
         source = entry.get("source") if entry else ""
+        concentration = bool(entry.get("concentration"))
         if record:
             name = record.get("name", name)
             level = record.get("level_int", level)
             source = record.get("source", source)
+            concentration = bool(record.get("concentration"))
         if not name:
             name = slug.replace("-", " ").title()
         return {
@@ -370,12 +888,17 @@ class SpellcastingManager:
             "name": name,
             "level": level,
             "source": source,
+            "concentration": concentration,
         }
 
     def sort_prepared_spells(self):
-        self.prepared.sort(
-            key=lambda item: (item.get("level", 0), item.get("name", "").lower())
-        )
+        def _sort_key(item: dict):
+            level = item.get("level", 0)
+            name = item.get("name", "").lower()
+            concentration = 1 if item.get("concentration") else 0
+            return (level, name, concentration)
+
+        self.prepared.sort(key=_sort_key)
 
     def load_state(self, state: dict | None):
         self.reset_state()
@@ -426,6 +949,10 @@ class SpellcastingManager:
             if source and entry.get("source") != source:
                 entry["source"] = source
                 changed = True
+            conc = bool(record.get("concentration"))
+            if conc != bool(entry.get("concentration")):
+                entry["concentration"] = conc
+                changed = True
         if changed:
             self.sort_prepared_spells()
             self.render_spellbook()
@@ -469,12 +996,14 @@ class SpellcastingManager:
                 "name": record.get("name", slug.title()),
                 "level": record.get("level_int", 0),
                 "source": record.get("source", ""),
+                "concentration": bool(record.get("concentration")),
             }
         )
         self.sort_prepared_spells()
         self.render_spellbook()
         self.render_spell_slots(self.compute_slot_summary(profile))
         apply_spell_filters(auto_select=False)
+        schedule_auto_export()
 
     def remove_spell(self, slug: str):
         if not slug:
@@ -486,6 +1015,7 @@ class SpellcastingManager:
         if len(self.prepared) != before:
             self.render_spellbook()
             apply_spell_filters(auto_select=False)
+            schedule_auto_export()
 
     # ------------------------------------------------------------------
     # rendering helpers
@@ -509,27 +1039,123 @@ class SpellcastingManager:
 
         sections: list[str] = []
         for level in sorted(groups.keys()):
-            spells = sorted(
-                groups[level], key=lambda item: item.get("name", "").lower()
-            )
+            def _group_sort_key(item: dict):
+                name = item.get("name", "").lower()
+                concentration = 1 if item.get("concentration") else 0
+                return (name, concentration)
+
+            spells = sorted(groups[level], key=_group_sort_key)
             heading = "Cantrips" if level == 0 else format_spell_level_label(level)
             items_html = []
             for spell in spells:
                 slug = spell.get("slug", "")
                 name = spell.get("name", "Unknown Spell")
                 source = spell.get("source", "")
+                record = get_spell_by_slug(slug) or {}
+                level_label = record.get("level_label")
+                if not level_label:
+                    level_label = format_spell_level_label(spell.get("level", level))
+                school = record.get("school") or ""
+                meta_parts = []
+                if level_label:
+                    meta_parts.append(level_label)
+                if school:
+                    meta_parts.append(school)
+                meta_text = " · ".join(part for part in meta_parts if part)
+                meta_html = (
+                    f"<span class=\"spellbook-meta\">{escape(meta_text)}</span>"
+                    if meta_text
+                    else ""
+                )
                 source_html = (
                     f"<span class=\"spellbook-source\">{escape(source)}</span>"
                     if source
                     else ""
                 )
+                tag_parts: list[str] = []
+                if record.get("ritual"):
+                    tag_parts.append("<span class=\"spell-tag\">Ritual</span>")
+                if record.get("concentration"):
+                    tag_parts.append("<span class=\"spell-tag\">Concentration</span>")
+                tags_html = "".join(tag_parts)
+                classes_display = record.get("classes_display") or []
+                classes_html = (
+                    "<div class=\"spellbook-classes\"><strong>Classes: </strong>"
+                    + escape(", ".join(classes_display))
+                    + "</div>"
+                    if classes_display
+                    else ""
+                )
+                properties: list[str] = []
+                casting_time = record.get("casting_time") or ""
+                if casting_time:
+                    properties.append(
+                        f"<div><dt>Casting Time</dt><dd>{escape(casting_time)}</dd></div>"
+                    )
+                range_text = record.get("range") or ""
+                if range_text:
+                    properties.append(
+                        f"<div><dt>Range</dt><dd>{escape(range_text)}</dd></div>"
+                    )
+                components = record.get("components") or ""
+                material = record.get("material") or ""
+                if components:
+                    comp_text = escape(components)
+                    if material:
+                        comp_text = f"{comp_text} ({escape(material)})"
+                    properties.append(
+                        f"<div><dt>Components</dt><dd>{comp_text}</dd></div>"
+                    )
+                duration = record.get("duration") or ""
+                if duration:
+                    properties.append(
+                        f"<div><dt>Duration</dt><dd>{escape(duration)}</dd></div>"
+                    )
+                properties_html = (
+                    "<dl class=\"spellbook-properties\">"
+                    + "".join(properties)
+                    + "</dl>"
+                    if properties
+                    else ""
+                )
+                description_html = record.get("description_html")
+                if not description_html:
+                    description_html = (
+                        "<p class=\"spellbook-description-empty\">No detailed description available.</p>"
+                    )
+                body_sections = []
+                if tags_html:
+                    body_sections.append(
+                        f"<div class=\"spellbook-tags\">{tags_html}</div>"
+                    )
+                if properties_html:
+                    body_sections.append(properties_html)
+                if classes_html:
+                    body_sections.append(classes_html)
+                body_sections.append(
+                    f"<div class=\"spellbook-description\">{description_html}</div>"
+                )
+                body_html = (
+                    "<div class=\"spellbook-body\">"
+                    + "".join(body_sections)
+                    + "</div>"
+                )
+
                 items_html.append(
                     "<li class=\"spellbook-spell\" data-spell-slug=\""
                     + escape(slug)
                     + "\">"
+                    + "<details class=\"spellbook-details\">"
+                    + "<summary>"
+                    + "<div class=\"spellbook-summary-main\">"
                     + f"<span class=\"spellbook-name\">{escape(name)}</span>"
+                    + meta_html
                     + source_html
+                    + "</div>"
                     + f"<button type=\"button\" class=\"spellbook-remove\" data-remove-spell=\"{escape(slug)}\">Remove</button>"
+                    + "</summary>"
+                    + body_html
+                    + "</details>"
                     + "</li>"
                 )
             sections.append(
@@ -696,11 +1322,13 @@ class SpellcastingManager:
         if max_slots <= 0:
             self.slots_used[level] = 0
             self.render_spell_slots(slot_summary)
+            schedule_auto_export()
             return
         current = self.slots_used.get(level, 0)
         current = clamp(current + delta, 0, max_slots)
         self.slots_used[level] = current
         self.render_spell_slots(slot_summary)
+        schedule_auto_export()
 
     def adjust_pact_slot(self, delta: int):
         slot_summary = self.compute_slot_summary()
@@ -708,12 +1336,14 @@ class SpellcastingManager:
         current = clamp(self.pact_used + delta, 0, pact_max)
         self.pact_used = current
         self.render_spell_slots(slot_summary)
+        schedule_auto_export()
 
     def reset_spell_slots(self):
         for level in range(1, 10):
             self.slots_used[level] = 0
         self.pact_used = 0
         self.render_spell_slots()
+        schedule_auto_export()
 
 
 SPELLCASTING_MANAGER = SpellcastingManager()
@@ -795,7 +1425,7 @@ DEFAULT_STATE = {
         ability: {"score": 10, "save_proficient": False} for ability in ABILITY_ORDER
     },
     "skills": {
-        skill: {"proficient": False, "expertise": False} for skill in SKILLS
+        skill: {"proficient": False, "expertise": False, "bonus": 0} for skill in SKILLS
     },
     "combat": {
         "armor_class": 10,
@@ -825,9 +1455,6 @@ DEFAULT_STATE = {
     },
     "resources": [],
 }
-
-_EVENT_PROXIES = []
-
 
 def clone_default_state() -> dict:
     """Return a deep copy of the default state template."""
@@ -1102,6 +1729,21 @@ def compute_proficiency(level: int) -> int:
     return 2 + (level - 1) // 4
 
 
+def _compute_skill_entry(
+    skill_key: str,
+    ability_scores: dict[str, int],
+    proficiency_bonus: int,
+) -> tuple[bool, bool, int]:
+    ability_key = SKILLS.get(skill_key, {}).get("ability", "")
+    ability_score = ability_scores.get(ability_key, 10)
+    base_modifier = ability_modifier(ability_score)
+    proficient = get_checkbox(f"{skill_key}-prof")
+    expertise = get_checkbox(f"{skill_key}-exp")
+    multiplier = 2 if expertise else 1 if proficient else 0
+    total = base_modifier + multiplier * proficiency_bonus
+    return proficient, expertise, total
+
+
 def gather_scores() -> dict:
     return {ability: get_numeric_value(f"{ability}-score", 10) for ability in ABILITY_ORDER}
 
@@ -1152,17 +1794,8 @@ def update_calculations(*_args):
     set_text("initiative", format_bonus(dex_mod))
 
     skill_totals = {}
-    for skill_key, info in SKILLS.items():
-        ability = info["ability"]
-        mod = ability_modifier(scores[ability])
-        proficient = get_checkbox(f"{skill_key}-prof")
-        expertise = get_checkbox(f"{skill_key}-exp")
-        multiplier = 0
-        if expertise:
-            multiplier = 2
-        elif proficient:
-            multiplier = 1
-        total = mod + multiplier * proficiency
+    for skill_key in SKILLS:
+        _, _, total = _compute_skill_entry(skill_key, scores, proficiency)
         skill_totals[skill_key] = total
         set_text(f"{skill_key}-total", format_bonus(total))
 
@@ -1205,6 +1838,7 @@ def update_calculations(*_args):
 
 
 def collect_character_data() -> dict:
+    ability_scores: dict[str, int] = {}
     data = {
         "identity": {
             "name": get_text_value("name"),
@@ -1247,15 +1881,20 @@ def collect_character_data() -> dict:
     }
 
     for ability in ABILITY_ORDER:
+        score_value = get_numeric_value(f"{ability}-score", 10)
+        ability_scores[ability] = score_value
         data["abilities"][ability] = {
-            "score": get_numeric_value(f"{ability}-score", 10),
+            "score": score_value,
             "save_proficient": get_checkbox(f"{ability}-save-prof"),
         }
 
+    proficiency_value = compute_proficiency(data["level"])
     for skill in SKILLS:
+        prof_flag, exp_flag, total = _compute_skill_entry(skill, ability_scores, proficiency_value)
         data["skills"][skill] = {
-            "proficient": get_checkbox(f"{skill}-prof"),
-            "expertise": get_checkbox(f"{skill}-exp"),
+            "proficient": prof_flag,
+            "expertise": exp_flag,
+            "bonus": total,
         }
 
     # collect equipment items from the table
@@ -1288,62 +1927,68 @@ def collect_character_data() -> dict:
 
 
 def populate_form(data: dict):
-    character = CharacterFactory.from_dict(data)
-    normalized = character.to_dict()
+    global _AUTO_EXPORT_SUPPRESS
+    previous_suppression = _AUTO_EXPORT_SUPPRESS
+    _AUTO_EXPORT_SUPPRESS = True
+    try:
+        character = CharacterFactory.from_dict(data)
+        normalized = character.to_dict()
 
-    set_form_value("name", character.name)
-    set_form_value("class", character.class_text)
-    set_form_value("race", character.race)
-    set_form_value("background", character.background)
-    set_form_value("alignment", character.alignment)
-    set_form_value("player_name", character.player_name)
+        set_form_value("name", character.name)
+        set_form_value("class", character.class_text)
+        set_form_value("race", character.race)
+        set_form_value("background", character.background)
+        set_form_value("alignment", character.alignment)
+        set_form_value("player_name", character.player_name)
 
-    set_form_value("level", character.level)
-    set_form_value("inspiration", character.inspiration)
-    set_form_value("spell_ability", character.spell_ability)
+        set_form_value("level", character.level)
+        set_form_value("inspiration", character.inspiration)
+        set_form_value("spell_ability", character.spell_ability)
 
-    for ability in ABILITY_ORDER:
-        set_form_value(f"{ability}-score", character.attributes[ability])
-        set_form_value(f"{ability}-save-prof", character.attributes.is_proficient(ability))
+        for ability in ABILITY_ORDER:
+            set_form_value(f"{ability}-score", character.attributes[ability])
+            set_form_value(f"{ability}-save-prof", character.attributes.is_proficient(ability))
 
-    for skill in SKILLS:
-        skill_state = normalized.get("skills", {}).get(skill, {})
-        set_form_value(f"{skill}-prof", skill_state.get("proficient", False))
-        set_form_value(f"{skill}-exp", skill_state.get("expertise", False))
+        for skill in SKILLS:
+            skill_state = normalized.get("skills", {}).get(skill, {})
+            set_form_value(f"{skill}-prof", skill_state.get("proficient", False))
+            set_form_value(f"{skill}-exp", skill_state.get("expertise", False))
 
-    combat = normalized.get("combat", {})
-    set_form_value("armor_class", combat.get("armor_class", 10))
-    set_form_value("speed", combat.get("speed", 30))
-    set_form_value("max_hp", combat.get("max_hp", 8))
-    set_form_value("current_hp", combat.get("current_hp", 8))
-    set_form_value("temp_hp", combat.get("temp_hp", 0))
-    set_form_value("hit_dice", combat.get("hit_dice", ""))
-    set_form_value("hit_dice_available", combat.get("hit_dice_available", 0))
-    set_form_value("death_saves_success", combat.get("death_saves_success", 0))
-    set_form_value("death_saves_failure", combat.get("death_saves_failure", 0))
+        combat = normalized.get("combat", {})
+        set_form_value("armor_class", combat.get("armor_class", 10))
+        set_form_value("speed", combat.get("speed", 30))
+        set_form_value("max_hp", combat.get("max_hp", 8))
+        set_form_value("current_hp", combat.get("current_hp", 8))
+        set_form_value("temp_hp", combat.get("temp_hp", 0))
+        set_form_value("hit_dice", combat.get("hit_dice", ""))
+        set_form_value("hit_dice_available", combat.get("hit_dice_available", 0))
+        set_form_value("death_saves_success", combat.get("death_saves_success", 0))
+        set_form_value("death_saves_failure", combat.get("death_saves_failure", 0))
 
-    notes = normalized.get("notes", {})
-    set_form_value("equipment", notes.get("equipment", ""))
-    set_form_value("features", notes.get("features", ""))
-    set_form_value("attacks", notes.get("attacks", ""))
-    set_form_value("notes", notes.get("notes", ""))
+        notes = normalized.get("notes", {})
+        set_form_value("equipment", notes.get("equipment", ""))
+        set_form_value("features", notes.get("features", ""))
+        set_form_value("attacks", notes.get("attacks", ""))
+        set_form_value("notes", notes.get("notes", ""))
 
-    spells = normalized.get("spells", {})
-    for key, element_id in SPELL_FIELDS.items():
-        set_form_value(element_id, spells.get(key, ""))
+        spells = normalized.get("spells", {})
+        for key, element_id in SPELL_FIELDS.items():
+            set_form_value(element_id, spells.get(key, ""))
 
-    load_spellcasting_state(normalized.get("spellcasting"))
-    update_calculations()
+        load_spellcasting_state(normalized.get("spellcasting"))
+        update_calculations()
 
-    # populate currency and equipment
-    inv = normalized.get("inventory", {})
-    currency = inv.get("currency", {})
-    for key in CURRENCY_ORDER:
-        set_form_value(f"currency-{key}", currency.get(key, 0))
+        # populate currency and equipment
+        inv = normalized.get("inventory", {})
+        currency = inv.get("currency", {})
+        for key in CURRENCY_ORDER:
+            set_form_value(f"currency-{key}", currency.get(key, 0))
 
-    items = get_equipment_items_from_data(normalized)
-    render_equipment_table(items)
-    update_equipment_totals()
+        items = get_equipment_items_from_data(normalized)
+        render_equipment_table(items)
+        update_equipment_totals()
+    finally:
+        _AUTO_EXPORT_SUPPRESS = previous_suppression
 
 
 def format_money(value: float) -> str:
@@ -1390,7 +2035,7 @@ def _make_paragraphs(text: str) -> str:
     return "".join(paragraphs)
 
 
-def sanitize_spell_record(raw: dict) -> dict:
+def sanitize_spell_record(raw: dict) -> dict | None:
     name = raw.get("name") or "Unknown Spell"
     slug_source = raw.get("slug") or name
     slug = re.sub(r"[^a-z0-9]+", "-", slug_source.lower()).strip("-")
@@ -1406,8 +2051,10 @@ def sanitize_spell_record(raw: dict) -> dict:
     classes: list[str] = []
     for token in classes_raw:
         canonical = normalize_class_token(token)
-        if canonical and canonical not in classes:
+        if canonical and canonical in SUPPORTED_SPELL_CLASSES and canonical not in classes:
             classes.append(canonical)
+    if not classes:
+        return None
     classes_display = [SPELL_CLASS_DISPLAY_NAMES.get(c, c.title()) for c in classes]
 
     school = (raw.get("school") or "").title()
@@ -1466,17 +2113,23 @@ def sanitize_spell_record(raw: dict) -> dict:
 
 
 def sanitize_spell_list(raw_spells: list[dict]) -> list[dict]:
-    sanitized = [sanitize_spell_record(spell) for spell in raw_spells]
+    sanitized: list[dict] = []
+    for spell in raw_spells:
+        record = sanitize_spell_record(spell)
+        if record is not None:
+            sanitized.append(record)
     sanitized.sort(key=lambda item: (item["level_int"], item["name"].lower()))
     return sanitized
 
 
-def rehydrate_cached_spell(record: dict) -> dict:
+def rehydrate_cached_spell(record: dict) -> dict | None:
     classes = []
     for token in record.get("classes", []):
         canonical = normalize_class_token(token)
-        if canonical and canonical not in classes:
+        if canonical and canonical in SUPPORTED_SPELL_CLASSES and canonical not in classes:
             classes.append(canonical)
+    if not classes:
+        return None
     classes_display = record.get("classes_display") or [
         SPELL_CLASS_DISPLAY_NAMES.get(c, c.title()) for c in classes
     ]
@@ -1520,7 +2173,9 @@ def load_spell_cache() -> list[dict] | None:
         try:
             if not isinstance(record, dict):
                 continue
-            rehydrated.append(rehydrate_cached_spell(record))
+            hydrated = rehydrate_cached_spell(record)
+            if hydrated is not None:
+                rehydrated.append(hydrated)
         except Exception as exc:
             console.warn(f"PySheet: skipping cached spell due to error ({exc})")
     if not rehydrated:
@@ -1560,28 +2215,48 @@ def update_spell_library_status(message: str):
         status_el.innerText = message
 
 
-def populate_spell_class_filter(spells: list[dict]):
+def populate_spell_class_filter(spells: list[dict] | None):
     select_el = get_element("spell-class-filter")
     if select_el is None:
         return
-    class_set = {}
-    for spell in spells:
-        for class_key in spell.get("classes", []):
-            label = SPELL_CLASS_DISPLAY_NAMES.get(class_key, class_key.title())
-            class_set[class_key] = label
+    available_classes: set[str] = set()
+    if spells:
+        for spell in spells:
+            for class_key in spell.get("classes", []):
+                if class_key in SUPPORTED_SPELL_CLASSES:
+                    available_classes.add(class_key)
+
+    if not available_classes:
+        available_classes.update(CharacterFactory.supported_classes())
+
+    current_value = select_el.value if hasattr(select_el, "value") else ""
+
     options = ["<option value=\"\">Any class</option>"]
-    sorted_classes = sorted(class_set.items(), key=lambda item: item[1])
-    for class_key, label in sorted_classes:
+    ordered_classes = [
+        class_key
+        for class_key in CharacterFactory.supported_classes()
+        if class_key in available_classes
+    ]
+    for class_key in ordered_classes:
+        label = SPELL_CLASS_DISPLAY_NAMES.get(class_key, class_key.title())
         options.append(
             f"<option value=\"{escape(class_key)}\">{escape(label)}</option>"
         )
+
     select_el.innerHTML = "".join(options)
-    SPELL_LIBRARY_STATE["class_options"] = [class_key for class_key, _ in sorted_classes]
+    if current_value and current_value in ordered_classes:
+        select_el.value = current_value
+    elif current_value == "":
+        select_el.value = ""
+    SPELL_LIBRARY_STATE["class_options"] = ordered_classes
 
 
-def build_spell_card_html(spell: dict) -> str:
+def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) -> str:
+    allowed_set: set[str] = set(allowed_classes or set())
     slug = spell.get("slug", "")
     prepared = is_spell_prepared(slug)
+    spell_classes = set(spell.get("classes", []))
+    can_add = prepared or not allowed_set or bool(spell_classes.intersection(allowed_set))
 
     meta_parts: list[str] = []
     level_label = spell.get("level_label")
@@ -1593,6 +2268,8 @@ def build_spell_card_html(spell: dict) -> str:
     meta_text = " · ".join(part for part in meta_parts if part)
 
     tags = []
+    if not prepared and not can_add:
+        tags.append("<span class=\"spell-tag unavailable\">Unavailable</span>")
     if spell.get("ritual"):
         tags.append("<span class=\"spell-tag\">Ritual</span>")
     if spell.get("concentration"):
@@ -1601,9 +2278,17 @@ def build_spell_card_html(spell: dict) -> str:
 
     action = "remove" if prepared else "add"
     action_label = "Remove" if prepared else "Add"
+    button_classes = ["spell-action"]
+    if prepared:
+        button_classes.append("selected")
+    if not prepared and not can_add:
+        button_classes.append("locked")
+    button_class_attr = " ".join(button_classes)
+    disabled_attr = " disabled" if not prepared and not can_add else ""
+    title_attr = " title=\"Not available to current class\"" if not prepared and not can_add else ""
     action_button = (
-        f"<button type=\"button\" class=\"spell-action{' selected' if prepared else ''}\" "
-        f"data-spell-action=\"{action}\" data-spell-slug=\"{escape(slug)}\">{action_label}</button>"
+        f"<button type=\"button\" class=\"{button_class_attr}\" "
+        f"data-spell-action=\"{action}\" data-spell-slug=\"{escape(slug)}\"{disabled_attr}{title_attr}>{action_label}</button>"
         if slug
         else ""
     )
@@ -1688,7 +2373,9 @@ def update_header_display():
     set_text("character-header-summary", character.header_summary())
 
 
-def render_spell_results(spells: list[dict]) -> tuple[int, bool, int]:
+def render_spell_results(
+    spells: list[dict], allowed_classes: set[str] | None = None
+) -> tuple[int, bool, int]:
     results_el = get_element("spell-library-results")
     if results_el is None:
         return 0, False, 0
@@ -1698,7 +2385,9 @@ def render_spell_results(spells: list[dict]) -> tuple[int, bool, int]:
         )
         return 0, False, 0
     limited = spells[:MAX_SPELL_RENDER]
-    cards_html = "".join(build_spell_card_html(spell) for spell in limited)
+    cards_html = "".join(
+        build_spell_card_html(spell, allowed_classes) for spell in limited
+    )
     truncated = len(spells) > MAX_SPELL_RENDER
     if truncated:
         cards_html += (
@@ -1714,6 +2403,8 @@ def attach_spell_card_handlers(container):
         return
     buttons = container.querySelectorAll("button[data-spell-action]")
     for button in buttons:
+        if getattr(button, "disabled", False):
+            continue
         slug = button.getAttribute("data-spell-slug") or ""
         action = (button.getAttribute("data-spell-action") or "").lower()
         if not slug or action not in {"add", "remove"}:
@@ -1760,14 +2451,19 @@ def apply_spell_filters(auto_select: bool = False):
     if class_el is not None:
         selected_class = class_el.value.strip()
 
-    allowed_classes = profile["allowed_classes"]
+    allowed_classes = [
+        cls for cls in profile["allowed_classes"] if cls in SUPPORTED_SPELL_CLASSES
+    ]
     max_spell_level = profile["max_spell_level"]
+
+    class_options = SPELL_LIBRARY_STATE.get("class_options", [])
+    if selected_class and selected_class not in class_options:
+        selected_class = ""
 
     if auto_select and class_el is not None and allowed_classes:
         if selected_class not in allowed_classes:
             for class_key in allowed_classes:
-                option_value = class_key
-                if option_value in SPELL_LIBRARY_STATE.get("class_options", []) or class_el.querySelector(f"option[value='{class_key}']") is not None:
+                if class_key in class_options or class_el.querySelector(f"option[value='{class_key}']") is not None:
                     class_el.value = class_key
                     selected_class = class_key
                     break
@@ -1792,7 +2488,7 @@ def apply_spell_filters(auto_select: bool = False):
             continue
         filtered.append(spell)
 
-    displayed, truncated, total_filtered = render_spell_results(filtered)
+    displayed, truncated, total_filtered = render_spell_results(filtered, allowed_set)
 
     if allowed_classes:
         class_caption = ", ".join(
@@ -1844,15 +2540,35 @@ async def load_spell_library(_event=None):
             update_spell_library_status("Loaded spells from cache. Filters apply to your current class and level.")
             return
 
-        raw_spells = await fetch_open5e_spells()
+        status_message = "Loaded latest Open5e SRD spells."
+        raw_spells = None
+        fetch_error = None
+        try:
+            raw_spells = await fetch_open5e_spells()
+        except Exception as exc:
+            fetch_error = exc
+        if not raw_spells:
+            if fetch_error is not None:
+                console.warn(f"PySheet: fallback spell list in use ({fetch_error})")
+            raw_spells = LOCAL_SPELLS_FALLBACK
+            status_message = "Loaded built-in Bard and Cleric spell list."
+
         sanitized = sanitize_spell_list(raw_spells)
+        if not sanitized and raw_spells is not LOCAL_SPELLS_FALLBACK:
+            console.warn("PySheet: remote spell list missing supported classes; using fallback list.")
+            raw_spells = LOCAL_SPELLS_FALLBACK
+            status_message = "Loaded built-in Bard and Cleric spell list."
+            sanitized = sanitize_spell_list(raw_spells)
+        if not sanitized:
+            raise RuntimeError("No spells available for supported classes.")
         set_spell_library_data(sanitized)
         SPELL_LIBRARY_STATE["loaded"] = True
         populate_spell_class_filter(sanitized)
         sync_prepared_spells_with_library()
-        save_spell_cache(sanitized)
+        if raw_spells is not LOCAL_SPELLS_FALLBACK:
+            save_spell_cache(sanitized)
         apply_spell_filters(auto_select=True)
-        update_spell_library_status("Loaded latest Open5e SRD spells.")
+        update_spell_library_status(status_message)
     except Exception as exc:
         console.error(f"PySheet: failed to load spell library - {exc}")
         update_spell_library_status("Unable to load spells. Check your connection and try again.")
@@ -1970,6 +2686,7 @@ def add_equipment_item(_event=None):
     items = existing + items
     render_equipment_table(items)
     update_equipment_totals()
+    schedule_auto_export()
 
 
 def get_equipment_items_from_dom() -> list:
@@ -2000,6 +2717,7 @@ def get_equipment_items_from_dom() -> list:
 def handle_equipment_input(event, item_id=None):
     # any change to equipment updates totals
     update_equipment_totals()
+    schedule_auto_export()
 
 
 def remove_equipment_item(item_id: str):
@@ -2010,6 +2728,7 @@ def remove_equipment_item(item_id: str):
     if row is not None:
         tbody.removeChild(row)
     update_equipment_totals()
+    schedule_auto_export()
 
 
 def update_equipment_totals():
@@ -2033,18 +2752,66 @@ def save_character(_event=None):
     console.log("PySheet: character saved to localStorage")
 
 
-def export_character(_event=None):
+async def export_character(_event=None, *, auto: bool = False):
+    global _LAST_AUTO_EXPORT_SNAPSHOT
+    global _AUTO_EXPORT_FILE_HANDLE
+    global _AUTO_EXPORT_DISABLED
+    global _AUTO_EXPORT_SUPPORT_WARNED
+    global _AUTO_EXPORT_DIRECTORY_HANDLE
+    global _AUTO_EXPORT_LAST_FILENAME
+    global _AUTO_EXPORT_SETUP_PROMPTED
+    if auto and _AUTO_EXPORT_DISABLED:
+        return
+    if not auto and _AUTO_EXPORT_DISABLED:
+        _AUTO_EXPORT_DISABLED = False
+        _AUTO_EXPORT_DIRECTORY_HANDLE = None
+        _AUTO_EXPORT_FILE_HANDLE = None
+        _AUTO_EXPORT_LAST_FILENAME = ""
+        _AUTO_EXPORT_SETUP_PROMPTED = False
+        console.log("PySheet: auto-export re-enabled after manual export request")
     data = collect_character_data()
     payload = json.dumps(data, indent=2)
-    filename = (data.get("identity", {}).get("name") or "character").strip() or "character"
+    if auto and payload == _LAST_AUTO_EXPORT_SNAPSHOT:
+        return
+
+    now = datetime.now()
+    proposed_filename = _build_export_filename(data, now=now)
+
+    persistent_used = await _attempt_persistent_export(
+        payload,
+        proposed_filename,
+        auto=auto,
+        allow_prompt=not auto,
+    )
+    if persistent_used:
+        return
+
+    if auto:
+        if not _supports_persistent_auto_export():
+            if not _AUTO_EXPORT_SUPPORT_WARNED:
+                console.warn("PySheet: browser does not support persistent auto-export; automatic downloads disabled")
+                _AUTO_EXPORT_SUPPORT_WARNED = True
+            _AUTO_EXPORT_DISABLED = True
+            _AUTO_EXPORT_SETUP_PROMPTED = False
+            return
+        if not _AUTO_EXPORT_DISABLED:
+            console.log("PySheet: auto-export paused. Use Export JSON to choose a folder for automatic saves.")
+        _AUTO_EXPORT_DISABLED = True
+        _AUTO_EXPORT_SETUP_PROMPTED = False
+        return
+
     blob = Blob.new([payload], {"type": "application/json"})
     url = URL.createObjectURL(blob)
     link = document.createElement("a")
     link.href = url
-    link.download = f"{filename}.json"
+    link.download = proposed_filename
     link.click()
     URL.revokeObjectURL(url)
-    console.log("PySheet: exported character JSON")
+    _LAST_AUTO_EXPORT_SNAPSHOT = payload
+    if auto:
+        console.log(f"PySheet: auto-exported character JSON (download) to {proposed_filename}")
+    else:
+        console.log(f"PySheet: exported character JSON to {proposed_filename}")
 
 
 def reset_character(_event=None):
@@ -2053,6 +2820,7 @@ def reset_character(_event=None):
     window.localStorage.removeItem(LOCAL_STORAGE_KEY)
     populate_form(clone_default_state())
     console.log("PySheet: character reset to defaults")
+    schedule_auto_export()
 
 
 def handle_import(event):
@@ -2072,6 +2840,7 @@ def handle_import(event):
         populate_form(data)
         window.localStorage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
         console.log("PySheet: character imported from JSON")
+        schedule_auto_export()
 
     load_proxy = create_proxy(on_load)
     _EVENT_PROXIES.append(load_proxy)
@@ -2089,6 +2858,7 @@ def handle_input_event(event=None):
             target_id = getattr(target, "id", "")
         auto = target_id in {"class", "level"}
         apply_spell_filters(auto_select=auto)
+    schedule_auto_export()
 
 
 def register_event_listeners():
@@ -2123,6 +2893,8 @@ def register_event_listeners():
 
     spell_class_filter = get_element("spell-class-filter")
     if spell_class_filter is not None:
+        if not SPELL_LIBRARY_STATE.get("loaded"):
+            populate_spell_class_filter(None)
         proxy_spell_class = create_proxy(handle_spell_filter_change)
         spell_class_filter.addEventListener("change", proxy_spell_class)
         _EVENT_PROXIES.append(proxy_spell_class)
