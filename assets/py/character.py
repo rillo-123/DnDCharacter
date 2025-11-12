@@ -30,7 +30,7 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.append(str(MODULE_DIR))
 
 try:
-    from character_models import Character, CharacterFactory, DEFAULT_ABILITY_KEYS
+    from character_models import Character, CharacterFactory, DEFAULT_ABILITY_KEYS, get_race_ability_bonuses
 except ModuleNotFoundError:
     module_candidates = [
         MODULE_DIR / "character_models.py",
@@ -54,6 +54,7 @@ except ModuleNotFoundError:
             Character = module.Character
             CharacterFactory = module.CharacterFactory
             DEFAULT_ABILITY_KEYS = module.DEFAULT_ABILITY_KEYS
+            get_race_ability_bonuses = module.get_race_ability_bonuses
             loaded = True
             break
         except Exception:
@@ -105,6 +106,12 @@ SPELL_LIBRARY_STATE = {
 }
 
 SUPPORTED_SPELL_CLASSES = set(CharacterFactory.supported_classes())
+
+WEAPON_LIBRARY_STATE = {
+    "loading": False,
+    "weapons": [],
+    "weapon_map": {},
+}
 
 _EVENT_PROXIES: list = []
 
@@ -202,9 +209,24 @@ def _ensure_auto_export_proxy():
 
 def schedule_auto_export():
     global _AUTO_EXPORT_TIMER_ID, _AUTO_EXPORT_EVENT_COUNT
-    if _AUTO_EXPORT_SUPPRESS or _AUTO_EXPORT_DISABLED:
+    if _AUTO_EXPORT_SUPPRESS:
         return
+    
     _AUTO_EXPORT_EVENT_COUNT = min(_AUTO_EXPORT_EVENT_COUNT + 1, AUTO_EXPORT_MAX_EVENTS)
+    
+    # Show recording indicator (red) - even if auto-export is disabled, show that we detected a change
+    indicator = document.getElementById("saving-indicator")
+    if indicator:
+        indicator.classList.remove("saving", "fading")
+        indicator.classList.add("recording")
+    
+    # If auto-export is disabled, don't actually schedule the export timer
+    if _AUTO_EXPORT_DISABLED:
+        console.log(f"DEBUG: Change detected but auto-export disabled. Recording indicator shown for UX.")
+        return
+    
+    console.log(f"DEBUG: schedule_auto_export called! Event count: {_AUTO_EXPORT_EVENT_COUNT}")
+    
     proxy = _ensure_auto_export_proxy()
     if _AUTO_EXPORT_TIMER_ID is not None:
         window.clearTimeout(_AUTO_EXPORT_TIMER_ID)
@@ -233,21 +255,17 @@ async def _ensure_auto_export_directory(auto_trigger: bool = True):
     except JsException as exc:
         name = getattr(exc, "name", "")
         if name == "AbortError":
-            if auto_trigger:
-                console.log("PySheet: auto-export directory not selected; disabling auto-export until manual export")
-                _AUTO_EXPORT_DISABLED = True
+            # User cancelled - don't disable auto-export, just try again next time
+            console.log("PySheet: auto-export directory not selected; will try again on next change")
         elif name in {"NotAllowedError", "SecurityError"}:
             console.warn("PySheet: directory picker requires a user gesture; use Export JSON to set it up")
-            if auto_trigger:
-                _AUTO_EXPORT_DISABLED = True
         else:
             console.warn(f"PySheet: auto-export directory picker error - {exc}")
         return None
     has_permission = await _ensure_directory_write_permission(handle)
     if not has_permission:
-        console.log("PySheet: directory lacks write permission; disabling auto-export until manual export")
-        if auto_trigger:
-            _AUTO_EXPORT_DISABLED = True
+        # Permission denied - don't disable auto-export, just can't use this handle
+        console.log("PySheet: directory lacks write permission; will try again on next change")
         return None
     if not hasattr(handle, "getFileHandle"):
         console.warn("PySheet: selected directory handle cannot create files; falling back to file picker")
@@ -283,13 +301,10 @@ async def _ensure_auto_export_file_handle(target_name: str, auto_trigger: bool =
         # AbortError fires when the user dismisses the picker; treat as a simple skip.
         name = getattr(exc, "name", "")
         if name == "AbortError":
-            if auto_trigger:
-                console.log("PySheet: auto-export file target not selected; disabling auto-export until manual export")
-                _AUTO_EXPORT_DISABLED = True
+            # User cancelled - don't disable auto-export, just try again next time
+            console.log("PySheet: auto-export file target not selected; will try again on next change")
         elif name in {"NotAllowedError", "SecurityError"}:
             console.warn("PySheet: file picker requires a user gesture; use Export JSON to set it up")
-            if auto_trigger:
-                _AUTO_EXPORT_DISABLED = True
         else:
             console.warn(f"PySheet: auto-export file picker error - {exc}")
         return None
@@ -1733,9 +1748,12 @@ def _compute_skill_entry(
     skill_key: str,
     ability_scores: dict[str, int],
     proficiency_bonus: int,
+    race_bonuses: dict[str, int] = None,
 ) -> tuple[bool, bool, int]:
+    if race_bonuses is None:
+        race_bonuses = {}
     ability_key = SKILLS.get(skill_key, {}).get("ability", "")
-    ability_score = ability_scores.get(ability_key, 10)
+    ability_score = ability_scores.get(ability_key, 10) + race_bonuses.get(ability_key, 0)
     base_modifier = ability_modifier(ability_score)
     proficient = get_checkbox(f"{skill_key}-prof")
     expertise = get_checkbox(f"{skill_key}-exp")
@@ -1756,6 +1774,7 @@ def snapshot_character_from_form() -> Character:
         "background": get_text_value("background"),
         "alignment": get_text_value("alignment"),
         "player_name": get_text_value("player_name"),
+        "domain": get_text_value("domain"),
     }
 
     abilities = {}
@@ -1780,22 +1799,36 @@ def update_calculations(*_args):
     scores = gather_scores()
     level = get_numeric_value("level", 1)
     proficiency = compute_proficiency(level)
+    race = get_text_value("race")
+    race_bonuses = get_race_ability_bonuses(race)
 
     set_text("proficiency-bonus", format_bonus(proficiency))
 
     for ability, score in scores.items():
-        mod = ability_modifier(score)
+        # Calculate race bonus and total
+        race_bonus = race_bonuses.get(ability, 0)
+        total_score = score + race_bonus
+        
+        # Update display
+        if race_bonus > 0:
+            set_text(f"{ability}-race", f"+{race_bonus}")
+        else:
+            set_text(f"{ability}-race", "—")
+        set_text(f"{ability}-total", str(total_score))
+        
+        # Calculate modifier and save from total
+        mod = ability_modifier(total_score)
         set_text(f"{ability}-mod", format_bonus(mod))
         proficient = get_checkbox(f"{ability}-save-prof")
         save_total = mod + (proficiency if proficient else 0)
         set_text(f"{ability}-save", format_bonus(save_total))
 
-    dex_mod = ability_modifier(scores["dex"])
+    dex_mod = ability_modifier(scores["dex"] + race_bonuses.get("dex", 0))
     set_text("initiative", format_bonus(dex_mod))
 
     skill_totals = {}
     for skill_key in SKILLS:
-        _, _, total = _compute_skill_entry(skill_key, scores, proficiency)
+        _, _, total = _compute_skill_entry(skill_key, scores, proficiency, race_bonuses)
         skill_totals[skill_key] = total
         set_text(f"{skill_key}-total", format_bonus(total))
 
@@ -1803,7 +1836,8 @@ def update_calculations(*_args):
     set_text("passive-perception", str(passive_perception))
 
     spell_ability = get_text_value("spell_ability") or "int"
-    spell_mod = ability_modifier(scores.get(spell_ability, 10))
+    spell_score = scores.get(spell_ability, 10) + race_bonuses.get(spell_ability, 0)
+    spell_mod = ability_modifier(spell_score)
     spell_save_dc = 8 + proficiency + spell_mod
     spell_attack = proficiency + spell_mod
     set_text("spell-save-dc", str(spell_save_dc))
@@ -1847,6 +1881,7 @@ def collect_character_data() -> dict:
             "background": get_text_value("background"),
             "alignment": get_text_value("alignment"),
             "player_name": get_text_value("player_name"),
+            "domain": get_text_value("domain"),
         },
         "level": get_numeric_value("level", 1),
         "inspiration": get_numeric_value("inspiration", 0),
@@ -1892,8 +1927,8 @@ def collect_character_data() -> dict:
     for skill in SKILLS:
         prof_flag, exp_flag, total = _compute_skill_entry(skill, ability_scores, proficiency_value)
         data["skills"][skill] = {
-            "proficient": prof_flag,
-            "expertise": exp_flag,
+            "proficient": get_checkbox(f"{skill}-prof"),
+            "expertise": get_checkbox(f"{skill}-exp"),
             "bonus": total,
         }
 
@@ -1922,6 +1957,17 @@ def collect_character_data() -> dict:
 
     data["spellcasting"] = SPELLCASTING_MANAGER.export_state()
 
+    # Determine if this will be a Cleric character
+    class_text = data["identity"].get("class", "")
+    class_tokens = Character._extract_class_tokens(class_text)
+    is_cleric = "cleric" in class_tokens if class_tokens else False
+    
+    # For Cleric, sync domain to subclass since they're mapped together
+    if is_cleric:
+        domain_value = data["identity"].get("domain", "")
+        console.log(f"DEBUG: Cleric domain collected from form: '{domain_value}'")
+        data["identity"]["subclass"] = domain_value
+
     character = CharacterFactory.from_dict(data)
     return character.to_dict()
 
@@ -1934,12 +1980,21 @@ def populate_form(data: dict):
         character = CharacterFactory.from_dict(data)
         normalized = character.to_dict()
 
+        # Normalize class: extract just the class name from "Class Level" format
+        class_text = character.class_text.strip()
+        if class_text:
+            # Extract the first word as the class name (handles "Wizard 5" -> "Wizard")
+            class_name = class_text.split()[0]
+            set_form_value("class", class_name)
+        else:
+            set_form_value("class", "")
+        
         set_form_value("name", character.name)
-        set_form_value("class", character.class_text)
         set_form_value("race", character.race)
         set_form_value("background", character.background)
         set_form_value("alignment", character.alignment)
         set_form_value("player_name", character.player_name)
+        set_form_value("domain", character.domain)
 
         set_form_value("level", character.level)
         set_form_value("inspiration", character.inspiration)
@@ -2582,6 +2637,436 @@ def handle_spell_filter_change(_event=None):
     apply_spell_filters(auto_select=False)
 
 
+async def fetch_open5e_weapons():
+    """Fetch weapons list from Open5e API."""
+    try:
+        response = await pyfetch("https://api.open5e.com/weapons/?limit=1000")
+        if not response.ok:
+            return None
+        data = await response.json()
+        return data.get("results", [])
+    except Exception as exc:
+        console.error(f"PySheet: failed to fetch weapons from Open5e - {exc}")
+        return None
+
+
+def set_weapon_library_data(weapons: list):
+    """Populate weapon library state and build searchable index."""
+    WEAPON_LIBRARY_STATE["weapons"] = weapons or []
+    WEAPON_LIBRARY_STATE["weapon_map"] = {}
+    for weapon in weapons:
+        weapon_name = (weapon.get("name") or "").lower()
+        if weapon_name:
+            WEAPON_LIBRARY_STATE["weapon_map"][weapon_name] = weapon
+
+
+def search_weapons(query: str = "") -> list:
+    """Filter weapons by name prefix match (case-insensitive)."""
+    if not query:
+        return []
+    query_lower = query.lower().strip()
+    if not query_lower:
+        return []
+    return [w for w in WEAPON_LIBRARY_STATE.get("weapons", []) 
+            if (w.get("name") or "").lower().startswith(query_lower)]
+
+
+def update_weapon_library_status(message: str):
+    """Update weapon library status message."""
+    status_el = get_element("weapons-library-status")
+    if status_el is not None:
+        status_el.innerText = message
+
+
+async def load_weapon_library(_event=None):
+    """Load weapons from Open5e API."""
+    if WEAPON_LIBRARY_STATE.get("loading"):
+        return
+
+    WEAPON_LIBRARY_STATE["loading"] = True
+    update_weapon_library_status("Loading weapons...")
+
+    try:
+        raw_weapons = await fetch_open5e_weapons()
+        if not raw_weapons:
+            raise RuntimeError("No weapons available from Open5e API.")
+        
+        set_weapon_library_data(raw_weapons)
+        
+        num_weapons = len(raw_weapons)
+        update_weapon_library_status(f"Loaded {num_weapons} weapons. Start typing to search.")
+        
+    except Exception as exc:
+        console.error(f"PySheet: failed to load weapon library - {exc}")
+        update_weapon_library_status("Unable to load weapons. Check your connection.")
+    finally:
+        WEAPON_LIBRARY_STATE["loading"] = False
+
+
+def populate_weapon_dropdown(weapons: list = None):
+    """Populate the weapon dropdown with available weapons."""
+    if weapons is None:
+        weapons = []
+    
+    dropdown = get_element("weapon-dropdown")
+    if dropdown is None:
+        return
+    
+    dropdown.innerHTML = ""
+    for idx, weapon in enumerate(weapons[:20]):  # Limit to 20 results
+        option = document.createElement("div")
+        option.classList.add("weapon-option")
+        option.setAttribute("data-weapon-index", str(idx))
+        name = weapon.get("name", "Unknown")
+        damage = weapon.get("damage", "")
+        damage_str = f" ({escape(damage)})" if damage else ""
+        option.innerHTML = f"{escape(name)}{damage_str}"
+        
+        def make_click_handler(w):
+            def on_click(evt):
+                add_equipped_weapon(w)
+                close_weapon_dropdown()
+                clear_weapon_search()
+            return on_click
+        
+        # Use create_proxy to wrap the handler
+        handler = create_proxy(make_click_handler(weapon))
+        option.addEventListener("click", handler)
+        _EVENT_PROXIES.append(handler)
+        dropdown.appendChild(option)
+
+
+def clear_weapon_search():
+    """Clear weapon search input."""
+    search_input = get_element("weapon-search")
+    if search_input is not None:
+        search_input.value = ""
+
+
+def filter_weapon_dropdown(query: str = ""):
+    """Filter dropdown options by search query."""
+    results = search_weapons(query)
+    populate_weapon_dropdown(results)
+    
+    dropdown = get_element("weapon-dropdown")
+    if dropdown is not None:
+        if results:
+            dropdown.classList.add("active")
+        else:
+            dropdown.classList.remove("active")
+
+
+def handle_weapon_search(event=None):
+    """Handle weapon search input changes with arrow key navigation."""
+    search_input = get_element("weapon-search")
+    if search_input is None:
+        return
+    
+    if event and event.type == "keydown":
+        key = event.key
+        if key == "ArrowDown" or key == "ArrowUp":
+            event.preventDefault()
+            navigate_weapon_options(key == "ArrowDown")
+            return
+        elif key == "Enter":
+            event.preventDefault()
+            select_highlighted_weapon()
+            return
+    
+    query = search_input.value or ""
+    filter_weapon_dropdown(query)
+
+
+def navigate_weapon_options(move_down: bool = True):
+    """Navigate weapon dropdown with arrow keys."""
+    dropdown = get_element("weapon-dropdown")
+    if dropdown is None or not dropdown.classList.contains("active"):
+        return
+    
+    options = dropdown.querySelectorAll(".weapon-option")
+    if not options:
+        return
+    
+    highlighted = dropdown.querySelector(".weapon-option.highlighted")
+    
+    if not highlighted:
+        # Highlight first or last based on direction
+        if move_down:
+            options[0].classList.add("highlighted")
+        else:
+            options[len(options) - 1].classList.add("highlighted")
+    else:
+        idx = int(highlighted.getAttribute("data-weapon-index") or 0)
+        highlighted.classList.remove("highlighted")
+        
+        if move_down:
+            next_idx = min(idx + 1, len(options) - 1)
+        else:
+            next_idx = max(idx - 1, 0)
+        
+        if next_idx < len(options):
+            options[next_idx].classList.add("highlighted")
+
+
+def select_highlighted_weapon():
+    """Select the highlighted weapon from dropdown."""
+    dropdown = get_element("weapon-dropdown")
+    if dropdown is None:
+        return
+    
+    highlighted = dropdown.querySelector(".weapon-option.highlighted")
+    if highlighted:
+        highlighted.click()
+
+
+def open_weapon_dropdown():
+    """Show weapon dropdown."""
+    dropdown = get_element("weapon-dropdown")
+    if dropdown is not None:
+        dropdown.classList.add("active")
+
+
+def close_weapon_dropdown():
+    """Hide weapon dropdown."""
+    dropdown = get_element("weapon-dropdown")
+    if dropdown is not None:
+        dropdown.classList.remove("active")
+
+
+def get_equipped_weapons() -> list[dict]:
+    """Get list of currently equipped weapons from localStorage."""
+    try:
+        storage_key = "dnd_character_data"
+        stored = window.localStorage.getItem(storage_key)
+        if stored:
+            import json
+            char_data = json.loads(stored)
+            return char_data.get("equipped_weapons", [])
+    except:
+        pass
+    return []
+
+
+def render_equipped_weapons():
+    """Render equipped weapons as cards."""
+    equipped_list = get_element("weapons-list")
+    empty_state = get_element("weapons-empty-state")
+    
+    if equipped_list is None or empty_state is None:
+        return
+    
+    weapons = get_equipped_weapons()
+    
+    if not weapons:
+        equipped_list.innerHTML = ""
+        empty_state.style.display = "block"
+        return
+    
+    empty_state.style.display = "none"
+    equipped_list.innerHTML = ""
+    
+    for weapon in weapons:
+        weapon_id = weapon.get("name", "").replace(" ", "_").replace("/", "_")
+        
+        card = document.createElement("div")
+        card.classList.add("weapon-card")
+        card.setAttribute("id", f"weapon-card-{weapon_id}")
+        
+        name = weapon.get("name", "Unknown")
+        damage = weapon.get("damage", "")
+        to_hit = weapon.get("to_hit", "")
+        damage_type = weapon.get("damage_type", "")
+        weapon_type = weapon.get("weapon_type", "")
+        weight = weapon.get("weight", "")
+        cost = weapon.get("cost", "")
+        
+        # Main display: to-hit and damage
+        # Format to-hit - show only if available, otherwise show damage bonus if available
+        if to_hit:
+            to_hit_str = f"+{to_hit}" if isinstance(to_hit, (int, float)) else str(to_hit)
+        else:
+            bonus = weapon.get("bonus", "") or weapon.get("attack_bonus", "")
+            to_hit_str = f"+{bonus}" if bonus else "-"
+        
+        damage_str = damage if damage else "-"
+        
+        card.innerHTML = f'''
+        <div class="weapon-card-header">
+            <strong>{escape(name)}</strong>
+            <span class="weapon-stat-compact">{escape(damage_str)}</span>
+            <button class="weapon-card-edit" data-weapon-id="{escape(weapon_id)}" type="button">✎</button>
+            <button class="weapon-card-remove" data-weapon-id="{escape(weapon_id)}" type="button">✕</button>
+        </div>
+        '''
+        
+        # Create details div separately
+        details_div = document.createElement("div")
+        details_div.classList.add("weapon-card-details")
+        details_div.setAttribute("id", f"details-{escape(weapon_id)}")
+        
+        # Build details - shows additional info when expanded
+        details_lines = []
+        details_lines.append(f"<div class='weapon-detail-row'><strong>Type:</strong> {escape(weapon_type)}</div>")
+        if damage_type:
+            details_lines.append(f"<div class='weapon-detail-row'><strong>Damage Type:</strong> {escape(damage_type)}</div>")
+        if weight:
+            details_lines.append(f"<div class='weapon-detail-row'><strong>Weight:</strong> {escape(weight)} lbs</div>")
+        if cost:
+            details_lines.append(f"<div class='weapon-detail-row'><strong>Cost:</strong> {escape(cost)}</div>")
+        
+        details_html = "".join(details_lines)
+        details_div.innerHTML = details_html
+        card.appendChild(details_div)
+        # Click to expand/collapse details
+        def make_expand_handler(wid):
+            def on_click(evt):
+                details = get_element(f"details-{wid}")
+                if details:
+                    details.classList.toggle("expanded")
+            return on_click
+        
+        card_element = card
+        handler = create_proxy(make_expand_handler(weapon_id))
+        card_element.addEventListener("click", handler)
+        _EVENT_PROXIES.append(handler)
+        
+        # Edit button
+        edit_btn = card.querySelector(".weapon-card-edit")
+        if edit_btn is not None:
+            def make_edit_handler(w):
+                def on_click(evt):
+                    evt.stopPropagation()  # Don't trigger expand/collapse
+                    edit_equipped_weapon(w)
+                return on_click
+            # Use create_proxy to wrap the handler
+            edit_handler = create_proxy(make_edit_handler(weapon))
+            edit_btn.addEventListener("click", edit_handler)
+            _EVENT_PROXIES.append(edit_handler)
+        
+        # Remove button
+        remove_btn = card.querySelector(".weapon-card-remove")
+        if remove_btn is not None:
+            def make_remove_handler(wid):
+                def on_click(evt):
+                    evt.stopPropagation()  # Don't trigger expand/collapse
+                    remove_equipped_weapon(wid)
+                    render_equipped_weapons()
+                return on_click
+            # Use create_proxy to wrap the handler
+            remove_handler = create_proxy(make_remove_handler(weapon_id))
+            remove_btn.addEventListener("click", remove_handler)
+            _EVENT_PROXIES.append(remove_handler)
+        
+        equipped_list.appendChild(card)
+
+
+def add_equipped_weapon(weapon: dict):
+    """Add weapon to equipped list."""
+    if not weapon:
+        return
+    
+    weapon_name = weapon.get("name", "")
+    if not weapon_name:
+        return
+    
+    try:
+        # Get current data from localStorage
+        storage_key = "dnd_character_data"
+        char_data = {
+            "equipped_weapons": []
+        }
+        
+        # Load from localStorage if available
+        try:
+            stored = window.localStorage.getItem(storage_key)
+            if stored:
+                import json
+                char_data = json.loads(stored)
+        except Exception as e:
+            pass
+        
+        # Check if already equipped
+        if "equipped_weapons" not in char_data:
+            char_data["equipped_weapons"] = []
+        
+        equipped = char_data.get("equipped_weapons", [])
+        if any(w.get("name") == weapon_name for w in equipped):
+            return
+        
+        # Add weapon
+        char_data["equipped_weapons"].append(weapon)
+        
+        # Save to localStorage
+        try:
+            import json
+            window.localStorage.setItem(storage_key, json.dumps(char_data))
+        except Exception as e:
+            pass
+        
+        render_equipped_weapons()
+        schedule_auto_export()
+    except Exception as exc:
+        console.error(f"PySheet: failed to add weapon - {exc}")
+
+
+def remove_equipped_weapon(weapon_id: str):
+    """Remove weapon from equipped list."""
+    try:
+        # Load from localStorage
+        storage_key = "dnd_character_data"
+        char_data = {"equipped_weapons": []}
+        
+        try:
+            stored = window.localStorage.getItem(storage_key)
+            if stored:
+                import json
+                char_data = json.loads(stored)
+        except:
+            pass
+        
+        equipped = char_data.get("equipped_weapons", [])
+        char_data["equipped_weapons"] = [
+            w for w in equipped 
+            if w.get("name", "").replace(" ", "_").replace("/", "_") != weapon_id
+        ]
+        
+        # Save to localStorage
+        try:
+            import json
+            window.localStorage.setItem(storage_key, json.dumps(char_data))
+        except:
+            pass
+        
+        render_equipped_weapons()
+        schedule_auto_export()
+    except Exception as exc:
+        console.error(f"PySheet: failed to remove weapon - {exc}")
+
+
+def edit_equipped_weapon(weapon: dict):
+    """Show edit dialog for weapon."""
+    if not weapon:
+        return
+    
+    name = weapon.get("name", "Unknown")
+    damage = weapon.get("damage", "")
+    damage_type = weapon.get("damage_type", "")
+    weapon_type = weapon.get("weapon_type", "")
+    
+    # Show all available fields in a formatted way
+    dialog_text = f"""Weapon Details for: {name}
+
+Damage: {damage or 'N/A'}
+Damage Type: {damage_type or 'N/A'}
+Type: {weapon_type or 'N/A'}
+
+Full API Data:
+{str(weapon)}"""
+    
+    # Use alert for now - shows all the data
+    window.alert(dialog_text)
+
+
 def _create_equipment_row(item: dict) -> any:
     """Return a DOM <tr> element for the given item dict."""
     tbody = get_element("equipment-table-body")
@@ -2760,7 +3245,23 @@ async def export_character(_event=None, *, auto: bool = False):
     global _AUTO_EXPORT_DIRECTORY_HANDLE
     global _AUTO_EXPORT_LAST_FILENAME
     global _AUTO_EXPORT_SETUP_PROMPTED
+    
+    def show_saving_state():
+        """Show green SAVING state."""
+        indicator = document.getElementById("saving-indicator")
+        if indicator:
+            indicator.classList.remove("recording", "fading")
+            indicator.classList.add("saving")
+    
+    def fade_indicator():
+        """Fade to gray and remove."""
+        indicator = document.getElementById("saving-indicator")
+        if indicator:
+            indicator.classList.remove("saving", "recording")
+            indicator.classList.add("fading")
+    
     if auto and _AUTO_EXPORT_DISABLED:
+        fade_indicator()
         return
     if not auto and _AUTO_EXPORT_DISABLED:
         _AUTO_EXPORT_DISABLED = False
@@ -2772,7 +3273,11 @@ async def export_character(_event=None, *, auto: bool = False):
     data = collect_character_data()
     payload = json.dumps(data, indent=2)
     if auto and payload == _LAST_AUTO_EXPORT_SNAPSHOT:
+        fade_indicator()
         return
+    
+    # Show green SAVING state
+    show_saving_state()
 
     now = datetime.now()
     proposed_filename = _build_export_filename(data, now=now)
@@ -2784,6 +3289,7 @@ async def export_character(_event=None, *, auto: bool = False):
         allow_prompt=not auto,
     )
     if persistent_used:
+        fade_indicator()
         return
 
     if auto:
@@ -2793,11 +3299,12 @@ async def export_character(_event=None, *, auto: bool = False):
                 _AUTO_EXPORT_SUPPORT_WARNED = True
             _AUTO_EXPORT_DISABLED = True
             _AUTO_EXPORT_SETUP_PROMPTED = False
+            fade_indicator()
             return
-        if not _AUTO_EXPORT_DISABLED:
-            console.log("PySheet: auto-export paused. Use Export JSON to choose a folder for automatic saves.")
-        _AUTO_EXPORT_DISABLED = True
-        _AUTO_EXPORT_SETUP_PROMPTED = False
+        # Persistent export not yet set up, but that's OK - just skip this export and try again next time
+        # Don't disable auto-export - user may set it up manually later
+        console.log("PySheet: auto-export not yet configured; will try again on next change")
+        fade_indicator()
         return
 
     blob = Blob.new([payload], {"type": "application/json"})
@@ -2812,6 +3319,8 @@ async def export_character(_event=None, *, auto: bool = False):
         console.log(f"PySheet: auto-exported character JSON (download) to {proposed_filename}")
     else:
         console.log(f"PySheet: exported character JSON to {proposed_filename}")
+    
+    fade_indicator()
 
 
 def reset_character(_event=None):
@@ -2850,6 +3359,13 @@ def handle_import(event):
 
 
 def handle_input_event(event=None):
+    # Debug: log domain changes
+    if event is not None and hasattr(event, "target"):
+        target_id = getattr(event.target, "id", "")
+        if target_id == "domain":
+            value = getattr(event.target, "value", "")
+            console.log(f"DEBUG: domain input event fired! New value: {value}")
+    
     update_calculations()
     if SPELL_LIBRARY_STATE.get("loaded"):
         target_id = ""
@@ -2915,3 +3431,10 @@ def load_initial_state():
 register_event_listeners()
 load_initial_state()
 update_calculations()
+render_equipped_weapons()
+
+# Auto-load weapon library
+async def _auto_load_weapons():
+    await load_weapon_library()
+
+asyncio.create_task(_auto_load_weapons())

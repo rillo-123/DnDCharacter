@@ -17,6 +17,38 @@ DEFAULT_ABILITY_KEYS: Tuple[str, ...] = ("str", "dex", "con", "int", "wis", "cha
 
 AbilityState = Dict[str, Any]
 
+RACE_ABILITY_BONUSES: Dict[str, Dict[str, int]] = {
+    "human": {"str": 1, "dex": 1, "con": 1, "int": 1, "wis": 1, "cha": 1},
+    "elf": {"dex": 2},
+    "high elf": {"dex": 2, "int": 1},
+    "wood elf": {"dex": 2, "wis": 1},
+    "dark elf": {"dex": 2, "cha": 1},
+    "dwarf": {"con": 2},
+    "mountain dwarf": {"con": 2, "str": 2},
+    "hill dwarf": {"con": 2, "wis": 1},
+    "halfling": {"dex": 2},
+    "lightfoot halfling": {"dex": 2, "cha": 1},
+    "stout halfling": {"dex": 2, "con": 1},
+    "dragonborn": {"str": 2, "cha": 1},
+    "gnome": {"int": 2},
+    "forest gnome": {"int": 2, "dex": 1},
+    "rock gnome": {"int": 2, "con": 1},
+    "half-elf": {"cha": 2, "str": 1, "con": 1},
+    "half-orc": {"str": 2, "con": 1},
+    "tiefling": {"cha": 2, "int": 1},
+}
+
+
+def get_race_ability_bonuses(race: str) -> Dict[str, int]:
+    """Get ability score bonuses for a given race.
+    
+    Returns a dictionary mapping ability keys to their bonuses.
+    """
+    if not race:
+        return {}
+    race_lower = race.strip().lower()
+    return copy.copy(RACE_ABILITY_BONUSES.get(race_lower, {}))
+
 
 class AbilityAccessor:
     """Proxy object that exposes ability scores via attribute access.
@@ -123,7 +155,7 @@ class Character:
     # ------------------------------------------------------------------
     def _ensure_identity_defaults(self) -> None:
         identity = self._data.setdefault("identity", {})
-        for key in ("name", "class", "race", "background", "alignment", "player_name", "subclass"):
+        for key in ("name", "class", "race", "background", "alignment", "player_name", "subclass", "domain"):
             identity.setdefault(key, "")
         if "level" not in self._data:
             self._data["level"] = 1
@@ -193,6 +225,14 @@ class Character:
     @alignment.setter
     def alignment(self, value: Optional[str]) -> None:
         self._data["identity"]["alignment"] = (value or "").strip()
+
+    @property
+    def domain(self) -> str:
+        return self._data["identity"].get("domain", "")
+
+    @domain.setter
+    def domain(self, value: Optional[str]) -> None:
+        self._data["identity"]["domain"] = (value or "").strip()
 
     @property
     def player_name(self) -> str:
@@ -309,11 +349,20 @@ class Cleric(Character):
 
     @property
     def domain(self) -> str:
-        return self.subclass
+        # For Cleric, domain is stored in subclass
+        # But if subclass is empty and identity["domain"] has a value, return that
+        # This handles the case where domain is loaded but subclass hasn't been synced yet
+        subclass_value = self.subclass.strip()
+        if subclass_value:
+            return subclass_value
+        # Fall back to identity["domain"] if subclass is empty
+        return self._data["identity"].get("domain", "").strip()
 
     @domain.setter
     def domain(self, value: Optional[str]) -> None:
         self.subclass = value
+        # Also keep identity["domain"] in sync for serialization
+        self._data["identity"]["domain"] = (value or "").strip()
 
 
 class CharacterFactory:

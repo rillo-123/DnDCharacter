@@ -24,123 +24,232 @@
             <button class="tab" data-tab="inventory" type="button">Inventory</button>
             <button class="tab" data-tab="spells" type="button">Spells</button>
             <button class="tab" data-tab="manage" type="button">Manage</button>
+            <div class="tabs-spacer"></div>
+            <div class="saving-indicator" id="saving-indicator">
+                <span class="saving-lamp"></span>
+                <span class="saving-text">Saving</span>
+            </div>
         </nav>
 
         <section id="tab-overview" class="tab-panel active">
             <div class="panel-grid">
                 <section class="card">
-                    <h2>Identity</h2>
-                    <div class="grid grid-2">
-                        <label class="field">
+                    <h2>Character</h2>
+                    <div class="grid grid-3 compact-grid">
+                        <label class="field compact-field">
                             <span>Name</span>
                             <input data-character-input type="text" id="name" placeholder="Rill the Bold">
                         </label>
-                        <label class="field">
-                            <span>Class &amp; Level</span>
-                            <input data-character-input type="text" id="class" placeholder="Wizard 5">
+                        <label class="field compact-field">
+                            <span>Class</span>
+                            <select data-character-input id="class">
+                                <option value="">Select Class</option>
+                                <option value="Barbarian">Barbarian</option>
+                                <option value="Bard">Bard</option>
+                                <option value="Cleric">Cleric</option>
+                                <option value="Druid">Druid</option>
+                                <option value="Fighter">Fighter</option>
+                                <option value="Monk">Monk</option>
+                                <option value="Paladin">Paladin</option>
+                                <option value="Ranger">Ranger</option>
+                                <option value="Rogue">Rogue</option>
+                                <option value="Sorcerer">Sorcerer</option>
+                                <option value="Warlock">Warlock</option>
+                                <option value="Wizard">Wizard</option>
+                            </select>
                         </label>
-                        <label class="field">
+                        <label class="field compact-field">
                             <span>Race</span>
-                            <input data-character-input type="text" id="race" placeholder="High Elf">
+                            <select data-character-input id="race">
+                                <option value="">Select Race</option>
+                                <option value="Human">Human</option>
+                                <option value="Elf">Elf</option>
+                                <option value="High Elf">High Elf</option>
+                                <option value="Wood Elf">Wood Elf</option>
+                                <option value="Dark Elf">Dark Elf</option>
+                                <option value="Dwarf">Dwarf</option>
+                                <option value="Mountain Dwarf">Mountain Dwarf</option>
+                                <option value="Hill Dwarf">Hill Dwarf</option>
+                                <option value="Halfling">Halfling</option>
+                                <option value="Lightfoot Halfling">Lightfoot Halfling</option>
+                                <option value="Stout Halfling">Stout Halfling</option>
+                                <option value="Dragonborn">Dragonborn</option>
+                                <option value="Gnome">Gnome</option>
+                                <option value="Forest Gnome">Forest Gnome</option>
+                                <option value="Rock Gnome">Rock Gnome</option>
+                                <option value="Half-Elf">Half-Elf</option>
+                                <option value="Half-Orc">Half-Orc</option>
+                                <option value="Tiefling">Tiefling</option>
+                            </select>
                         </label>
-                        <label class="field">
+                        <label class="field compact-field">
                             <span>Background</span>
-                            <input data-character-input type="text" id="background" placeholder="Sage">
+                            <select data-character-input id="background">
+                                <option value="">Select Background</option>
+                                <option value="Acolyte">Acolyte</option>
+                                <option value="Charlatan">Charlatan</option>
+                                <option value="Criminal">Criminal</option>
+                                <option value="Entertainer">Entertainer</option>
+                                <option value="Folk Hero">Folk Hero</option>
+                                <option value="Gladiator">Gladiator</option>
+                                <option value="Guild Artisan">Guild Artisan</option>
+                                <option value="Hermit">Hermit</option>
+                                <option value="Knight">Knight</option>
+                                <option value="Mercenary Captain">Mercenary Captain</option>
+                                <option value="Noble">Noble</option>
+                                <option value="Outlander">Outlander</option>
+                                <option value="Sage">Sage</option>
+                                <option value="Sailor">Sailor</option>
+                                <option value="Soldier">Soldier</option>
+                                <option value="Urchin">Urchin</option>
+                            </select>
                         </label>
-                        <label class="field">
+                        <label class="field compact-field">
+                            <span>Domain</span>
+                            <select data-character-input id="domain">
+                                <option value="">Select Domain</option>
+                                <option value="Arcana">Arcana</option>
+                                <option value="City">City</option>
+                                <option value="Death">Death</option>
+                                <option value="Forge">Forge</option>
+                                <option value="Grave">Grave</option>
+                                <option value="Knowledge">Knowledge</option>
+                                <option value="Life">Life</option>
+                                <option value="Light">Light</option>
+                                <option value="Nature">Nature</option>
+                                <option value="Order">Order</option>
+                                <option value="Peace">Peace</option>
+                                <option value="Tempest">Tempest</option>
+                                <option value="Trickery">Trickery</option>
+                                <option value="War">War</option>
+                            </select>
+                        </label>
+                        <label class="field compact-field">
                             <span>Alignment</span>
-                            <input data-character-input type="text" id="alignment" placeholder="Neutral Good">
+                            <select data-character-input id="alignment">
+                                <option value="">Select Alignment</option>
+                                <option value="Lawful Good">Lawful Good</option>
+                                <option value="Neutral Good">Neutral Good</option>
+                                <option value="Chaotic Good">Chaotic Good</option>
+                                <option value="Lawful Neutral">Lawful Neutral</option>
+                                <option value="Neutral">Neutral</option>
+                                <option value="Chaotic Neutral">Chaotic Neutral</option>
+                                <option value="Lawful Evil">Lawful Evil</option>
+                                <option value="Neutral Evil">Neutral Evil</option>
+                                <option value="Chaotic Evil">Chaotic Evil</option>
+                            </select>
                         </label>
-                        <label class="field">
+                        <label class="field compact-field">
                             <span>Player Name</span>
                             <input data-character-input type="text" id="player_name" placeholder="Carl">
                         </label>
-                    </div>
-                </section>
-
-                <section class="card">
-                    <h2>Level &amp; Proficiency</h2>
-                    <div class="grid grid-3">
-                        <label class="field">
+                        <label class="field compact-field">
                             <span>Level</span>
                             <input data-character-input type="number" min="1" max="20" id="level" value="1">
                         </label>
-                        <div class="field readonly">
+                        <div class="field readonly compact-field">
                             <span>Proficiency Bonus</span>
                             <output id="proficiency-bonus">+2</output>
                         </div>
-                        <label class="field">
-                            <span>Inspiration</span>
-                            <input data-character-input type="number" min="0" id="inspiration" value="0">
-                        </label>
-                        <label class="field">
-                            <span>Spellcasting Ability</span>
-                            <select data-character-input id="spell_ability">
-                                <option value="int" selected>INT</option>
-                                <option value="wis">WIS</option>
-                                <option value="cha">CHA</option>
-                            </select>
-                        </label>
                     </div>
                 </section>
 
                 <section class="card abilities">
                     <h2>Ability Scores</h2>
-                    <div class="abilities-grid">
-                        <div class="ability">
-                            <label for="str-score">STR</label>
-                            <input data-character-input type="number" min="1" max="30" id="str-score" value="10">
-                            <span class="modifier" id="str-mod">+0</span>
-                            <span class="saving-throw">Save: <span id="str-save">+0</span></span>
-                            <label class="checkbox">
-                                <input data-character-input type="checkbox" id="str-save-prof"> Proficient
-                            </label>
-                        </div>
-                        <div class="ability">
-                            <label for="dex-score">DEX</label>
-                            <input data-character-input type="number" min="1" max="30" id="dex-score" value="10">
-                            <span class="modifier" id="dex-mod">+0</span>
-                            <span class="saving-throw">Save: <span id="dex-save">+0</span></span>
-                            <label class="checkbox">
-                                <input data-character-input type="checkbox" id="dex-save-prof"> Proficient
-                            </label>
-                        </div>
-                        <div class="ability">
-                            <label for="con-score">CON</label>
-                            <input data-character-input type="number" min="1" max="30" id="con-score" value="10">
-                            <span class="modifier" id="con-mod">+0</span>
-                            <span class="saving-throw">Save: <span id="con-save">+0</span></span>
-                            <label class="checkbox">
-                                <input data-character-input type="checkbox" id="con-save-prof"> Proficient
-                            </label>
-                        </div>
-                        <div class="ability">
-                            <label for="int-score">INT</label>
-                            <input data-character-input type="number" min="1" max="30" id="int-score" value="10">
-                            <span class="modifier" id="int-mod">+0</span>
-                            <span class="saving-throw">Save: <span id="int-save">+0</span></span>
-                            <label class="checkbox">
-                                <input data-character-input type="checkbox" id="int-save-prof"> Proficient
-                            </label>
-                        </div>
-                        <div class="ability">
-                            <label for="wis-score">WIS</label>
-                            <input data-character-input type="number" min="1" max="30" id="wis-score" value="10">
-                            <span class="modifier" id="wis-mod">+0</span>
-                            <span class="saving-throw">Save: <span id="wis-save">+0</span></span>
-                            <label class="checkbox">
-                                <input data-character-input type="checkbox" id="wis-save-prof"> Proficient
-                            </label>
-                        </div>
-                        <div class="ability">
-                            <label for="cha-score">CHA</label>
-                            <input data-character-input type="number" min="1" max="30" id="cha-score" value="10">
-                            <span class="modifier" id="cha-mod">+0</span>
-                            <span class="saving-throw">Save: <span id="cha-save">+0</span></span>
-                            <label class="checkbox">
-                                <input data-character-input type="checkbox" id="cha-save-prof"> Proficient
-                            </label>
-                        </div>
+                    <div class="abilities-table-wrapper">
+                        <table class="abilities-table">
+                            <thead>
+                                <tr>
+                                    <th>Ability</th>
+                                    <th>Score</th>
+                                    <th>Race</th>
+                                    <th>Total</th>
+                                    <th>Bonus</th>
+                                    <th>Save</th>
+                                    <th>Prof</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="ability-row" data-ability="str">
+                                    <td class="ability-label">STR</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="str-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="str-race">—</span></td>
+                                    <td class="ability-total"><span id="str-total">10</span></td>
+                                    <td class="ability-bonus"><span id="str-mod">+0</span></td>
+                                    <td class="ability-save"><span id="str-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="str-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="dex">
+                                    <td class="ability-label">DEX</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="dex-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="dex-race">—</span></td>
+                                    <td class="ability-total"><span id="dex-total">10</span></td>
+                                    <td class="ability-bonus"><span id="dex-mod">+0</span></td>
+                                    <td class="ability-save"><span id="dex-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="dex-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="con">
+                                    <td class="ability-label">CON</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="con-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="con-race">—</span></td>
+                                    <td class="ability-total"><span id="con-total">10</span></td>
+                                    <td class="ability-bonus"><span id="con-mod">+0</span></td>
+                                    <td class="ability-save"><span id="con-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="con-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="int">
+                                    <td class="ability-label">INT</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="int-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="int-race">—</span></td>
+                                    <td class="ability-total"><span id="int-total">10</span></td>
+                                    <td class="ability-bonus"><span id="int-mod">+0</span></td>
+                                    <td class="ability-save"><span id="int-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="int-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="wis">
+                                    <td class="ability-label">WIS</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="wis-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="wis-race">—</span></td>
+                                    <td class="ability-total"><span id="wis-total">10</span></td>
+                                    <td class="ability-bonus"><span id="wis-mod">+0</span></td>
+                                    <td class="ability-save"><span id="wis-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="wis-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="cha">
+                                    <td class="ability-label">CHA</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="cha-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="cha-race">—</span></td>
+                                    <td class="ability-total"><span id="cha-total">10</span></td>
+                                    <td class="ability-bonus"><span id="cha-mod">+0</span></td>
+                                    <td class="ability-save"><span id="cha-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="cha-save-prof">
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </section>
             </div>
@@ -154,138 +263,138 @@
                         <thead>
                             <tr>
                                 <th>Skill</th>
-                                <th>Ability</th>
+                                <th>Total</th>
                                 <th>Proficient</th>
                                 <th>Expertise</th>
-                                <th>Total</th>
+                                <th>Ability</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr data-skill="acrobatics">
                                 <td>Acrobatics</td>
-                                <td>DEX</td>
+                                <td><span id="acrobatics-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="acrobatics-prof"></td>
                                 <td><input data-character-input type="checkbox" id="acrobatics-exp"></td>
-                                <td><span id="acrobatics-total">+0</span></td>
+                                <td>DEX</td>
                             </tr>
                             <tr data-skill="animal_handling">
                                 <td>Animal Handling</td>
-                                <td>WIS</td>
+                                <td><span id="animal_handling-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="animal_handling-prof"></td>
                                 <td><input data-character-input type="checkbox" id="animal_handling-exp"></td>
-                                <td><span id="animal_handling-total">+0</span></td>
+                                <td>WIS</td>
                             </tr>
                             <tr data-skill="arcana">
                                 <td>Arcana</td>
-                                <td>INT</td>
+                                <td><span id="arcana-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="arcana-prof"></td>
                                 <td><input data-character-input type="checkbox" id="arcana-exp"></td>
-                                <td><span id="arcana-total">+0</span></td>
+                                <td>INT</td>
                             </tr>
                             <tr data-skill="athletics">
                                 <td>Athletics</td>
-                                <td>STR</td>
+                                <td><span id="athletics-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="athletics-prof"></td>
                                 <td><input data-character-input type="checkbox" id="athletics-exp"></td>
-                                <td><span id="athletics-total">+0</span></td>
+                                <td>STR</td>
                             </tr>
                             <tr data-skill="deception">
                                 <td>Deception</td>
-                                <td>CHA</td>
+                                <td><span id="deception-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="deception-prof"></td>
                                 <td><input data-character-input type="checkbox" id="deception-exp"></td>
-                                <td><span id="deception-total">+0</span></td>
+                                <td>CHA</td>
                             </tr>
                             <tr data-skill="history">
                                 <td>History</td>
-                                <td>INT</td>
+                                <td><span id="history-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="history-prof"></td>
                                 <td><input data-character-input type="checkbox" id="history-exp"></td>
-                                <td><span id="history-total">+0</span></td>
+                                <td>INT</td>
                             </tr>
                             <tr data-skill="insight">
                                 <td>Insight</td>
-                                <td>WIS</td>
+                                <td><span id="insight-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="insight-prof"></td>
                                 <td><input data-character-input type="checkbox" id="insight-exp"></td>
-                                <td><span id="insight-total">+0</span></td>
+                                <td>WIS</td>
                             </tr>
                             <tr data-skill="intimidation">
                                 <td>Intimidation</td>
-                                <td>CHA</td>
+                                <td><span id="intimidation-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="intimidation-prof"></td>
                                 <td><input data-character-input type="checkbox" id="intimidation-exp"></td>
-                                <td><span id="intimidation-total">+0</span></td>
+                                <td>CHA</td>
                             </tr>
                             <tr data-skill="investigation">
                                 <td>Investigation</td>
-                                <td>INT</td>
+                                <td><span id="investigation-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="investigation-prof"></td>
                                 <td><input data-character-input type="checkbox" id="investigation-exp"></td>
-                                <td><span id="investigation-total">+0</span></td>
+                                <td>INT</td>
                             </tr>
                             <tr data-skill="medicine">
                                 <td>Medicine</td>
-                                <td>WIS</td>
+                                <td><span id="medicine-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="medicine-prof"></td>
                                 <td><input data-character-input type="checkbox" id="medicine-exp"></td>
-                                <td><span id="medicine-total">+0</span></td>
+                                <td>WIS</td>
                             </tr>
                             <tr data-skill="nature">
                                 <td>Nature</td>
-                                <td>INT</td>
+                                <td><span id="nature-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="nature-prof"></td>
                                 <td><input data-character-input type="checkbox" id="nature-exp"></td>
-                                <td><span id="nature-total">+0</span></td>
+                                <td>INT</td>
                             </tr>
                             <tr data-skill="perception">
                                 <td>Perception</td>
-                                <td>WIS</td>
+                                <td><span id="perception-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="perception-prof"></td>
                                 <td><input data-character-input type="checkbox" id="perception-exp"></td>
-                                <td><span id="perception-total">+0</span></td>
+                                <td>WIS</td>
                             </tr>
                             <tr data-skill="performance">
                                 <td>Performance</td>
-                                <td>CHA</td>
+                                <td><span id="performance-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="performance-prof"></td>
                                 <td><input data-character-input type="checkbox" id="performance-exp"></td>
-                                <td><span id="performance-total">+0</span></td>
+                                <td>CHA</td>
                             </tr>
                             <tr data-skill="persuasion">
                                 <td>Persuasion</td>
-                                <td>CHA</td>
+                                <td><span id="persuasion-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="persuasion-prof"></td>
                                 <td><input data-character-input type="checkbox" id="persuasion-exp"></td>
-                                <td><span id="persuasion-total">+0</span></td>
+                                <td>CHA</td>
                             </tr>
                             <tr data-skill="religion">
                                 <td>Religion</td>
-                                <td>INT</td>
+                                <td><span id="religion-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="religion-prof"></td>
                                 <td><input data-character-input type="checkbox" id="religion-exp"></td>
-                                <td><span id="religion-total">+0</span></td>
+                                <td>INT</td>
                             </tr>
                             <tr data-skill="sleight_of_hand">
                                 <td>Sleight of Hand</td>
-                                <td>DEX</td>
+                                <td><span id="sleight_of_hand-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="sleight_of_hand-prof"></td>
                                 <td><input data-character-input type="checkbox" id="sleight_of_hand-exp"></td>
-                                <td><span id="sleight_of_hand-total">+0</span></td>
+                                <td>DEX</td>
                             </tr>
                             <tr data-skill="stealth">
                                 <td>Stealth</td>
-                                <td>DEX</td>
+                                <td><span id="stealth-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="stealth-prof"></td>
                                 <td><input data-character-input type="checkbox" id="stealth-exp"></td>
-                                <td><span id="stealth-total">+0</span></td>
+                                <td>DEX</td>
                             </tr>
                             <tr data-skill="survival">
                                 <td>Survival</td>
-                                <td>WIS</td>
+                                <td><span id="survival-total">+0</span></td>
                                 <td><input data-character-input type="checkbox" id="survival-prof"></td>
                                 <td><input data-character-input type="checkbox" id="survival-exp"></td>
-                                <td><span id="survival-total">+0</span></td>
+                                <td>WIS</td>
                             </tr>
                         </tbody>
                     </table>
@@ -302,6 +411,22 @@
                             <span>Spell Attack Bonus</span>
                             <strong id="spell-attack">+0</strong>
                         </div>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>Weapons</h2>
+                    <p class="hint">Add and track your equipped weapons, attacks, and bonuses.</p>
+                    <div class="weapons-library-controls">
+                        <div class="weapon-search-wrapper">
+                            <input type="search" id="weapon-search" placeholder="Search weapon (e.g., sword, bow)" py-change="handle_weapon_search" py-keydown="handle_weapon_search">
+                            <div class="weapon-dropdown" id="weapon-dropdown"></div>
+                        </div>
+                    </div>
+                    <div class="weapons-library-status" id="weapons-library-status">Loading weapons...</div>
+                    <div class="weapons-equipped">
+                        <h3>Equipped</h3>
+                        <div class="weapons-list" id="weapons-list"></div>
+                        <div class="weapons-empty" id="weapons-empty-state">No weapons equipped yet. Search and select weapons to add them.</div>
                     </div>
                 </section>
             </div>
