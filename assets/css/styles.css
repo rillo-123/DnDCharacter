@@ -439,6 +439,21 @@ body {
     transform: scale(1.2);
 }
 
+.skills-table tbody tr:has(td:nth-child(3) input[type="checkbox"]:checked) {
+    background: rgba(234, 179, 8, 0.35) !important;
+    box-shadow: inset 0 0 0 2px rgba(250, 204, 21, 0.6);
+}
+
+.skills-table tbody tr:has(td:nth-child(4) input[type="checkbox"]:checked) {
+    background: rgba(168, 85, 247, 0.35) !important;
+    box-shadow: inset 0 0 0 2px rgba(196, 181, 253, 0.6);
+}
+
+.skills-table td:nth-child(2) {
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
 .weapons-library-controls {
     display: flex;
     flex-direction: column;
@@ -1367,11 +1382,23 @@ body {
     gap: 1rem;
 }
 
+.spellbook-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .spellbook-header h3 {
     margin: 0;
     font-size: 1.1rem;
     color: #bfdbfe;
     letter-spacing: 0.05em;
+}
+
+.spellbook-prepared-count {
+    font-size: 0.9rem;
+    color: #cbd5e1;
+    font-weight: 500;
 }
 
 .spellbook-empty {
@@ -1828,3 +1855,130 @@ body {
         justify-content: space-between;
     }
 }
+
+.combat-stats-wrapper {
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 0.9rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    overflow: hidden;
+}
+
+.combat-stats-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.combat-stats-table td {
+    padding: 0.65rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.combat-stats-table tbody tr:nth-child(odd) {
+    background: rgba(30, 41, 59, 0.5);
+}
+
+.combat-stats-table tbody tr:nth-child(even) {
+    background: rgba(30, 41, 59, 0.3);
+}
+
+.combat-stats-table tbody tr:hover {
+    background: rgba(30, 41, 59, 0.65);
+}
+
+.combat-label {
+    color: #bfdbfe;
+    font-weight: 600;
+    width: 45%;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.combat-input input,
+.combat-output {
+    text-align: center;
+    padding: 0.4rem 0.35rem;
+    border-radius: 0.6rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: rgba(30, 41, 59, 0.8);
+    color: #e0f2fe;
+    font-size: 0.9rem;
+    font-weight: 500;
+    width: 100%;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.combat-input input:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.25);
+    outline: none;
+}
+
+.combat-readonly span {
+    display: block;
+    text-align: center;
+    padding: 0.4rem 0.35rem;
+    border-radius: 0.6rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(30, 41, 59, 0.5);
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.proficiency-grid-wrapper {
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 0.9rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    overflow: hidden;
+    padding: 0.75rem;
+}
+
+.proficiency-grid-wrapper h3 {
+    margin: 0 0 0.75rem 0;
+    color: #e0f2fe;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.proficiency-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.proficiency-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.proficiency-table td {
+    padding: 0.65rem 0.5rem;
+    text-align: center;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    border-right: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.proficiency-table td:last-child {
+    border-right: none;
+}
+
+.proficiency-item {
+    padding: 0.65rem 0.5rem;
+    border-radius: 0.6rem;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.proficiency-item.armor {
+    background: rgba(59, 130, 246, 0.25);
+    color: #bfdbfe;
+}
+
+.proficiency-item.weapon {
+    background: rgba(168, 85, 247, 0.25);
+    color: #e9d5ff;
+}
+

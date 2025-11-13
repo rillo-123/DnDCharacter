@@ -403,14 +403,6 @@
                             <span>Passive Perception</span>
                             <strong id="passive-perception">10</strong>
                         </div>
-                        <div>
-                            <span>Spell Save DC</span>
-                            <strong id="spell-save-dc">8</strong>
-                        </div>
-                        <div>
-                            <span>Spell Attack Bonus</span>
-                            <strong id="spell-attack">+0</strong>
-                        </div>
                     </div>
                 </section>
                 <section class="card">
@@ -436,80 +428,116 @@
             <div class="panel-grid">
                 <section class="card">
                     <h2>Combat</h2>
-                    <div class="grid grid-3">
-                        <label class="field">
-                            <span>Armor Class</span>
-                            <input data-character-input type="number" min="0" id="armor_class" value="10">
-                        </label>
-                        <label class="field">
-                            <span>Initiative</span>
-                            <output id="initiative">+0</output>
-                        </label>
-                        <label class="field">
-                            <span>Speed (ft)</span>
-                            <input data-character-input type="number" min="0" id="speed" value="30">
-                        </label>
-                        <label class="field">
-                            <span>Max HP</span>
-                            <input data-character-input type="number" min="1" id="max_hp" value="8">
-                        </label>
-                        <label class="field">
-                            <span>Current HP</span>
-                            <input data-character-input type="number" min="0" id="current_hp" value="8">
-                        </label>
-                        <label class="field">
-                            <span>Temporary HP</span>
-                            <input data-character-input type="number" min="0" id="temp_hp" value="0">
-                        </label>
-                        <label class="field">
-                            <span>Hit Dice</span>
-                            <input data-character-input type="text" id="hit_dice" placeholder="1d6">
-                        </label>
-                        <label class="field">
-                            <span>Hit Dice Remaining</span>
-                            <input data-character-input type="number" min="0" id="hit_dice_available" value="1">
-                        </label>
-                        <label class="field">
-                            <span>Death Saves (Successes)</span>
-                            <input data-character-input type="number" min="0" max="3" id="death_saves_success" value="0">
-                        </label>
-                        <label class="field">
-                            <span>Death Saves (Failures)</span>
-                            <input data-character-input type="number" min="0" max="3" id="death_saves_failure" value="0">
-                        </label>
-                    </div>
-                    <div class="health-controls" id="health-controls">
-                        <section class="health-group">
-                            <div class="health-group-header">
-                                <h3>Hit Point Adjustments</h3>
-                                <span class="health-status" id="hp-status">0 / 0</span>
+                    <div class="grid grid-2">
+                        <!-- Left column: Combat stats table -->
+                        <div class="combat-stats-wrapper">
+                            <table class="combat-stats-table">
+                                <tbody>
+                                    <tr>
+                                        <td class="combat-label">Armor Class</td>
+                                        <td class="combat-input"><input data-character-input type="number" min="0" id="armor_class" value="10"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Initiative</td>
+                                        <td class="combat-readonly"><span id="initiative">+0</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Speed</td>
+                                        <td class="combat-input"><input data-character-input type="number" min="0" id="speed" value="30"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Max Hit Points</td>
+                                        <td class="combat-input"><input data-character-input type="number" min="1" id="max_hp" value="8"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Current Hit Points</td>
+                                        <td class="combat-input"><input data-character-input type="number" min="0" id="current_hp" value="8"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Hit Dice</td>
+                                        <td class="combat-readonly"><span id="hit_dice">1d8</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Current Hit Dice</td>
+                                        <td class="combat-input"><input data-character-input type="number" min="0" id="hit_dice_available" value="0"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Spell Save DC</td>
+                                        <td class="combat-readonly"><span id="spell-save-dc">8</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Spell Attack Bonus</td>
+                                        <td class="combat-readonly"><span id="spell-attack">+0</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Death Saves (Success)</td>
+                                        <td class="combat-input" style="display: flex; gap: 0.5rem; justify-content: center;">
+                                            <input data-character-input type="checkbox" id="death_saves_success_1" style="cursor: pointer;">
+                                            <input data-character-input type="checkbox" id="death_saves_success_2" style="cursor: pointer;">
+                                            <input data-character-input type="checkbox" id="death_saves_success_3" style="cursor: pointer;">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Death Saves (Failure)</td>
+                                        <td class="combat-input" style="display: flex; gap: 0.5rem; justify-content: center;">
+                                            <input data-character-input type="checkbox" id="death_saves_failure_1" style="cursor: pointer;">
+                                            <input data-character-input type="checkbox" id="death_saves_failure_2" style="cursor: pointer;">
+                                            <input data-character-input type="checkbox" id="death_saves_failure_3" style="cursor: pointer;">
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Right column: Controls and Proficiencies -->
+                        <div>
+                            <div class="health-controls" id="health-controls">
+                                <section class="health-group">
+                                    <div class="health-group-header">
+                                        <h3>Hit Point Adjustments</h3>
+                                        <span class="health-status" id="hp-status">0 / 0</span>
+                                    </div>
+                                    <div class="health-buttons">
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="-10" data-adjust-min="0" data-adjust-max-id="max_hp">-10</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="-5" data-adjust-min="0" data-adjust-max-id="max_hp">-5</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="max_hp">-1</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="1" data-adjust-min="0" data-adjust-max-id="max_hp">+1</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="5" data-adjust-min="0" data-adjust-max-id="max_hp">+5</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="10" data-adjust-min="0" data-adjust-max-id="max_hp">+10</button>
+                                        <button type="button" class="outline" data-adjust-target="current_hp" data-adjust-set-id="max_hp">Set to Max</button>
+                                    </div>
+                                    <p class="hint">Use these buttons to apply damage or healing quickly. Hit points are clamped between 0 and your maximum.</p>
+                                </section>
+                                <section class="health-group">
+                                    <div class="health-group-header">
+                                        <h3>Hit Dice Tracker</h3>
+                                        <span class="health-status" id="hit-dice-status">0 / 0</span>
+                                    </div>
+                                    <div class="health-buttons">
+                                        <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="level">Spend 1</button>
+                                        <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="1" data-adjust-min="0" data-adjust-max-id="level">Recover 1</button>
+                                        <button type="button" class="outline" data-adjust-target="hit_dice_available" data-adjust-set-id="level">Refill to Level</button>
+                                    </div>
+                                    <p class="hint">Track hit dice spent during short rests. Values are limited between 0 and your character level.</p>
+                                </section>
                             </div>
-                            <div class="health-buttons">
-                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="-10" data-adjust-min="0" data-adjust-max-id="max_hp">-10</button>
-                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="-5" data-adjust-min="0" data-adjust-max-id="max_hp">-5</button>
-                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="max_hp">-1</button>
-                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="1" data-adjust-min="0" data-adjust-max-id="max_hp">+1</button>
-                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="5" data-adjust-min="0" data-adjust-max-id="max_hp">+5</button>
-                                <button type="button" data-adjust-target="current_hp" data-adjust-delta="10" data-adjust-min="0" data-adjust-max-id="max_hp">+10</button>
-                                <button type="button" class="outline" data-adjust-target="current_hp" data-adjust-set-id="max_hp">Set to Max</button>
+                            
+                            <div class="proficiency-grid-wrapper">
+                                <h3>Armor Proficiencies</h3>
+                                <table class="proficiency-table" id="armor-proficiencies-table">
+                                    <tbody id="armor-proficiencies"></tbody>
+                                </table>
                             </div>
-                            <p class="hint">Use these buttons to apply damage or healing quickly. Hit points are clamped between 0 and your maximum.</p>
-                        </section>
-                        <section class="health-group">
-                            <div class="health-group-header">
-                                <h3>Hit Dice Tracker</h3>
-                                <span class="health-status" id="hit-dice-status">0 / 0</span>
+                            
+                            <div class="proficiency-grid-wrapper">
+                                <h3>Weapon Proficiencies</h3>
+                                <table class="proficiency-table" id="weapon-proficiencies-table">
+                                    <tbody id="weapon-proficiencies"></tbody>
+                                </table>
                             </div>
-                            <div class="health-buttons">
-                                <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="level">Spend 1</button>
-                                <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="1" data-adjust-min="0" data-adjust-max-id="level">Recover 1</button>
-                                <button type="button" class="outline" data-adjust-target="hit_dice_available" data-adjust-set-id="level">Refill to Level</button>
-                            </div>
-                            <p class="hint">Track hit dice spent during short rests. Values are limited between 0 and your character level.</p>
-                        </section>
+                        </div>
                     </div>
                 </section>
-            </div>
         </section>
 
         <section id="tab-inventory" class="tab-panel">
@@ -622,6 +650,7 @@
                         <div class="spellbook-prepared">
                             <header class="spellbook-header">
                                 <h3>Your Spells</h3>
+                                <span class="spellbook-prepared-count" id="spellbook-prepared-count">0 / 0</span>
                             </header>
                             <div id="spellbook-empty-state" class="spellbook-empty">No spells prepared yet. Use the Spell Library to add spells.</div>
                             <div id="spellbook-levels" class="spellbook-levels"></div>

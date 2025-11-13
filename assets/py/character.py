@@ -214,6 +214,13 @@ def schedule_auto_export():
     
     _AUTO_EXPORT_EVENT_COUNT = min(_AUTO_EXPORT_EVENT_COUNT + 1, AUTO_EXPORT_MAX_EVENTS)
     
+    # Always save to localStorage immediately to preserve data across page refreshes
+    try:
+        data = collect_character_data()
+        window.localStorage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
+    except Exception as exc:
+        console.warn(f"PySheet: failed to save to localStorage - {exc}")
+    
     # Show recording indicator (red) - even if auto-export is disabled, show that we detected a change
     indicator = document.getElementById("saving-indicator")
     if indicator:
@@ -1448,8 +1455,8 @@ DEFAULT_STATE = {
         "max_hp": 8,
         "current_hp": 8,
         "temp_hp": 0,
-        "hit_dice": "1d6",
-        "hit_dice_available": 1,
+        "hit_dice": "1d8",
+        "hit_dice_available": 0,
         "death_saves_success": 0,
         "death_saves_failure": 0,
     },
@@ -1542,6 +1549,66 @@ def ability_modifier(score: int) -> int:
 
 def format_bonus(value: int) -> str:
     return f"{value:+d}"
+
+
+def get_hit_dice_for_class(class_name: str) -> str:
+    """Return the hit dice for a given D&D 5e class."""
+    class_lower = (class_name or "").lower().strip()
+    hit_dice_map = {
+        "barbarian": "1d12",
+        "fighter": "1d10",
+        "paladin": "1d10",
+        "ranger": "1d10",
+        "bard": "1d8",
+        "cleric": "1d8",
+        "druid": "1d8",
+        "monk": "1d8",
+        "rogue": "1d8",
+        "warlock": "1d8",
+        "sorcerer": "1d6",
+        "wizard": "1d6",
+    }
+    return hit_dice_map.get(class_lower, "1d8")  # Default to 1d8 if unknown
+
+
+def get_armor_proficiencies_for_class(class_name: str) -> str:
+    """Return armor proficiencies for a given D&D 5e class."""
+    class_lower = (class_name or "").lower().strip()
+    proficiencies_map = {
+        "barbarian": "Light armor, Medium armor, Shields",
+        "bard": "Light armor",
+        "cleric": "Light armor, Medium armor, Shields",
+        "druid": "Light armor, Medium armor, Shields",
+        "fighter": "All armor, Shields",
+        "monk": "None",
+        "paladin": "All armor, Shields",
+        "ranger": "Light armor, Medium armor, Shields",
+        "rogue": "Light armor",
+        "sorcerer": "None",
+        "warlock": "Light armor",
+        "wizard": "None",
+    }
+    return proficiencies_map.get(class_lower, "None")
+
+
+def get_weapon_proficiencies_for_class(class_name: str) -> str:
+    """Return weapon proficiencies for a given D&D 5e class."""
+    class_lower = (class_name or "").lower().strip()
+    proficiencies_map = {
+        "barbarian": "Simple melee, Martial melee",
+        "bard": "Simple melee, Hand crossbows, Longswords, Rapiers, Shortswords",
+        "cleric": "Simple melee, Simple ranged",
+        "druid": "Clubs, Daggers, Darts, Javelins, Maces, Quarterstaffs, Scimitars, Sickles, Slings, Spears",
+        "fighter": "Simple melee, Simple ranged, Martial melee, Martial ranged",
+        "monk": "Simple melee, Shortswords",
+        "paladin": "Simple melee, Simple ranged, Martial melee, Martial ranged",
+        "ranger": "Simple melee, Simple ranged, Martial melee, Martial ranged",
+        "rogue": "Hand crossbows, Longswords, Rapiers, Shortswords, Simple melee",
+        "sorcerer": "Daggers, Darts, Slings, Quarterstaffs, Light crossbows",
+        "warlock": "Simple melee",
+        "wizard": "Daggers, Darts, Slings, Quarterstaffs, Light crossbows",
+    }
+    return proficiencies_map.get(class_lower, "None")
 
 
 def generate_id(prefix: str) -> str:
@@ -1801,6 +1868,50 @@ def update_calculations(*_args):
     proficiency = compute_proficiency(level)
     race = get_text_value("race")
     race_bonuses = get_race_ability_bonuses(race)
+    
+    # Update hit dice based on class (show die type, not quantity)
+    class_name = get_text_value("class")
+    hit_dice_type = get_hit_dice_for_class(class_name)
+    set_form_value("hit_dice", hit_dice_type)
+    
+    # Update proficiencies based on class - render as table
+    armor_prof_text = get_armor_proficiencies_for_class(class_name)
+    weapon_prof_text = get_weapon_proficiencies_for_class(class_name)
+    
+    # Parse and render armor proficiencies as table rows
+    armor_profs = [p.strip() for p in armor_prof_text.split(",") if p.strip()]
+    armor_tbody = get_element("armor-proficiencies")
+    if armor_tbody:
+        armor_tbody.innerHTML = ""
+        tr = document.createElement("tr")
+        for prof in armor_profs:
+            td = document.createElement("td")
+            div = document.createElement("div")
+            div.className = "proficiency-item armor"
+            div.textContent = prof
+            td.appendChild(div)
+            tr.appendChild(td)
+        armor_tbody.appendChild(tr)
+    
+    # Parse and render weapon proficiencies as table rows
+    weapon_profs = [p.strip() for p in weapon_prof_text.split(",") if p.strip()]
+    weapon_tbody = get_element("weapon-proficiencies")
+    if weapon_tbody:
+        weapon_tbody.innerHTML = ""
+        tr = document.createElement("tr")
+        for prof in weapon_profs:
+            td = document.createElement("td")
+            div = document.createElement("div")
+            div.className = "proficiency-item weapon"
+            div.textContent = prof
+            td.appendChild(div)
+            tr.appendChild(td)
+        weapon_tbody.appendChild(tr)
+    
+    # Auto-sync hit dice remaining with level (only if it's currently empty/0)
+    current_hit_dice_available = get_numeric_value("hit_dice_available", 0)
+    if current_hit_dice_available == 0:
+        set_form_value("hit_dice_available", level)
 
     set_text("proficiency-bonus", format_bonus(proficiency))
 
@@ -1835,13 +1946,46 @@ def update_calculations(*_args):
     passive_perception = 10 + skill_totals.get("perception", 0)
     set_text("passive-perception", str(passive_perception))
 
-    spell_ability = get_text_value("spell_ability") or "int"
+    # Derive spell ability from class
+    class_spell_ability_map = {
+        "bard": "cha",
+        "cleric": "wis",
+        "druid": "wis",
+        "monk": "wis",
+        "paladin": "cha",
+        "ranger": "wis",
+        "sorcerer": "cha",
+        "warlock": "cha",
+        "wizard": "int",
+    }
+    spell_ability = class_spell_ability_map.get(class_name.lower() if class_name else "", "int")
     spell_score = scores.get(spell_ability, 10) + race_bonuses.get(spell_ability, 0)
     spell_mod = ability_modifier(spell_score)
     spell_save_dc = 8 + proficiency + spell_mod
     spell_attack = proficiency + spell_mod
     set_text("spell-save-dc", str(spell_save_dc))
     set_text("spell-attack", format_bonus(spell_attack))
+
+    # Calculate max prepared spells
+    class_name = get_text_value("class").lower() if get_text_value("class") else ""
+    if class_name == "cleric":
+        max_prepared = level + spell_mod
+    elif class_name == "druid":
+        max_prepared = level + spell_mod
+    elif class_name == "paladin":
+        max_prepared = level // 2 + spell_mod
+    elif class_name == "ranger":
+        max_prepared = level // 2 + spell_mod
+    elif class_name == "wizard":
+        max_prepared = level + spell_mod
+    elif class_name == "warlock":
+        max_prepared = level  # Warlocks know spells, always max prepared
+    else:
+        max_prepared = 0  # Other classes don't prepare spells
+    
+    max_prepared = max(0, max_prepared)  # Never negative
+    prepared_count = len(get_prepared_slug_set())
+    set_text("spellbook-prepared-count", f"{prepared_count} / {max_prepared}")
 
     current_hp = get_numeric_value("current_hp", 0)
     max_hp = get_numeric_value("max_hp", 0)
@@ -1896,8 +2040,8 @@ def collect_character_data() -> dict:
             "temp_hp": get_numeric_value("temp_hp", 0),
             "hit_dice": get_text_value("hit_dice"),
             "hit_dice_available": get_numeric_value("hit_dice_available", 0),
-            "death_saves_success": get_numeric_value("death_saves_success", 0),
-            "death_saves_failure": get_numeric_value("death_saves_failure", 0),
+            "death_saves_success": sum(1 for i in range(1, 4) if get_checkbox(f"death_saves_success_{i}")),
+            "death_saves_failure": sum(1 for i in range(1, 4) if get_checkbox(f"death_saves_failure_{i}")),
         },
         "notes": {
             "equipment": get_text_value("equipment"),
@@ -2017,8 +2161,14 @@ def populate_form(data: dict):
         set_form_value("temp_hp", combat.get("temp_hp", 0))
         set_form_value("hit_dice", combat.get("hit_dice", ""))
         set_form_value("hit_dice_available", combat.get("hit_dice_available", 0))
-        set_form_value("death_saves_success", combat.get("death_saves_success", 0))
-        set_form_value("death_saves_failure", combat.get("death_saves_failure", 0))
+        
+        # Load death saves as checkboxes
+        death_success = combat.get("death_saves_success", 0)
+        for i in range(1, 4):
+            set_form_value(f"death_saves_success_{i}", i <= death_success)
+        death_failure = combat.get("death_saves_failure", 0)
+        for i in range(1, 4):
+            set_form_value(f"death_saves_failure_{i}", i <= death_failure)
 
         notes = normalized.get("notes", {})
         set_form_value("equipment", notes.get("equipment", ""))
@@ -3365,6 +3515,11 @@ def handle_input_event(event=None):
         if target_id == "domain":
             value = getattr(event.target, "value", "")
             console.log(f"DEBUG: domain input event fired! New value: {value}")
+        # Auto-check proficiency if expertise is checked
+        elif target_id.endswith("-exp") and event.target.checked:
+            skill_name = target_id[:-4]  # Remove "-exp" suffix
+            prof_id = f"{skill_name}-prof"
+            set_form_value(prof_id, True)
     
     update_calculations()
     if SPELL_LIBRARY_STATE.get("loaded"):
@@ -3374,6 +3529,54 @@ def handle_input_event(event=None):
             target_id = getattr(target, "id", "")
         auto = target_id in {"class", "level"}
         apply_spell_filters(auto_select=auto)
+    schedule_auto_export()
+
+
+def handle_adjust_button(event=None):
+    """Handle health/resource adjustment buttons."""
+    if event is None or not hasattr(event, "target"):
+        return
+    
+    button = event.target
+    target_id = button.getAttribute("data-adjust-target")
+    if not target_id:
+        return
+    
+    # Get current value
+    current = get_numeric_value(target_id, 0)
+    new_value = current
+    
+    # Handle delta adjustment
+    delta_str = button.getAttribute("data-adjust-delta")
+    if delta_str:
+        try:
+            delta = int(delta_str)
+            new_value = current + delta
+        except ValueError:
+            return
+    
+    # Handle set to value
+    set_id = button.getAttribute("data-adjust-set-id")
+    if set_id:
+        new_value = get_numeric_value(set_id, 0)
+    
+    # Apply min/max constraints
+    min_val_str = button.getAttribute("data-adjust-min")
+    if min_val_str:
+        try:
+            min_val = int(min_val_str)
+            new_value = max(new_value, min_val)
+        except ValueError:
+            pass
+    
+    max_id = button.getAttribute("data-adjust-max-id")
+    if max_id:
+        max_val = get_numeric_value(max_id, 0)
+        new_value = min(new_value, max_val)
+    
+    # Set the new value
+    set_form_value(target_id, str(new_value))
+    update_calculations()
     schedule_auto_export()
 
 
@@ -3388,6 +3591,13 @@ def register_event_listeners():
             proxy_change = create_proxy(handle_input_event)
             element.addEventListener("change", proxy_change)
             _EVENT_PROXIES.append(proxy_change)
+
+    # Register adjust button handlers
+    adjust_buttons = document.querySelectorAll("[data-adjust-target]")
+    for button in adjust_buttons:
+        proxy_adjust = create_proxy(handle_adjust_button)
+        button.addEventListener("click", proxy_adjust)
+        _EVENT_PROXIES.append(proxy_adjust)
 
     import_input = get_element("import-file")
     if import_input is not None:
