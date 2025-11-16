@@ -1469,6 +1469,7 @@ DEFAULT_STATE = {
         "attacks": "",
         "notes": "",
     },
+    "feats": [],
     "spells": {key: "" for key in SPELL_FIELDS},
     "spellcasting": {
         "prepared": [],
@@ -1571,8 +1572,13 @@ def get_hit_dice_for_class(class_name: str) -> str:
     return hit_dice_map.get(class_lower, "1d8")  # Default to 1d8 if unknown
 
 
-def get_armor_proficiencies_for_class(class_name: str) -> str:
-    """Return armor proficiencies for a given D&D 5e class."""
+def get_armor_proficiencies_for_class(class_name: str, domain: str = "") -> str:
+    """Return armor proficiencies for a given D&D 5e class.
+    
+    Args:
+        class_name: The character's class
+        domain: The cleric domain (if applicable)
+    """
     class_lower = (class_name or "").lower().strip()
     proficiencies_map = {
         "barbarian": "Light armor, Medium armor, Shields",
@@ -1588,7 +1594,13 @@ def get_armor_proficiencies_for_class(class_name: str) -> str:
         "warlock": "Light armor",
         "wizard": "None",
     }
-    return proficiencies_map.get(class_lower, "None")
+    profs = proficiencies_map.get(class_lower, "None")
+    
+    # Life Domain clerics get Heavy Armor proficiency
+    if class_lower == "cleric" and domain and "life" in domain.lower():
+        profs = "Light armor, Medium armor, Heavy armor, Shields"
+    
+    return profs
 
 
 def get_weapon_proficiencies_for_class(class_name: str) -> str:
@@ -1875,7 +1887,8 @@ def update_calculations(*_args):
     set_form_value("hit_dice", hit_dice_type)
     
     # Update proficiencies based on class - render as table
-    armor_prof_text = get_armor_proficiencies_for_class(class_name)
+    domain = get_text_value("domain")
+    armor_prof_text = get_armor_proficiencies_for_class(class_name, domain)
     weapon_prof_text = get_weapon_proficiencies_for_class(class_name)
     
     # Parse and render armor proficiencies as table rows
@@ -1987,24 +2000,81 @@ def update_calculations(*_args):
     prepared_count = len(get_prepared_slug_set())
     set_text("spellbook-prepared-count", f"{prepared_count} / {max_prepared}")
 
+    # Update HP progress bar
     current_hp = get_numeric_value("current_hp", 0)
     max_hp = get_numeric_value("max_hp", 0)
     temp_hp = get_numeric_value("temp_hp", 0)
+    
     if max_hp > 0:
-        hp_status = f"{current_hp} / {max_hp}"
+        hp_percentage = max(0, min(100, int((current_hp / max_hp) * 100)))
+        if temp_hp > 0:
+            hp_label = f"({current_hp} / {max_hp} +{temp_hp})"
+            # Calculate temp HP bar as overflow: show only the portion beyond current HP
+            temp_hp_percentage = max(0, min(100, int((temp_hp / max_hp) * 100)))
+        else:
+            hp_label = f"({current_hp} / {max_hp})"
+            temp_hp_percentage = 0
     else:
-        hp_status = str(current_hp)
-    if temp_hp > 0:
-        hp_status = f"{hp_status} (+{temp_hp} temp)"
-    set_text("hp-status", hp_status)
+        hp_percentage = 0
+        hp_label = f"({current_hp} / 0)"
+        temp_hp_percentage = 0
+    
+    hp_bar_fill = get_element("hp-bar-fill")
+    if hp_bar_fill:
+        hp_bar_fill.style.width = f"{hp_percentage}%"
+        # Round right edge only when temp HP is 0 (not adjacent to purple bar)
+        if temp_hp_percentage > 0:
+            hp_bar_fill.style.borderRadius = "0.5rem 0 0 0.5rem"
+        else:
+            hp_bar_fill.style.borderRadius = "0.5rem"
+        
+        # Calculate color: Red (0%) -> Yellow (50%) -> Green (100%)
+        # Use HSL for easier color transitions
+        if hp_percentage <= 50:
+            # Red to Yellow: 0% -> 50%
+            hue = 60 * (hp_percentage / 50)  # 0 (red) to 60 (yellow)
+            saturation = 100
+            lightness = 40
+        else:
+            # Yellow to Green: 50% -> 100%
+            hue = 60 + (60 * ((hp_percentage - 50) / 50))  # 60 (yellow) to 120 (green)
+            saturation = 100
+            lightness = 40
+        
+        hp_bar_fill.style.background = f"hsl({hue}, {saturation}%, {lightness}%)"
+    
+    hp_bar_temp = get_element("hp-bar-temp")
+    if hp_bar_temp:
+        hp_bar_temp.style.width = f"{temp_hp_percentage}%"
+        hp_bar_temp.style.left = f"{hp_percentage}%"
+    
+    set_text("hp-bar-label", hp_label)
 
+    # Update hit dice pips display
+    hit_dice_type = get_text_value("hit_dice")
     hit_dice_available = get_numeric_value("hit_dice_available", 0)
     hit_dice_cap = max(0, get_numeric_value("level", 1))
+    
     if hit_dice_cap > 0:
-        hit_dice_status = f"{hit_dice_available} / {hit_dice_cap}"
+        hd_label = f"{hit_dice_type} ({hit_dice_available} / {hit_dice_cap})"
     else:
-        hit_dice_status = str(hit_dice_available)
-    set_text("hit-dice-status", hit_dice_status)
+        hd_label = f"{hit_dice_type} (0 / 0)"
+    
+    # Generate pip elements
+    hd_pips_container = get_element("hd-pips-container")
+    if hd_pips_container:
+        # Clear existing pips
+        hd_pips_container.innerHTML = ""
+        
+        # Create pips
+        for i in range(hit_dice_cap):
+            pip = document.createElement("div")
+            pip.className = "hd-pip"
+            if i < hit_dice_available:
+                pip.classList.add("available")
+            hd_pips_container.appendChild(pip)
+    
+    set_text("hd-bar-label", hd_label)
 
     update_equipment_totals()
 
@@ -2013,6 +2083,10 @@ def update_calculations(*_args):
     )
     render_spell_slots(slot_summary)
     update_header_display()
+    
+    # Render class features and feats
+    render_class_features()
+    render_feats()
 
 
 def collect_character_data() -> dict:
@@ -3380,6 +3454,307 @@ def update_equipment_totals():
     set_text("equipment-total-cost", format_money(total_cost))
 
 
+# Class Features & Feats functions
+
+CLASS_FEATURES_DATABASE = {
+    "cleric": {
+        1: [
+            {"name": "Spellcasting", "description": "You can cast cleric spells using your choice of Wisdom or Intelligence (typically Wisdom) as your spellcasting ability modifier."},
+            {"name": "Channel Divinity (DC)", "description": "You can use your action and expend one spell slot to invoke devastating divine magic. You know one Channel Divinity option. You gain more options at higher levels."},
+        ],
+        2: [
+            {"name": "Channel Divinity", "description": "You can now use your Channel Divinity twice between rests."},
+        ],
+        3: [],
+        5: [
+            {"name": "Destroy Undead", "description": "When a creature you can see within 30 feet of you drops to 0 hit points, you can use your reaction to destroy it and render it unable to be raised from the dead. You can use this feature a number of times equal to your Wisdom modifier (minimum of 1)."},
+        ],
+        6: [
+            {"name": "Channel Divinity", "description": "You can now use your Channel Divinity three times between rests."},
+        ],
+        8: [
+            {"name": "Ability Score Improvement", "description": "You can increase one ability score of your choice by 2, or you can increase two ability scores of your choice by 1. You can't increase an ability score above 20 using this feature."},
+        ],
+        10: [
+            {"name": "Divine Intervention", "description": "You can call on your deity for aid. Describing what aid you seek, you make a DC 10 Wisdom check. If you succeed, the deity intervenes. The GM chooses how the intervention occurs."},
+        ],
+        12: [
+            {"name": "Ability Score Improvement", "description": "You can increase one ability score of your choice by 2, or you can increase two ability scores of your choice by 1."},
+        ],
+        14: [
+            {"name": "Improved Divine Intervention", "description": "Your Divine Intervention DC becomes 5 instead of 10 when you reach this level."},
+        ],
+        16: [
+            {"name": "Ability Score Improvement", "description": "You can increase one ability score of your choice by 2, or you can increase two ability scores of your choice by 1."},
+        ],
+        19: [
+            {"name": "Ability Score Improvement", "description": "You can increase one ability score of your choice by 2, or you can increase two ability scores of your choice by 1."},
+        ],
+    },
+    "bard": {
+        1: [
+            {"name": "Spellcasting", "description": "You know a number of cantrips equal to your Charisma modifier (minimum of 1). You can cast any bard spell you know, provided that you have spell slots available to cast the spell."},
+            {"name": "Bardic Inspiration", "description": "You can inspire others through stirring words or music. When another creature that can hear you within 60 feet of you makes an Attack roll, ability check, or damage roll, you can use your reaction to add to that roll."},
+        ],
+        2: [
+            {"name": "Jack of All Trades", "description": "Starting at 2nd level, you can add half your proficiency bonus (round down) to any ability check you make that doesn't already include your proficiency bonus."},
+        ],
+        3: [],
+        5: [
+            {"name": "Bardic Inspiration Die Increases", "description": "Your Bardic Inspiration die becomes a d8."},
+        ],
+        6: [
+            {"name": "Expertise Expansion", "description": "You can choose two more of your skill proficiencies to gain expertise."},
+        ],
+        8: [
+            {"name": "Ability Score Improvement", "description": "You can increase one ability score of your choice by 2, or you can increase two ability scores of your choice by 1."},
+        ],
+        10: [
+            {"name": "Bardic Inspiration Die Increases", "description": "Your Bardic Inspiration die becomes a d10."},
+        ],
+        12: [
+            {"name": "Ability Score Improvement", "description": "You can increase one ability score of your choice by 2, or you can increase two ability scores of your choice by 1."},
+        ],
+    },
+}
+
+# Domain-specific features for clerics
+DOMAIN_FEATURES_DATABASE = {
+    "life": {
+        1: [
+            {"name": "Bonus Proficiency", "description": "You gain proficiency with heavy armor."},
+            {"name": "Disciple of Life", "description": "Your healing spells are more effective. Whenever you use a spell to restore hit points to a creature, that creature regains additional hit points equal to 2 + the spell's level."},
+        ],
+        2: [
+            {"name": "Channel Divinity: Preserve Life", "description": "As an action, you can expend a use of your Channel Divinity to restore hit points to any number of creatures that you can see within 30 feet of you. You restore a number of hit points equal to five times your cleric level. Distribute these hit points among the creatures as you choose, but no creature can regain more than half of its maximum hit points at once."},
+        ],
+        6: [
+            {"name": "Blessed Healer", "description": "The healing spells you cast on others can heal you as well. When you cast a healing spell whose target is not you, you regain hit points equal to 2 + the spell's level."},
+        ],
+        8: [
+            {"name": "Divine Strike", "description": "Once on each of your turns when you hit a creature with a weapon attack, you can cause the attack to deal an extra 1d8 radiant damage to the target. When you reach 14th level, the extra damage increases to 2d8."},
+        ],
+        17: [
+            {"name": "Supreme Healing", "description": "When you would normally roll one or more dice to restore hit points with a spell, you instead use the highest number possible for each die. For example, instead of restoring 2d6 hit points to a creature, you restore 12."},
+        ],
+    },
+}
+
+def get_class_features_for_level(class_name: str, current_level: int) -> list:
+    """Get all class features up to the current level."""
+    class_key = class_name.lower().strip() if class_name else ""
+    features_by_level = CLASS_FEATURES_DATABASE.get(class_key, {})
+    
+    all_features = []
+    for level in sorted(features_by_level.keys()):
+        if level <= current_level:
+            all_features.extend(features_by_level[level])
+    return all_features
+
+
+def get_domain_features_for_level(domain_name: str, current_level: int) -> list:
+    """Get all domain-specific features up to the current level."""
+    domain_key = domain_name.lower().strip() if domain_name else ""
+    features_by_level = DOMAIN_FEATURES_DATABASE.get(domain_key, {})
+    
+    all_features = []
+    for level in sorted(features_by_level.keys()):
+        if level <= current_level:
+            all_features.extend(features_by_level[level])
+    return all_features
+
+
+def render_class_features():
+    """Render class features organized by level."""
+    container = get_element("class-features-container")
+    if container is None:
+        return
+    
+    # Get current class, level, and domain
+    class_name = get_text_value("class")
+    level = get_numeric_value("level", 1)
+    domain = get_text_value("domain")
+    
+    if not class_name:
+        container.innerHTML = '<div class="class-features-empty">Select a class to see its features.</div>'
+        return
+    
+    class_key = class_name.lower().strip()
+    features_by_level = CLASS_FEATURES_DATABASE.get(class_key, {})
+    
+    if not features_by_level:
+        container.innerHTML = '<div class="class-features-empty">No class features database for ' + escape(class_name) + '.</div>'
+        return
+    
+    html_parts = []
+    
+    # Add class features (only up to current level)
+    for level_num in sorted(features_by_level.keys()):
+        if level_num > level:
+            continue  # Skip features above current level
+        
+        level_features = features_by_level[level_num]
+        unlocked = "expanded"  # Always expanded since only showing unlocked features
+        
+        html_parts.append(f'''<div class="class-feature-level">
+            <div class="class-feature-level-header {unlocked}" onclick="this.nextElementSibling.classList.toggle('expanded'); this.classList.toggle('expanded')">
+                <span><span class="level-indicator">Level {level_num}</span></span>
+                <span style="font-size: 0.8rem; color: #94a3b8;">{len(level_features)} feature(s)</span>
+            </div>
+            <div class="class-feature-level-content {unlocked}">''')
+        
+        for feat in level_features:
+            name = escape(feat.get("name", "Unknown"))
+            desc = escape(feat.get("description", ""))
+            html_parts.append(f'''<div class="class-feature-item">
+                <div class="class-feature-name">{name}</div>
+                <div class="class-feature-description">{desc}</div>
+            </div>''')
+        
+        html_parts.append('''</div>
+        </div>''')
+    
+    # Add domain features if applicable (only up to current level)
+    if domain and class_key == "cleric":
+        domain_features_by_level = DOMAIN_FEATURES_DATABASE.get(domain.lower().strip(), {})
+        if domain_features_by_level:
+            for level_num in sorted(domain_features_by_level.keys()):
+                if level_num > level:
+                    continue  # Skip features above current level
+                
+                level_features = domain_features_by_level[level_num]
+                unlocked = "expanded"  # Always expanded since only showing unlocked features
+                
+                domain_title = escape(domain.title())
+                html_parts.append(f'''<div class="class-feature-level">
+                <div class="class-feature-level-header {unlocked}" onclick="this.nextElementSibling.classList.toggle('expanded'); this.classList.toggle('expanded')">
+                    <span><span class="level-indicator">{domain_title} Domain - Level {level_num}</span></span>
+                    <span style="font-size: 0.8rem; color: #94a3b8;">{len(level_features)} feature(s)</span>
+                </div>
+                <div class="class-feature-level-content {unlocked}">''')
+                
+                for feat in level_features:
+                    name = escape(feat.get("name", "Unknown"))
+                    desc = escape(feat.get("description", ""))
+                    html_parts.append(f'''<div class="class-feature-item">
+                    <div class="class-feature-name">{name}</div>
+                    <div class="class-feature-description">{desc}</div>
+                </div>''')
+                
+                html_parts.append('''</div>
+            </div>''')
+    
+    container.innerHTML = "".join(html_parts)
+
+
+def render_feats():
+    """Render user-added feats and custom abilities."""
+    feats_container = get_element("feats-list")
+    if feats_container is None:
+        return
+    
+    # Collect feats from character data
+    stored_data = window.localStorage.getItem(LOCAL_STORAGE_KEY)
+    feats = []
+    if stored_data:
+        try:
+            data = json.loads(stored_data)
+            feats = data.get("feats", [])
+        except:
+            pass
+    
+    if not feats:
+        feats_container.innerHTML = '<div class="feats-empty">No feats added yet. Use the form below to add your first feat!</div>'
+        return
+    
+    # Sort feats by level gained
+    feats = sorted(feats, key=lambda f: f.get("level_gained", 1))
+    
+    html_parts = []
+    for feat in feats:
+        feat_id = feat.get("id", "")
+        name = escape(feat.get("name", "Unknown"))
+        level = feat.get("level_gained", 1)
+        desc = escape(feat.get("description", ""))
+        
+        html_parts.append(f'''<div class="feat-card" data-feat-id="{feat_id}">
+            <div class="feat-card-header">
+                <div class="feat-info">
+                    <div class="feat-name">{name}</div>
+                    <div class="feat-level">Gained at Level {level}</div>
+                    {f'<div class="feat-description">{desc}</div>' if desc else ''}
+                </div>
+                <div class="feat-actions">
+                    <button class="feat-action-btn" onclick="remove_feat('{feat_id}')">Remove</button>
+                </div>
+            </div>
+        </div>''')
+    
+    feats_container.innerHTML = "".join(html_parts)
+
+
+def add_feat(_event=None):
+    """Add a new feat to the character."""
+    name = get_element("feat-name-input")
+    level_el = get_element("feat-level-input")
+    desc = get_element("feat-description-input")
+    
+    if name is None or not name.value.strip():
+        console.warn("Feat name is required")
+        return
+    
+    # Load existing feats
+    stored_data = window.localStorage.getItem(LOCAL_STORAGE_KEY)
+    data = {}
+    if stored_data:
+        try:
+            data = json.loads(stored_data)
+        except:
+            pass
+    
+    feats = data.get("feats", [])
+    
+    # Add new feat
+    new_feat = {
+        "id": str(uuid.uuid4()),
+        "name": name.value.strip(),
+        "level_gained": int(level_el.value or 1) if level_el else 1,
+        "description": desc.value.strip() if desc else "",
+    }
+    
+    feats.append(new_feat)
+    data["feats"] = feats
+    
+    # Save
+    window.localStorage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
+    
+    # Clear form
+    if name:
+        name.value = ""
+    if level_el:
+        level_el.value = "1"
+    if desc:
+        desc.value = ""
+    
+    render_feats()
+
+
+def remove_feat(feat_id: str):
+    """Remove a feat by ID."""
+    stored_data = window.localStorage.getItem(LOCAL_STORAGE_KEY)
+    if not stored_data:
+        return
+    
+    try:
+        data = json.loads(stored_data)
+        feats = data.get("feats", [])
+        feats = [f for f in feats if f.get("id") != feat_id]
+        data["feats"] = feats
+        window.localStorage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
+        render_feats()
+    except:
+        pass
+
 
 def save_character(_event=None):
     data = collect_character_data()
@@ -3555,10 +3930,18 @@ def handle_adjust_button(event=None):
         except ValueError:
             return
     
-    # Handle set to value
+    # Handle set to value (from field)
     set_id = button.getAttribute("data-adjust-set-id")
     if set_id:
         new_value = get_numeric_value(set_id, 0)
+    
+    # Handle set to direct value
+    set_val = button.getAttribute("data-adjust-set")
+    if set_val is not None and set_val != "":
+        try:
+            new_value = int(set_val)
+        except ValueError:
+            pass
     
     # Apply min/max constraints
     min_val_str = button.getAttribute("data-adjust-min")

@@ -805,10 +805,10 @@ body {
 }
 
 .health-controls {
-    margin-top: 1.5rem;
     display: grid;
     gap: 1.25rem;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    align-content: start;
 }
 
 .health-group {
@@ -877,6 +877,102 @@ body {
 .health-group .hint {
     margin: 0;
     color: #94a3b8;
+}
+
+.progress-bar-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    width: 100%;
+}
+
+.progress-bar-wrapper {
+    display: flex;
+    align-items: center;
+    height: 1.5rem;
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    transition: width 0.3s ease, border-radius 0.3s ease, background 0.3s ease;
+    min-width: 0;
+    position: absolute;
+    left: 0;
+    top: 0;
+    border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.progress-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1));
+    pointer-events: none;
+}
+
+.progress-bar-fill-temp {
+    position: absolute;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(168, 85, 247, 0.7), rgba(139, 92, 246, 0.5));
+    transition: width 0.3s ease, left 0.3s ease;
+    min-width: 0;
+    top: 0;
+    border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.progress-bar-fill-temp::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15));
+    pointer-events: none;
+}
+
+.progress-bar-label {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+.hit-dice-pips {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.hd-pips-container {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.hd-pip {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    border: 2px solid rgba(148, 163, 184, 0.5);
+    background: rgba(30, 41, 59, 0.8);
+    transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.hd-pip.available {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.8), rgba(74, 222, 128, 0.6));
+    border-color: rgba(34, 197, 94, 0.7);
 }
 
 .equipment-toolbar {
@@ -1861,6 +1957,7 @@ body {
     border-radius: 0.9rem;
     border: 1px solid rgba(148, 163, 184, 0.2);
     overflow: hidden;
+    align-self: start;
 }
 
 .combat-stats-table {
@@ -1980,5 +2077,188 @@ body {
 .proficiency-item.weapon {
     background: rgba(168, 85, 247, 0.25);
     color: #e9d5ff;
+}
+
+/* Class Features & Feats Styles */
+
+.class-features-container {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.class-feature-level {
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 0.85rem;
+    overflow: hidden;
+}
+
+.class-feature-level-header {
+    background: rgba(37, 99, 235, 0.35);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    font-weight: 600;
+    color: #bfdbfe;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.class-feature-level-header:hover {
+    background: rgba(37, 99, 235, 0.45);
+}
+
+.class-feature-level-header .level-indicator {
+    display: inline-block;
+    background: rgba(59, 130, 246, 0.6);
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    margin-right: 0.5rem;
+}
+
+.class-feature-level-content {
+    padding: 0.75rem 1rem;
+    display: none;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+.class-feature-level-content.expanded {
+    display: block;
+    max-height: 1000px;
+}
+
+.class-feature-item {
+    padding: 0.6rem 0.75rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 0.65rem;
+    margin-bottom: 0.5rem;
+    border-left: 3px solid rgba(10, 185, 129, 0.6);
+}
+
+.class-feature-item:last-child {
+    margin-bottom: 0;
+}
+
+.class-feature-name {
+    font-weight: 600;
+    color: #e0f2fe;
+    font-size: 0.95rem;
+}
+
+.class-feature-source {
+    font-size: 0.8rem;
+    color: #a5b4fc;
+    margin-top: 0.2rem;
+}
+
+.class-feature-description {
+    font-size: 0.85rem;
+    color: #cbd5f5;
+    margin-top: 0.35rem;
+    line-height: 1.4;
+}
+
+.class-features-empty {
+    padding: 1rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+.feats-list {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.feat-card {
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 0.85rem;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.feat-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.feat-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.feat-name {
+    font-weight: 600;
+    color: #e0f2fe;
+    font-size: 0.95rem;
+}
+
+.feat-level {
+    font-size: 0.8rem;
+    color: #a5b4fc;
+    margin-top: 0.15rem;
+}
+
+.feat-description {
+    font-size: 0.85rem;
+    color: #cbd5f5;
+    line-height: 1.4;
+}
+
+.feat-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-self: flex-start;
+}
+
+.feat-action-btn {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: #bfdbfe;
+    padding: 0.35rem 0.7rem;
+    border-radius: 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+}
+
+.feat-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px rgba(59, 130, 246, 0.2);
+    background: rgba(30, 41, 59, 0.8);
+}
+
+.feat-action-btn.remove {
+    border-color: rgba(248, 113, 113, 0.45);
+    color: #fecaca;
+}
+
+.feat-action-btn.remove:hover {
+    background: rgba(239, 68, 68, 0.15);
+    box-shadow: 0 6px 12px rgba(248, 113, 113, 0.2);
+}
+
+.feats-empty {
+    padding: 1rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    font-style: italic;
 }
 

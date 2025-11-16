@@ -23,6 +23,7 @@
             <button class="tab" data-tab="combat" type="button">Combat</button>
             <button class="tab" data-tab="inventory" type="button">Inventory</button>
             <button class="tab" data-tab="spells" type="button">Spells</button>
+            <button class="tab" data-tab="feats" type="button">Feats</button>
             <button class="tab" data-tab="manage" type="button">Manage</button>
             <div class="tabs-spacer"></div>
             <div class="saving-indicator" id="saving-indicator">
@@ -449,17 +450,14 @@
                                         <td class="combat-label">Max Hit Points</td>
                                         <td class="combat-input"><input data-character-input type="number" min="1" id="max_hp" value="8"></td>
                                     </tr>
-                                    <tr>
-                                        <td class="combat-label">Current Hit Points</td>
-                                        <td class="combat-input"><input data-character-input type="number" min="0" id="current_hp" value="8"></td>
+                                    <tr style="display: none;">
+                                        <td><input data-character-input type="hidden" id="current_hp" value="8"></td>
+                                        <td><input data-character-input type="hidden" id="hit_dice_available" value="0"></td>
+                                        <td><input data-character-input type="hidden" id="temp_hp" value="0"></td>
                                     </tr>
                                     <tr>
                                         <td class="combat-label">Hit Dice</td>
                                         <td class="combat-readonly"><span id="hit_dice">1d8</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="combat-label">Current Hit Dice</td>
-                                        <td class="combat-input"><input data-character-input type="number" min="0" id="hit_dice_available" value="0"></td>
                                     </tr>
                                     <tr>
                                         <td class="combat-label">Spell Save DC</td>
@@ -494,8 +492,14 @@
                             <div class="health-controls" id="health-controls">
                                 <section class="health-group">
                                     <div class="health-group-header">
-                                        <h3>Hit Point Adjustments</h3>
-                                        <span class="health-status" id="hp-status">0 / 0</span>
+                                        <h3>Hit Points</h3>
+                                    </div>
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar-wrapper">
+                                            <div class="progress-bar-fill" id="hp-bar-fill"></div>
+                                            <div class="progress-bar-fill-temp" id="hp-bar-temp"></div>
+                                        </div>
+                                        <span class="progress-bar-label" id="hp-bar-label">(0 / 0)</span>
                                     </div>
                                     <div class="health-buttons">
                                         <button type="button" data-adjust-target="current_hp" data-adjust-delta="-10" data-adjust-min="0" data-adjust-max-id="max_hp">-10</button>
@@ -506,12 +510,20 @@
                                         <button type="button" data-adjust-target="current_hp" data-adjust-delta="10" data-adjust-min="0" data-adjust-max-id="max_hp">+10</button>
                                         <button type="button" class="outline" data-adjust-target="current_hp" data-adjust-set-id="max_hp">Set to Max</button>
                                     </div>
+                                    <div class="health-buttons">
+                                        <button type="button" data-adjust-target="temp_hp" data-adjust-delta="1" data-adjust-min="0">+1 Temp</button>
+                                        <button type="button" data-adjust-target="temp_hp" data-adjust-delta="5" data-adjust-min="0">+5 Temp</button>
+                                        <button type="button" class="outline" data-adjust-target="temp_hp" data-adjust-set="0">Clear Temp</button>
+                                    </div>
                                     <p class="hint">Use these buttons to apply damage or healing quickly. Hit points are clamped between 0 and your maximum.</p>
                                 </section>
                                 <section class="health-group">
                                     <div class="health-group-header">
-                                        <h3>Hit Dice Tracker</h3>
-                                        <span class="health-status" id="hit-dice-status">0 / 0</span>
+                                        <h3>Hit Dice</h3>
+                                    </div>
+                                    <div class="hit-dice-pips">
+                                        <div id="hd-pips-container" class="hd-pips-container"></div>
+                                        <span class="progress-bar-label" id="hd-bar-label">1d8 (0 / 0)</span>
                                     </div>
                                     <div class="health-buttons">
                                         <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="level">Spend 1</button>
@@ -668,6 +680,38 @@
                         <span>Spell Notes</span>
                         <textarea data-character-input id="spell_notes" rows="4" placeholder="Prepared rituals, component reminders, or other quick notes."></textarea>
                     </label>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-feats" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Class Features & Traits</h2>
+                    <p class="hint">Your class and subclass grant features at specific levels. Scroll down to add additional feats or custom abilities.</p>
+                    <div id="class-features-container" class="class-features-container"></div>
+                </section>
+                <section class="card">
+                    <h2>Feats & Custom Abilities</h2>
+                    <p class="hint">Track feats you've chosen or other custom abilities you've gained. Include the level at which you gained them.</p>
+                    <div class="feat-form" style="margin-bottom: 1rem; padding: 1rem; background: rgba(30, 41, 59, 0.6); border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.2);">
+                        <div class="grid grid-2">
+                            <label class="field">
+                                <span>Feat/Ability Name</span>
+                                <input type="text" id="feat-name-input" placeholder="e.g., Polearm Master, Heavy Armor Master">
+                            </label>
+                            <label class="field">
+                                <span>Level Gained</span>
+                                <input type="number" id="feat-level-input" placeholder="1" min="1" max="20" value="1">
+                            </label>
+                        </div>
+                        <label class="field">
+                            <span>Description (optional)</span>
+                            <textarea id="feat-description-input" rows="3" placeholder="What does this feat do? Any bonuses or special effects?"></textarea>
+                        </label>
+                        <button id="feat-add-btn" type="button" py-click="add_feat" style="margin-top: 0.75rem;">Add Feat</button>
+                    </div>
+                    <div id="feats-list" class="feats-list"></div>
                 </section>
             </div>
         </section>
