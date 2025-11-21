@@ -39,7 +39,7 @@ class TestTabOrder(unittest.TestCase):
     
     def test_tab_button_order(self):
         """Test that tab buttons are in the expected order."""
-        expected_order = ['overview', 'inventory', 'skills', 'combat', 'spells', 'feats', 'manage']
+        expected_order = ['overview', 'skills', 'inventory', 'combat', 'spells', 'feats', 'manage']
         
         # Force fresh read from disk
         html_path = Path(__file__).parent.parent / "index.html"
@@ -68,11 +68,11 @@ class TestTabOrder(unittest.TestCase):
     
     def test_inventory_before_skills(self):
         """Test that Inventory section comes before Skills section."""
-        inventory_pos = self.html_content.find('id="tab-inventory"')
         skills_pos = self.html_content.find('id="tab-skills"')
+        inventory_pos = self.html_content.find('id="tab-inventory"')
         
-        self.assertGreater(inventory_pos, 0, "Inventory tab not found")
         self.assertGreater(skills_pos, 0, "Skills tab not found")
+        self.assertGreater(inventory_pos, 0, "Inventory tab not found")
         self.assertLess(inventory_pos, skills_pos,
                        f"Inventory ({inventory_pos}) should come before Skills ({skills_pos})")
     
