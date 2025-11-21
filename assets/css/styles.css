@@ -879,6 +879,90 @@ body {
     color: #94a3b8;
 }
 
+.channel-divinity-counter {
+    background: rgba(30, 41, 59, 0.6);
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: auto;
+}
+
+.counter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+}
+
+.counter-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    letter-spacing: 0.05em;
+    color: #bfdbfe;
+}
+
+.counter-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.5rem 1rem;
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.75rem;
+}
+
+.counter-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fbbf24;
+    letter-spacing: 0.05em;
+}
+
+.counter-label {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.counter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.counter-buttons button {
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: #bfdbfe;
+    padding: 0.55rem 0.95rem;
+    border-radius: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.2s ease;
+    flex: 1;
+    min-width: 70px;
+}
+
+.counter-buttons button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(59, 130, 246, 0.35);
+}
+
+.counter-buttons button:active {
+    transform: translateY(0);
+}
+
+.counter-buttons button.outline {
+    background: transparent;
+    border-color: rgba(14, 165, 233, 0.4);
+    color: #cffafe;
+}
+
 .progress-bar-container {
     display: flex;
     flex-direction: column;
@@ -973,6 +1057,28 @@ body {
 .hd-pip.available {
     background: linear-gradient(135deg, rgba(34, 197, 94, 0.8), rgba(74, 222, 128, 0.6));
     border-color: rgba(34, 197, 94, 0.7);
+}
+
+.cd-pips-container {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
+}
+
+.cd-pip {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    border: 2px solid rgba(148, 163, 184, 0.5);
+    background: rgba(30, 41, 59, 0.8);
+    transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.cd-pip.available {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.8), rgba(253, 224, 71, 0.6));
+    border-color: rgba(251, 191, 36, 0.7);
 }
 
 .equipment-toolbar {
@@ -1262,6 +1368,17 @@ body {
 .spell-library-results {
     display: grid;
     gap: 0.85rem;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.spellbook-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.spellbook-section h2 {
+    margin-top: 0;
 }
 
 .spell-library-empty {
@@ -1311,6 +1428,19 @@ body {
     align-items: center;
 }
 
+@keyframes spell-add-denied {
+    0%, 100% {
+        background: rgba(15, 23, 42, 0.6);
+        border-color: rgba(96, 165, 250, 0.5);
+        box-shadow: none;
+    }
+    50% {
+        background: rgba(220, 38, 38, 0.4);
+        border-color: rgba(239, 68, 68, 0.7);
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+    }
+}
+
 .spell-action {
     background: rgba(15, 23, 42, 0.6);
     border: 1px solid rgba(96, 165, 250, 0.5);
@@ -1323,6 +1453,10 @@ body {
     text-transform: uppercase;
     cursor: pointer;
     transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.spell-action.deny-blink {
+    animation: spell-add-denied 0.6s ease-in-out;
 }
 
 .spell-action:hover {
@@ -1357,6 +1491,12 @@ body {
 .spell-tag.unavailable {
     background: rgba(248, 113, 113, 0.35);
     color: #fee2e2;
+}
+
+.spell-tag.domain-bonus {
+    background: rgba(168, 85, 247, 0.35);
+    color: #e9d5ff;
+    border-color: rgba(168, 85, 247, 0.5);
 }
 
 .spell-card[open] summary {
@@ -1467,6 +1607,43 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
+.spell-left-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.spell-chooser-section {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1.5rem;
+    flex: 1;
+}
+
+.spell-chooser-section h2 {
+    margin-top: 0;
+}
+
+.spell-library-results {
+    display: grid;
+    gap: 0.85rem;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.spell-slots-section {
+    display: none;
+}
+
+.spell-slots-section h2 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+.spell-right-column {
+    display: flex;
+    flex-direction: column;
+}
+
 .spellbook-prepared,
 .spellbook-slots {
     background: rgba(30, 41, 59, 0.55);
@@ -1476,6 +1653,93 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+}
+
+.spellbook-slots-summary {
+    margin-bottom: 0.5rem;
+}
+
+.slot-tracker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.slot-tracker-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 0.5rem;
+    cursor: help;
+}
+
+.slot-tracker-item.pact {
+    border-color: rgba(192, 132, 252, 0.3);
+    background: rgba(133, 63, 226, 0.1);
+}
+
+.slot-tracker-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.slot-tracker-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #facc15;
+}
+
+.slot-tracker-item.pact .slot-tracker-value {
+    color: #d8b4fe;
+}
+
+.spellbook-title-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.spellbook-title-bar h2 {
+    margin: 0;
+    flex: 1;
+}
+
+.spellbook-counter-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 1rem;
+}
+
+.spellbook-counter-label {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.spellbook-title-counter {
+    font-size: 1rem;
+    color: #60a5fa;
+    font-weight: 600;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    white-space: nowrap;
 }
 
 .spellbook-header {
@@ -1527,6 +1791,17 @@ body {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #facc15;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.spell-level-slots {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: #cbd5e1;
+    font-weight: 400;
+    text-transform: none;
 }
 
 .spellbook-level ul {
@@ -1544,6 +1819,18 @@ body {
     overflow: hidden;
 }
 
+.spellbook-spell.uncastable {
+    background: rgba(30, 41, 59, 0.3);
+    border-color: rgba(148, 163, 184, 0.1);
+    opacity: 0.65;
+}
+
+.spellbook-spell.uncastable .spellbook-name,
+.spellbook-spell.uncastable .spellbook-meta,
+.spellbook-spell.uncastable .spellbook-source {
+    color: #64748b;
+}
+
 .spellbook-details {
     display: block;
 }
@@ -1556,6 +1843,60 @@ body {
     padding: 0.6rem 0.85rem;
     cursor: pointer;
     list-style: none;
+}
+
+.spellbook-summary-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    justify-content: flex-start;
+    flex: 1;
+}
+
+.spellbook-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-direction: column;
+    min-width: 80px;
+}
+
+.spellbook-cast,
+.spellbook-remove {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    color: #bfdbfe;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    width: 100%;
+    text-align: center;
+    font-weight: 500;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spellbook-cast {
+    border-color: rgba(59, 130, 246, 0.35);
+}
+
+.spellbook-cast:hover {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.5);
+}
+
+.spellbook-remove {
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+}
+
+.spellbook-remove:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
 }
 
 .spellbook-details summary:focus-visible {
@@ -1957,7 +2298,9 @@ body {
     border-radius: 0.9rem;
     border: 1px solid rgba(148, 163, 184, 0.2);
     overflow: hidden;
-    align-self: start;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .combat-stats-table {
@@ -2260,5 +2603,176 @@ body {
     color: #94a3b8;
     font-size: 0.9rem;
     font-style: italic;
+}
+
+/* Spell Cast Confirmation Modal */
+.spell-cast-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.spell-cast-modal.active {
+    display: flex;
+}
+
+.spell-cast-modal-content {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(226, 232, 240, 0.1);
+    width: min(90vw, 400px);
+    animation: modal-slide-in 0.3s ease-out;
+}
+
+@keyframes modal-slide-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.spell-cast-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.spell-cast-modal-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #f8fafc;
+    letter-spacing: 0.05em;
+}
+
+.spell-cast-modal-close {
+    background: none;
+    border: none;
+    color: #cbd5f5;
+    font-size: 1.8rem;
+    cursor: pointer;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+}
+
+.spell-cast-modal-close:hover {
+    color: #f8fafc;
+    background: rgba(148, 163, 184, 0.1);
+}
+
+.spell-cast-modal-body {
+    padding: 1.5rem;
+    color: #cbd5f5;
+    line-height: 1.6;
+}
+
+.spell-cast-modal-body p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.spell-cast-modal-footer {
+    display: flex;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    justify-content: flex-end;
+}
+
+.spell-cast-modal-btn {
+    padding: 0.7rem 1.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.375rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.05em;
+}
+
+.spell-cast-modal-btn-cancel {
+    background: rgba(51, 65, 85, 0.6);
+    color: #cbd5f5;
+}
+
+.spell-cast-modal-btn-cancel:hover {
+    background: rgba(71, 85, 105, 0.8);
+    border-color: rgba(148, 163, 184, 0.5);
+    color: #f8fafc;
+}
+
+.spell-cast-modal-btn-confirm {
+    background: linear-gradient(135deg, rgba(124, 58, 202, 0.7), rgba(168, 85, 247, 0.7));
+    color: #f8fafc;
+    border-color: rgba(168, 85, 247, 0.5);
+}
+
+.spell-cast-modal-btn-confirm:hover {
+    background: linear-gradient(135deg, rgba(124, 58, 202, 0.9), rgba(168, 85, 247, 0.9));
+    border-color: rgba(168, 85, 247, 0.8);
+    box-shadow: 0 8px 16px rgba(124, 58, 202, 0.3);
+}
+
+.spell-cast-modal-boost-section {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(34, 197, 94, 0.05);
+}
+
+.boost-section-label {
+    display: block;
+    font-size: 0.9rem;
+    color: #cbd5f5;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+}
+
+.spell-cast-modal-boost-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.boost-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    font-size: 0.9rem;
+    color: #cbd5f5;
+}
+
+.boost-option:hover {
+    background: rgba(34, 197, 94, 0.1);
+    color: #86efac;
+}
+
+.boost-option input[type="radio"] {
+    cursor: pointer;
+    accent-color: rgba(34, 197, 94, 0.8);
 }
 

@@ -64,6 +64,39 @@ DnDCharacter/
 - Under **Manage → Resource Trackers**, create counters for class features (e.g., Rage, Ki, Superiority Dice). Each tracker stores name, remaining uses, and maximum; use the ± buttons or edit fields directly.
 - A maximum of 12 custom resources are stored per character. Trackers are saved with the rest of the sheet data in `localStorage` and exports/imports.
 
+## Managing Exports & Storage
+
+- Each time you click **Export JSON**, a new timestamped file is created in the `/exports/` folder
+- Over time, this folder can accumulate many old backup files
+- **Storage Info** shows your current usage and estimated number of exports
+- **Cleanup Old Exports** maintains browser logs and shows cleanup status; for the `/exports/` folder itself:
+  - **On Desktop**: Open your file manager, navigate to the project folder, and manually delete old files from `/exports/`
+  - **On Chromebook**: The `/exports/` folder is managed by the browser's File System API. Use the browser's download manager or clear site data to manage exports
+  - **Recommended practice**: Keep 5-10 recent exports per character as backups, delete the rest
+
+### Log Management & Rolling Window
+
+PySheet automatically maintains a **rolling 60-day log window** in browser storage:
+
+- **Automatic pruning**: Logs older than 60 days are automatically removed when new logs are written
+- **Per-day limits**: Maximum 1000 log entries per day prevents unlimited growth from heavy usage
+- **Storage key**: Logs are stored in `localStorage` under `"pysheet_logs_v2"` 
+- **Statistics**: Click "Cleanup Old Exports" to see log stats including total entries, days covered, and storage used
+- **Zero configuration**: The system works automatically—no manual intervention needed
+
+Log entries capture:
+- Timestamp (ISO format with milliseconds)
+- Log level: INFO, WARNING, ERROR
+- Message and exception details (for errors)
+
+This ensures your browser storage stays manageable even with weeks of active gameplay.
+
+To prevent folder bloat:
+1. Periodically review the `/exports/` folder
+2. Keep only recent backups (last 2-3 weeks)
+3. Move important character milestones to a backup folder if you want to preserve them
+4. Use Git or cloud storage for permanent version control of favorite characters
+
 ## Development Notes
 
 - The application runs entirely client-side; no backend or traditional Python environment is required.

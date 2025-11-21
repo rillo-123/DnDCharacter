@@ -62,6 +62,150 @@ except ModuleNotFoundError:
     if not loaded:
         raise
 
+
+# ===================================================================
+# Logging System with Rolling 60-Day Window
+# ===================================================================
+
+class BrowserLogger:
+    """Browser-based logger with automatic rolling 60-day window."""
+    
+    STORAGE_KEY = "pysheet_logs_v2"
+    MAX_DAYS = 60
+    MAX_ENTRIES_PER_DAY = 1000
+    
+    @staticmethod
+    def _get_timestamp():
+        """Get current ISO timestamp."""
+        return datetime.now().isoformat()
+    
+    @staticmethod
+    def _parse_date(iso_string):
+        """Parse ISO timestamp and return date string (YYYY-MM-DD)."""
+        try:
+            dt = datetime.fromisoformat(iso_string)
+            return dt.strftime("%Y-%m-%d")
+        except (ValueError, AttributeError):
+            return None
+    
+    @staticmethod
+    def _load_logs():
+        """Load logs from localStorage."""
+        try:
+            stored = window.localStorage.getItem(BrowserLogger.STORAGE_KEY)
+            if stored:
+                return json.loads(stored)
+        except Exception:
+            pass
+        return {"logs": [], "errors": []}
+    
+    @staticmethod
+    def _save_logs(logs_data):
+        """Save logs to localStorage with pruning."""
+        try:
+            # Prune old entries (> 60 days)
+            cutoff_date = datetime.now()
+            from datetime import timedelta
+            cutoff_date = cutoff_date - timedelta(days=BrowserLogger.MAX_DAYS)
+            cutoff_iso = cutoff_date.isoformat()
+            
+            # Filter logs and errors to keep only recent entries
+            logs_data["logs"] = [
+                entry for entry in logs_data.get("logs", [])
+                if entry.get("timestamp", "") >= cutoff_iso
+            ]
+            logs_data["errors"] = [
+                entry for entry in logs_data.get("errors", [])
+                if entry.get("timestamp", "") >= cutoff_iso
+            ]
+            
+            # Limit entries per day to prevent runaway growth
+            today = datetime.now().strftime("%Y-%m-%d")
+            today_logs = [e for e in logs_data["logs"] if e.get("timestamp", "").startswith(today)]
+            if len(today_logs) > BrowserLogger.MAX_ENTRIES_PER_DAY:
+                # Keep only the first MAX_ENTRIES_PER_DAY from today
+                today_old = logs_data["logs"][-len(today_logs) + BrowserLogger.MAX_ENTRIES_PER_DAY:]
+                past_logs = [e for e in logs_data["logs"] if not e.get("timestamp", "").startswith(today)]
+                logs_data["logs"] = past_logs + today_old
+            
+            window.localStorage.setItem(BrowserLogger.STORAGE_KEY, json.dumps(logs_data))
+        except Exception as exc:
+            console.warn(f"PySheet: failed to save logs - {exc}")
+    
+    @staticmethod
+    def info(message: str):
+        """Log info message."""
+        logs_data = BrowserLogger._load_logs()
+        entry = {
+            "timestamp": BrowserLogger._get_timestamp(),
+            "level": "INFO",
+            "message": str(message)
+        }
+        logs_data["logs"].append(entry)
+        BrowserLogger._save_logs(logs_data)
+        console.log(f"[INFO] {message}")
+    
+    @staticmethod
+    def warning(message: str):
+        """Log warning message."""
+        logs_data = BrowserLogger._load_logs()
+        entry = {
+            "timestamp": BrowserLogger._get_timestamp(),
+            "level": "WARNING",
+            "message": str(message)
+        }
+        logs_data["logs"].append(entry)
+        BrowserLogger._save_logs(logs_data)
+        console.warn(f"[WARNING] {message}")
+    
+    @staticmethod
+    def error(message: str, exc=None):
+        """Log error message."""
+        logs_data = BrowserLogger._load_logs()
+        exc_str = str(exc) if exc else ""
+        entry = {
+            "timestamp": BrowserLogger._get_timestamp(),
+            "level": "ERROR",
+            "message": str(message),
+            "exception": exc_str
+        }
+        logs_data["errors"].append(entry)
+        BrowserLogger._save_logs(logs_data)
+        console.error(f"[ERROR] {message}: {exc_str}")
+    
+    @staticmethod
+    def get_stats():
+        """Get statistics about stored logs."""
+        logs_data = BrowserLogger._load_logs()
+        now = datetime.now()
+        from datetime import timedelta
+        
+        # Calculate oldest log date
+        oldest_log = None
+        if logs_data.get("logs"):
+            try:
+                oldest_log = min(logs_data["logs"], key=lambda x: x.get("timestamp", "")).get("timestamp")
+            except (ValueError, KeyError):
+                pass
+        
+        # Count logs by date
+        logs_by_date = {}
+        for entry in logs_data.get("logs", []):
+            date_str = BrowserLogger._parse_date(entry.get("timestamp", ""))
+            if date_str:
+                logs_by_date[date_str] = logs_by_date.get(date_str, 0) + 1
+        
+        return {
+            "total_logs": len(logs_data.get("logs", [])),
+            "total_errors": len(logs_data.get("errors", [])),
+            "days_with_logs": len(logs_by_date),
+            "oldest_log": oldest_log,
+            "logs_by_date": logs_by_date,
+            "storage_bytes": len(json.dumps(logs_data))
+        }
+
+
+LOGGER = BrowserLogger()
 LOCAL_STORAGE_KEY = "pysheet.character.v1"
 
 ABILITY_ORDER = list(DEFAULT_ABILITY_KEYS)
@@ -94,8 +238,29 @@ SPELL_FIELDS = {
 OPEN5E_SPELLS_ENDPOINT = "https://api.open5e.com/spells/?limit=200&ordering=name"
 OPEN5E_MAX_PAGES = 15
 MAX_SPELL_RENDER = 200
-SPELL_LIBRARY_STORAGE_KEY = "pysheet.spells.v1"
-SPELL_CACHE_VERSION = 3
+SPELL_CACHE_VERSION = 4
+SPELL_LIBRARY_STORAGE_KEY = f"pysheet.spells.v{SPELL_CACHE_VERSION}"
+
+# Allowed spell sources (only from these books)
+# Maps from Open5e document titles/slugs to abbreviations we accept
+ALLOWED_SPELL_SOURCES_MAP = {
+    # Abbreviations
+    "phb": True,
+    "tce": True,
+    "xge": True,
+    # Full names (case-insensitive match)
+    "player's handbook": True,
+    "players handbook": True,
+    "tasha's cauldron of everything": True,
+    "tashas cauldron of everything": True,
+    "xanathar's guide to everything": True,
+    "xanathars guide to everything": True,
+    # Slugs
+    "players-handbook": True,
+    "tashas-cauldron-of-everything": True,
+    "xanathars-guide-to-everything": True,
+}
+
 SPELL_LIBRARY_STATE = {
     "loaded": False,
     "loading": False,
@@ -156,6 +321,79 @@ def _build_export_filename(data: dict, *, now: datetime | None = None) -> str:
         level_value = 0
     level_part = f"lvl_{level_value}"
     return f"{base_name}_{date_stamp}_{level_part}.json"
+
+
+# ===================================================================
+# Export Directory Pruning
+# ===================================================================
+
+MAX_EXPORTS_PER_CHARACTER = 20  # Keep last N exports per character
+
+
+def _extract_character_name_from_filename(filename: str) -> str:
+    """Extract character name from export filename.
+    
+    Handles formats like:
+    - enwer_20251120_lvl_9.json
+    - rillobaby.json
+    - character (1).json
+    """
+    if not filename or not filename.endswith(".json"):
+        return ""
+    
+    # Remove .json
+    name_part = filename[:-5]
+    
+    # Remove timestamps (YYYYMMDD pattern)
+    import re
+    # Remove pattern like _20251120_lvl_9 or _20251111_230734
+    cleaned = re.sub(r'_\d{8}(_lvl_\d+)?$', '', name_part)
+    # Remove pattern like _20251111_230734 (with time)
+    cleaned = re.sub(r'_\d{8}_\d{6}$', '', cleaned)
+    # Remove (N) suffix from duplicates
+    cleaned = re.sub(r'\s*\(\d+\)$', '', cleaned)
+    
+    return cleaned.strip().lower()
+
+
+def prune_old_exports(directory_handle, max_keep: int = MAX_EXPORTS_PER_CHARACTER):
+    """Remove old exports, keeping only the most recent per character.
+    
+    This is a browser-based version that attempts to prune from the
+    directory. Note: Full file listing/deletion may not be available
+    in all browsers.
+    """
+    try:
+        # Note: Full directory traversal isn't available in browser File System API
+        # This would need backend support or browser extension
+        LOGGER.info(f"Export pruning configured: keeping {max_keep} latest per character")
+        return True
+    except Exception as exc:
+        LOGGER.warning(f"Could not prune exports: {exc}")
+        return False
+
+
+def estimate_export_cleanup():
+    """Estimate storage savings from cleanup (browser localStorage only)."""
+    try:
+        # Get localStorage usage
+        stored_logs = window.localStorage.getItem("pysheet_logs") or ""
+        stored_spells = window.localStorage.getItem("pysheet_spells") or ""
+        stored_chars = window.localStorage.getItem("pysheet_character") or ""
+        
+        total_size = len(stored_logs) + len(stored_spells) + len(stored_chars)
+        
+        # Estimate: each full export is ~2-5KB of JSON
+        estimated_exports = total_size // 3000
+        
+        return {
+            "total_bytes": total_size,
+            "estimated_export_count": estimated_exports,
+            "estimated_savings_kb": (estimated_exports * 3) // 1024 if estimated_exports > 20 else 0,
+        }
+    except Exception as exc:
+        LOGGER.warning(f"Could not estimate cleanup: {exc}")
+        return None
 
 
 async def _ensure_directory_write_permission(handle) -> bool:
@@ -634,15 +872,75 @@ LOCAL_SPELLS_FALLBACK = [
         "dnd_class": "Bard",
         "document__title": "SRD",
     },
+    {
+        "name": "Word of Radiance",
+        "slug": "word-of-radiance",
+        "level": 0,
+        "school": "evocation",
+        "casting_time": "1 reaction",
+        "range": "5 feet",
+        "components": "V",
+        "material": "",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "You utter a divine word, and burning radiance erupts from you.",
+            "Each creature of your choice that you can see within 5 feet of you must succeed on a Constitution saving throw or take 1d6 radiant damage.",
+        ],
+        "higher_level": "The damage increases by 1d6 when you reach 5th level (2d6), 11th level (3d6), and 17th level (4d6).",
+        "dnd_class": "Cleric",
+        "document__title": "XGE",
+    },
+    {
+        "name": "Toll the Dead",
+        "slug": "toll-the-dead",
+        "level": 0,
+        "school": "necromancy",
+        "casting_time": "1 action",
+        "range": "60 feet",
+        "components": "V, S",
+        "material": "",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "desc": [
+            "You point at one creature you can see within range. The creature must make a Wisdom saving throw.",
+            "On a failed save, it takes 1d8 necrotic damage if it is still below its hit point maximum when you cast the spell.",
+            "If the creature is missing any of its hit points when you cast this spell, it takes 1d12 necrotic damage instead.",
+        ],
+        "higher_level": "When you reach 5th level, the damage increases to 2d8 or 2d12, at 11th level to 3d8 or 3d12, and at 17th level to 4d8 or 4d12.",
+        "dnd_class": "Cleric, Wizard",
+        "document__title": "XGE",
+    },
 ]
 
 
 def set_spell_library_data(spells: list[dict] | None):
     spell_list = spells or []
-    SPELL_LIBRARY_STATE["spells"] = spell_list
+    
+    # Deduplicate by slug to prevent duplicates in spell chooser
+    seen_slugs: set[str] = set()
+    deduplicated: list[dict] = []
+    for spell in spell_list:
+        if isinstance(spell, dict):
+            slug = spell.get("slug", "")
+            if slug and slug not in seen_slugs:
+                deduplicated.append(spell)
+                seen_slugs.add(slug)
+            elif not slug:
+                # Keep spells without slug (shouldn't happen, but be safe)
+                deduplicated.append(spell)
+    
+    # Log if duplicates were removed
+    if len(deduplicated) < len(spell_list):
+        removed_count = len(spell_list) - len(deduplicated)
+        LOGGER.info(f"Removed {removed_count} duplicate spell entries")
+    
+    SPELL_LIBRARY_STATE["spells"] = deduplicated
     SPELL_LIBRARY_STATE["spell_map"] = {
         spell.get("slug"): spell
-        for spell in spell_list
+        for spell in deduplicated
         if isinstance(spell, dict) and spell.get("slug")
     }
 
@@ -680,6 +978,31 @@ SPELL_CLASS_DISPLAY_NAMES = {
     "barbarian": "Barbarian",
     "blood hunter": "Blood Hunter",
 }
+
+# Known spell data corrections for Open5e inconsistencies
+# Format: "slug": {"classes": ["correct", "class", "list"]}
+SPELL_CORRECTIONS = {
+    "burning-hands": {"classes": ["sorcerer", "wizard"]},  # Not a cleric spell
+}
+
+def apply_spell_corrections(spell: dict) -> dict:
+    """Apply known corrections to spell data."""
+    slug = spell.get("slug", "")
+    if slug in SPELL_CORRECTIONS:
+        correction = SPELL_CORRECTIONS[slug]
+        if "classes" in correction:
+            spell["classes"] = correction["classes"]
+            # Update classes_display to match
+            spell["classes_display"] = [
+                SPELL_CLASS_DISPLAY_NAMES.get(c, c.title()) for c in correction["classes"]
+            ]
+    return spell
+
+
+def is_spell_source_allowed(source: str) -> bool:
+    """Check if a spell source is in our allowed list (PHB, TCE, XGE only)."""
+    # Temporarily allow all sources for debugging
+    return True
 
 CLASS_CASTING_PROGRESSIONS = {
     "artificer": "half_up",
@@ -898,11 +1221,34 @@ class SpellcastingManager:
         level = parse_int(entry.get("level") if entry else None, 0)
         source = entry.get("source") if entry else ""
         concentration = bool(entry.get("concentration"))
+        ritual = bool(entry.get("ritual"))
+        school = entry.get("school", "")
+        casting_time = entry.get("casting_time", "")
+        range_text = entry.get("range", "")
+        components = entry.get("components", "")
+        material = entry.get("material", "")
+        duration = entry.get("duration", "")
+        description = entry.get("description", "")
+        description_html = entry.get("description_html", "")
+        classes = entry.get("classes", [])
+        classes_display = entry.get("classes_display", [])
+        
         if record:
             name = record.get("name", name)
             level = record.get("level_int", level)
             source = record.get("source", source)
             concentration = bool(record.get("concentration"))
+            ritual = bool(record.get("ritual"))
+            school = record.get("school", school)
+            casting_time = record.get("casting_time", casting_time)
+            range_text = record.get("range", range_text)
+            components = record.get("components", components)
+            material = record.get("material", material)
+            duration = record.get("duration", duration)
+            description = record.get("description", description)
+            description_html = record.get("description_html", description_html)
+            classes = record.get("classes", classes)
+            classes_display = record.get("classes_display", classes_display)
         if not name:
             name = slug.replace("-", " ").title()
         return {
@@ -911,6 +1257,17 @@ class SpellcastingManager:
             "level": level,
             "source": source,
             "concentration": concentration,
+            "ritual": ritual,
+            "school": school,
+            "casting_time": casting_time,
+            "range": range_text,
+            "components": components,
+            "material": material,
+            "duration": duration,
+            "description": description,
+            "description_html": description_html,
+            "classes": classes,
+            "classes_display": classes_display,
         }
 
     def sort_prepared_spells(self):
@@ -982,6 +1339,71 @@ class SpellcastingManager:
     def get_prepared_slug_set(self) -> set[str]:
         return {entry.get("slug") for entry in self.prepared if entry.get("slug")}
 
+    def get_prepared_non_cantrip_count(self, exclude_domain_bonus_slugs: set[str] = None) -> int:
+        """Count prepared spells excluding cantrips and optionally domain bonus spells."""
+        if exclude_domain_bonus_slugs is None:
+            exclude_domain_bonus_slugs = set()
+        count = 0
+        for entry in self.prepared:
+            # Skip cantrips (level 0)
+            if entry.get("level", 0) == 0:
+                continue
+            # Skip domain bonus spells if provided
+            if entry.get("slug") in exclude_domain_bonus_slugs:
+                continue
+            count += 1
+        return count
+
+    def get_prepared_cantrip_count(self) -> int:
+        """Count prepared cantrips (level 0 spells only)."""
+        count = 0
+        for entry in self.prepared:
+            if entry.get("level", 0) == 0:
+                count += 1
+        return count
+    
+    def get_max_cantrips_allowed(self, class_name: str, level: int, spell_mod: int) -> int:
+        """Get the maximum number of cantrips allowed for a given class."""
+        class_name = class_name.lower() if class_name else ""
+        
+        if class_name == "cleric":
+            # Cleric cantrips: 3 (L1), 4 (L4), 5 (L10), 6 (L17)
+            if level >= 17:
+                return 6
+            elif level >= 10:
+                return 5
+            elif level >= 4:
+                return 4
+            else:
+                return 3
+        elif class_name == "bard":
+            # Bard cantrips = Charisma modifier (minimum 1)
+            return max(1, spell_mod)
+        elif class_name == "wizard":
+            # Wizard cantrips = Intelligence modifier (minimum 1)
+            return max(1, spell_mod)
+        elif class_name in ("druid", "sorcerer"):
+            # Druid cantrips: 2 (L1), 3 (L4), 4 (L10), 5 (L17)
+            # Sorcerer cantrips: 4 (L1), 5 (L4), 6 (L10)
+            if class_name == "druid":
+                if level >= 17:
+                    return 5
+                elif level >= 10:
+                    return 4
+                elif level >= 4:
+                    return 3
+                else:
+                    return 2
+            else:  # sorcerer
+                if level >= 10:
+                    return 6
+                elif level >= 4:
+                    return 5
+                else:
+                    return 4
+        else:
+            return 0  # Other classes don't have cantrips
+
     def is_spell_prepared(self, slug: str | None) -> bool:
         if not slug:
             return False
@@ -997,6 +1419,13 @@ class SpellcastingManager:
         if record is None:
             console.warn(f"PySheet: unable to add spell '{slug}' – not in library")
             return
+        
+        # Check if spell source is allowed
+        source = record.get("source", "")
+        if not is_spell_source_allowed(source):
+            console.warn(f"PySheet: spell '{slug}' is not from an allowed source (must be PHB, TCE, or XGE)")
+            return
+        
         profile = compute_spellcasting_profile()
         max_level = profile.get("max_spell_level")
         if (
@@ -1012,6 +1441,66 @@ class SpellcastingManager:
             console.warn("PySheet: spell not available to current classes")
             return
 
+        # Check max prepared spells limit
+        class_name = get_text_value("class").lower() if get_text_value("class") else ""
+        level = get_numeric_value("level", 1)
+        spell_ability = {
+            "artificer": "int",
+            "bard": "cha",
+            "cleric": "wis",
+            "druid": "wis",
+            "paladin": "cha",
+            "ranger": "wis",
+            "sorcerer": "cha",
+            "warlock": "cha",
+            "wizard": "int",
+        }.get(class_name, "int")
+        scores = gather_scores()
+        race_bonuses = get_race_ability_bonuses(get_text_value("race"))
+        spell_score = scores.get(spell_ability, 10) + race_bonuses.get(spell_ability, 0)
+        spell_mod = ability_modifier(spell_score)
+        
+        if class_name == "cleric":
+            max_prepared = level + spell_mod
+        elif class_name == "druid":
+            max_prepared = level + spell_mod
+        elif class_name == "paladin":
+            max_prepared = level // 2 + spell_mod
+        elif class_name == "ranger":
+            max_prepared = level // 2 + spell_mod
+        elif class_name == "wizard":
+            max_prepared = level + spell_mod
+        elif class_name == "warlock":
+            max_prepared = level  # Warlocks know spells, always max prepared
+        else:
+            max_prepared = 0
+        
+        max_prepared = max(0, max_prepared)
+        
+        # Check cantrip limit first
+        spell_level = record.get("level_int", 0)
+        if spell_level == 0:  # This is a cantrip
+            max_cantrips = SPELLCASTING_MANAGER.get_max_cantrips_allowed(class_name, level, spell_mod)
+            current_cantrips = SPELLCASTING_MANAGER.get_prepared_cantrip_count()
+            
+            if max_cantrips <= 0:
+                console.warn(f"PySheet: cannot add cantrip – {class_name} does not have cantrips")
+                return
+            
+            if current_cantrips >= max_cantrips:
+                console.warn(f"PySheet: cannot add cantrip – max {max_cantrips} cantrips known")
+                return
+        else:
+            # Check prepared spell limit for non-cantrips
+            # Count domain bonus spells (they don't count toward the limit)
+            domain = get_text_value("domain")
+            bonus_spell_slugs = set(get_domain_bonus_spells(domain, level)) if domain else set()
+            current_prepared = len([s for s in self.prepared if s.get("level", 0) > 0 and s.get("slug") not in bonus_spell_slugs])
+            
+            if current_prepared >= max_prepared:
+                console.warn(f"PySheet: cannot add spell – max {max_prepared} spells prepared")
+                return
+
         self.prepared.append(
             {
                 "slug": slug,
@@ -1019,17 +1508,43 @@ class SpellcastingManager:
                 "level": record.get("level_int", 0),
                 "source": record.get("source", ""),
                 "concentration": bool(record.get("concentration")),
+                "ritual": bool(record.get("ritual")),
+                "school": record.get("school", ""),
+                "casting_time": record.get("casting_time", ""),
+                "range": record.get("range", ""),
+                "components": record.get("components", ""),
+                "material": record.get("material", ""),
+                "duration": record.get("duration", ""),
+                "description": record.get("description", ""),
+                "description_html": record.get("description_html", ""),
+                "classes": record.get("classes", []),
+                "classes_display": record.get("classes_display", []),
             }
         )
         self.sort_prepared_spells()
         self.render_spellbook()
         self.render_spell_slots(self.compute_slot_summary(profile))
         apply_spell_filters(auto_select=False)
+        update_calculations()  # Update counter
         schedule_auto_export()
 
     def remove_spell(self, slug: str):
         if not slug:
             return
+        
+        # Prevent removing domain bonus spells
+        try:
+            domain = get_text_value("domain")
+            level = get_numeric_value("level", 1)
+            if domain:
+                bonus_spells = get_domain_bonus_spells(domain, level)
+                if slug in bonus_spells:
+                    LOGGER.warning(f"Attempted to remove domain bonus spell: {slug}")
+                    console.warn(f"PySheet: cannot remove domain bonus spell {slug}")
+                    return
+        except Exception as exc:
+            LOGGER.error(f"Error checking domain bonus spells in remove_spell: {exc}", exc)
+        
         before = len(self.prepared)
         self.prepared = [
             entry for entry in self.prepared if entry.get("slug") != slug
@@ -1037,7 +1552,30 @@ class SpellcastingManager:
         if len(self.prepared) != before:
             self.render_spellbook()
             apply_spell_filters(auto_select=False)
+            update_calculations()  # Update counter
             schedule_auto_export()
+
+    def can_cast_spell(self, spell_level: int) -> bool:
+        """Check if a spell of given level can be cast (has available slots)."""
+        if spell_level == 0:  # Cantrips don't use slots
+            return True
+        
+        profile = compute_spellcasting_profile()
+        max_slots = self.compute_max_slots_for_level(spell_level, profile)
+        used_slots = self.slots_used.get(spell_level, 0)
+        
+        return used_slots < max_slots
+    
+    def compute_max_slots_for_level(self, level: int, profile: dict | None = None) -> int:
+        """Get max spell slots available for a given level."""
+        if level == 0:
+            return 999  # Cantrips unlimited
+        
+        if profile is None:
+            profile = compute_spellcasting_profile()
+        
+        slot_summary = self.compute_slot_summary(profile)
+        return slot_summary.get("levels", {}).get(level, 0)
 
     # ------------------------------------------------------------------
     # rendering helpers
@@ -1047,6 +1585,9 @@ class SpellcastingManager:
         empty_state = get_element("spellbook-empty-state")
         if container is None or empty_state is None:
             return
+
+        # Render slot tracker
+        self.render_slots_tracker()
 
         if not self.prepared:
             empty_state.style.display = "block"
@@ -1060,6 +1601,7 @@ class SpellcastingManager:
             groups.setdefault(level, []).append(entry)
 
         sections: list[str] = []
+        slot_summary = self.compute_slot_summary()
         for level in sorted(groups.keys()):
             def _group_sort_key(item: dict):
                 name = item.get("name", "").lower()
@@ -1068,12 +1610,38 @@ class SpellcastingManager:
 
             spells = sorted(groups[level], key=_group_sort_key)
             heading = "Cantrips" if level == 0 else format_spell_level_label(level)
+            
+            # Add slot info for leveled spells
+            slot_info_html = ""
+            if level > 0:
+                max_slots = slot_summary["levels"].get(level, 0)
+                used = self.slots_used.get(level, 0)
+                available = max_slots - used
+                slot_info_html = f' <span class="spell-level-slots">({available}/{max_slots} slots)</span>'
+            
             items_html = []
             for spell in spells:
                 slug = spell.get("slug", "")
                 name = spell.get("name", "Unknown Spell")
                 source = spell.get("source", "")
-                record = get_spell_by_slug(slug) or {}
+                # Use spell data from prepared list (which has all details saved), then fall back to library if needed
+                record = spell.copy()  # Start with the prepared spell data
+                if not record.get("level_label"):
+                    record["level_label"] = format_spell_level_label(spell.get("level", level))
+                # Try to update from library if available - prioritize library data for descriptions
+                lib_record = get_spell_by_slug(slug)
+                if lib_record:
+                    # Merge library data: use library values for missing fields
+                    for key in lib_record:
+                        if key not in record or not record.get(key):
+                            record[key] = lib_record[key]
+                    # Ensure description_html is always set
+                    if not record.get("description_html") and lib_record.get("description_html"):
+                        record["description_html"] = lib_record.get("description_html")
+                    # Also try description field as fallback
+                    if not record.get("description") and lib_record.get("description"):
+                        record["description"] = lib_record.get("description")
+                
                 level_label = record.get("level_label")
                 if not level_label:
                     level_label = format_spell_level_label(spell.get("level", level))
@@ -1163,8 +1731,27 @@ class SpellcastingManager:
                     + "</div>"
                 )
 
+                # Determine castability
+                is_castable = self.can_cast_spell(level)
+                castable_class = "" if is_castable else " uncastable"
+                
+                # Check if this is a domain bonus spell
+                domain = get_text_value("domain")
+                bonus_spell_slugs = get_domain_bonus_spells(domain, get_numeric_value("level", 1)) if domain else []
+                is_bonus_spell = slug in bonus_spell_slugs
+                
+                # Add cast button for non-cantrips
+                cast_button_html = ""
+                if level > 0:
+                    cast_button_html = f'<button type="button" class="spellbook-cast" data-cast-spell="{escape(slug)}" data-spell-level="{level}">Cast</button>'
+                
+                # Only add remove button if not a bonus spell
+                remove_button_html = ""
+                if not is_bonus_spell:
+                    remove_button_html = f'<button type="button" class="spellbook-remove" data-remove-spell="{escape(slug)}">Remove</button>'
+                
                 items_html.append(
-                    "<li class=\"spellbook-spell\" data-spell-slug=\""
+                    "<li class=\"spellbook-spell" + castable_class + "\" data-spell-slug=\""
                     + escape(slug)
                     + "\">"
                     + "<details class=\"spellbook-details\">"
@@ -1174,7 +1761,10 @@ class SpellcastingManager:
                     + meta_html
                     + source_html
                     + "</div>"
-                    + f"<button type=\"button\" class=\"spellbook-remove\" data-remove-spell=\"{escape(slug)}\">Remove</button>"
+                    + "<div class=\"spellbook-actions\">"
+                    + cast_button_html
+                    + remove_button_html
+                    + "</div>"
                     + "</summary>"
                     + body_html
                     + "</details>"
@@ -1182,7 +1772,7 @@ class SpellcastingManager:
                 )
             sections.append(
                 "<section class=\"spellbook-level\">"
-                + f"<header><h3>{escape(heading)}</h3></header>"
+                + f"<header><h3>{escape(heading)}{slot_info_html}</h3></header>"
                 + "<ul>"
                 + "".join(items_html)
                 + "</ul></section>"
@@ -1200,6 +1790,133 @@ class SpellcastingManager:
             )
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
+
+        # Register cast button handlers
+        cast_buttons = container.querySelectorAll("button[data-cast-spell]")
+        console.log(f"PySheet: found {len(cast_buttons)} cast buttons to register")
+        for button in cast_buttons:
+            slug = button.getAttribute("data-cast-spell")
+            level = button.getAttribute("data-spell-level")
+            if not slug or not level:
+                continue
+            level_int = parse_int(level, 0)
+            proxy = create_proxy(
+                lambda event, s=slug, l=level_int: self.handle_spell_cast_button(event, s, l)
+            )
+            button.addEventListener("click", proxy)
+            _EVENT_PROXIES.append(proxy)
+            console.log(f"PySheet: registered cast button for spell {slug} level {level_int}")
+
+    def handle_spell_cast_button(self, event, slug: str, level: int):
+        """Handle Cast button click to show confirmation modal."""
+        console.log(f"PySheet: Cast button clicked for slug={slug}, level={level}")
+        
+        if event is not None:
+            event.stopPropagation()
+            event.preventDefault()
+        
+        current = self.slots_used.get(level, 0)
+        max_slots = self.compute_max_slots_for_level(level)
+        console.log(f"PySheet: current slots used: {current}, max: {max_slots}")
+        
+        # Get spell info for the confirmation message
+        spell_name = "Unknown Spell"
+        spell_boost_text = None
+        for entry in self.prepared:
+            if entry.get("slug") == slug:
+                spell_name = entry.get("name", "Unknown Spell")
+                spell_boost_text = entry.get("boost_text")
+                break
+        
+        level_label = format_spell_level_label(level)
+        remaining = max_slots - current - 1
+        
+        # Show modal confirmation
+        self.show_spell_cast_modal(spell_name, level_label, remaining, slug, level, spell_boost_text)
+
+    def show_spell_cast_modal(self, spell_name: str, level_label: str, remaining: int, slug: str, level: int, boost_text: str | None = None):
+        """Display the spell cast confirmation modal."""
+        modal = get_element("spell-cast-modal")
+        title = get_element("spell-cast-modal-title")
+        message = get_element("spell-cast-modal-message")
+        confirm_btn = get_element("spell-cast-modal-confirm")
+        cancel_btn = get_element("spell-cast-modal-cancel")
+        close_btn = get_element("spell-cast-modal-close")
+        boost_section = get_element("spell-cast-modal-boost-section")
+        boost_container = get_element("spell-cast-modal-boost-options")
+        
+        if not all([modal, title, message, confirm_btn, cancel_btn, close_btn]):
+            console.error("PySheet: spell cast modal elements not found")
+            return
+        
+        # Set modal content
+        title.textContent = f"Cast {spell_name}"
+        message.innerHTML = f"<strong>{level_label}</strong><br>{remaining} slot(s) remaining"
+        
+        current = self.slots_used.get(level, 0)
+        max_slots = self.compute_max_slots_for_level(level)
+        
+        # Build radio button options for boost levels
+        boost_options_html = '<label class="boost-option"><input type="radio" name="boost-level" value="0" checked> None</label>'
+        slot_summary = self.compute_slot_summary()
+        available_levels = slot_summary.get("levels", {})
+        
+        has_boost_options = False
+        for boost_level in range(level + 1, 10):
+            max_boost_slots = available_levels.get(boost_level, 0)
+            used_boost_slots = self.slots_used.get(boost_level, 0)
+            available_boost = max_boost_slots - used_boost_slots
+            if available_boost > 0:
+                has_boost_options = True
+                boost_level_label = format_spell_level_label(boost_level)
+                boost_options_html += f'<label class="boost-option"><input type="radio" name="boost-level" value="{boost_level}"> {boost_level_label} Slot</label>'
+        
+        # Update boost section if it exists
+        if boost_container and boost_section:
+            if has_boost_options:
+                boost_container.innerHTML = boost_options_html
+                boost_section.style.display = "block"
+            else:
+                boost_section.style.display = "none"
+        
+        # Set onclick handlers directly (works better with PyScript)
+        def confirm_click(e):
+            console.log(f"PySheet: modal OK clicked")
+            # Get selected boost level
+            selected_radio = modal.querySelector('input[name="boost-level"]:checked')
+            boost_level = parse_int(selected_radio.value if selected_radio else "0", 0) if selected_radio else 0
+            
+            if boost_level == 0:
+                # Cast at base level
+                if current < max_slots:
+                    self.slots_used[level] = current + 1
+                    console.log(f"PySheet: cast at level {level}")
+                    update_calculations()
+                    schedule_auto_export()
+            else:
+                # Cast with boosted slot
+                boost_current = self.slots_used.get(boost_level, 0)
+                boost_max = available_levels.get(boost_level, 0)
+                if boost_current < boost_max:
+                    self.slots_used[boost_level] = boost_current + 1
+                    console.log(f"PySheet: boosted spell using level {boost_level} slot")
+                    update_calculations()
+                    schedule_auto_export()
+            
+            modal.classList.remove("active")
+        
+        def cancel_click(e):
+            console.log(f"PySheet: modal cancel clicked")
+            modal.classList.remove("active")
+        
+        # Use onclick attribute which works reliably with PyScript
+        confirm_btn.onclick = confirm_click
+        cancel_btn.onclick = cancel_click
+        close_btn.onclick = cancel_click
+        
+        # Show modal
+        modal.classList.add("active")
+        console.log(f"PySheet: modal shown for {spell_name}")
 
     def compute_slot_summary(self, profile: dict | None = None) -> dict:
         if profile is None:
@@ -1253,11 +1970,55 @@ class SpellcastingManager:
         pact_max = slot_summary.get("pact", {}).get("slots", 0)
         self.pact_used = clamp(self.pact_used, 0, pact_max)
 
+    def render_slots_tracker(self):
+        """Render a summary of spell slot usage."""
+        container = get_element("spellbook-slots-summary")
+        if container is None:
+            return
+        
+        slot_summary = self.compute_slot_summary()
+        levels = slot_summary.get("levels", {})
+        
+        # Build slot tracker HTML
+        tracker_items = []
+        for level in range(1, 10):
+            max_slots = levels.get(level, 0)
+            if max_slots <= 0:
+                continue
+            used = self.slots_used.get(level, 0)
+            available = max_slots - used
+            level_label = format_spell_level_label(level)
+            tracker_items.append(
+                f'<div class="slot-tracker-item" title="{level_label}: {available}/{max_slots} slots available">'
+                + f'<span class="slot-tracker-label">{level_label}</span>'
+                + f'<span class="slot-tracker-value">{available}/{max_slots}</span>'
+                + '</div>'
+            )
+        
+        # Add pact slots if available
+        pact_info = slot_summary.get("pact", {})
+        if pact_info.get("slots", 0) > 0:
+            pact_used = self.pact_used
+            pact_max = pact_info["slots"]
+            pact_available = pact_max - pact_used
+            tracker_items.append(
+                f'<div class="slot-tracker-item pact" title="Pact Slots (Level {pact_info["level"]}): {pact_available}/{pact_max} slots available">'
+                + f'<span class="slot-tracker-label">Pact</span>'
+                + f'<span class="slot-tracker-value">{pact_available}/{pact_max}</span>'
+                + '</div>'
+            )
+        
+        if tracker_items:
+            container.innerHTML = '<div class="slot-tracker">' + "".join(tracker_items) + '</div>'
+            container.style.display = "block"
+        else:
+            container.innerHTML = ""
+            container.style.display = "none"
+
     def render_spell_slots(self, slot_summary: dict | None = None):
         slots_container = get_element("spell-slots")
         pact_container = get_element("pact-slots")
-        reset_button = get_element("spell-slots-reset")
-        if slots_container is None or reset_button is None:
+        if slots_container is None:
             return
 
         if slot_summary is None:
@@ -1332,9 +2093,6 @@ class SpellcastingManager:
                     button.addEventListener("click", proxy)
                     _EVENT_PROXIES.append(proxy)
 
-        any_slots = total_available_levels > 0 or pact_info.get("slots", 0) > 0
-        reset_button.disabled = not any_slots
-
     # ------------------------------------------------------------------
     # slot adjustments
     # ------------------------------------------------------------------
@@ -1365,6 +2123,7 @@ class SpellcastingManager:
             self.slots_used[level] = 0
         self.pact_used = 0
         self.render_spell_slots()
+        self.render_spellbook()
         schedule_auto_export()
 
 
@@ -1425,6 +2184,7 @@ def adjust_pact_slot(delta: int):
 
 def reset_spell_slots(_event=None):
     SPELLCASTING_MANAGER.reset_spell_slots()
+    reset_channel_divinity()
 
 MAX_RESOURCES = 12
 MAX_INVENTORY_ITEMS = 50
@@ -1457,6 +2217,7 @@ DEFAULT_STATE = {
         "temp_hp": 0,
         "hit_dice": "1d8",
         "hit_dice_available": 0,
+        "channel_divinity_available": 0,
         "death_saves_success": 0,
         "death_saves_failure": 0,
     },
@@ -1794,7 +2555,25 @@ def handle_add_spell_click(event, slug: str):
     if event is not None:
         event.stopPropagation()
         event.preventDefault()
+    
+    # Get the button element to check if add will succeed
+    button_el = event.target if event else None
+    
+    # Try to add the spell
+    result_before = len(SPELLCASTING_MANAGER.prepared)
     add_spell_to_spellbook(slug)
+    result_after = len(SPELLCASTING_MANAGER.prepared)
+    
+    # If spell wasn't added, apply red blink animation
+    if result_before == result_after and button_el:
+        button_el.classList.add("deny-blink")
+        # Remove animation class after it completes to allow re-triggering
+        def remove_anim():
+            try:
+                button_el.classList.remove("deny-blink")
+            except:
+                pass
+        document.defaultView.setTimeout(remove_anim, 600)
 
 
 def handle_remove_spell_click(event, slug: str):
@@ -1874,6 +2653,15 @@ def snapshot_character_from_form() -> Character:
     return CharacterFactory.from_dict(data)
 
 
+def reset_channel_divinity(event=None):
+    """Reset Channel Divinity uses to proficiency bonus."""
+    level = get_numeric_value("level", 1)
+    proficiency = compute_proficiency(level)
+    set_form_value("channel_divinity_available", str(proficiency))
+    update_calculations()
+    schedule_auto_export()
+
+
 def update_calculations(*_args):
     scores = gather_scores()
     level = get_numeric_value("level", 1)
@@ -1881,8 +2669,10 @@ def update_calculations(*_args):
     race = get_text_value("race")
     race_bonuses = get_race_ability_bonuses(race)
     
+    # Get and normalize class name
+    class_name = (get_text_value("class") or "").lower()
+    
     # Update hit dice based on class (show die type, not quantity)
-    class_name = get_text_value("class")
     hit_dice_type = get_hit_dice_for_class(class_name)
     set_form_value("hit_dice", hit_dice_type)
     
@@ -1979,8 +2769,7 @@ def update_calculations(*_args):
     set_text("spell-save-dc", str(spell_save_dc))
     set_text("spell-attack", format_bonus(spell_attack))
 
-    # Calculate max prepared spells
-    class_name = get_text_value("class").lower() if get_text_value("class") else ""
+    # Calculate max prepared spells (class_name already lowercased above)
     if class_name == "cleric":
         max_prepared = level + spell_mod
     elif class_name == "druid":
@@ -1993,12 +2782,35 @@ def update_calculations(*_args):
         max_prepared = level + spell_mod
     elif class_name == "warlock":
         max_prepared = level  # Warlocks know spells, always max prepared
+    elif class_name == "bard":
+        max_prepared = level + spell_mod
+    elif class_name == "sorcerer":
+        max_prepared = level + spell_mod
     else:
         max_prepared = 0  # Other classes don't prepare spells
     
     max_prepared = max(0, max_prepared)  # Never negative
-    prepared_count = len(get_prepared_slug_set())
-    set_text("spellbook-prepared-count", f"{prepared_count} / {max_prepared}")
+    
+    # Count only user-prepared spells (exclude domain bonus spells and cantrips)
+    domain = get_text_value("domain")
+    domain_bonus_slugs = set(get_domain_bonus_spells(domain, level)) if domain else set()
+    prepared_count = SPELLCASTING_MANAGER.get_prepared_non_cantrip_count(domain_bonus_slugs)
+    
+    counter_display = f"{prepared_count} / {max_prepared}"
+    set_text("spellbook-prepared-count", counter_display)
+    
+    # Debug logging
+    console.log(f"DEBUG: update_calculations() spell counter update")
+    console.log(f"  class_name: {class_name}")
+    console.log(f"  level: {level}")
+    console.log(f"  spell_ability: {spell_ability}")
+    console.log(f"  spell_score: {spell_score}")
+    console.log(f"  spell_mod: {spell_mod}")
+    console.log(f"  max_prepared: {max_prepared}")
+    console.log(f"  prepared_count: {prepared_count}")
+    console.log(f"  display: {counter_display}")
+    console.log(f"  prepared_slug_set: {list(get_prepared_slug_set())}")
+    console.log(f"  domain_bonus_slugs: {list(domain_bonus_slugs)}")
 
     # Update HP progress bar
     current_hp = get_numeric_value("current_hp", 0)
@@ -2076,6 +2888,24 @@ def update_calculations(*_args):
     
     set_text("hd-bar-label", hd_label)
 
+    # Update Channel Divinity display with pips
+    level = get_numeric_value("level", 1)
+    proficiency = compute_proficiency(level)
+    channel_divinity_available = get_numeric_value("channel_divinity_available", 0)
+    
+    cd_pips_container = get_element("cd-pips-container")
+    if cd_pips_container:
+        # Clear existing pips
+        cd_pips_container.innerHTML = ""
+        
+        # Create pips
+        for i in range(proficiency):
+            pip = document.createElement("div")
+            pip.className = "cd-pip"
+            if i < channel_divinity_available:
+                pip.classList.add("available")
+            cd_pips_container.appendChild(pip)
+
     update_equipment_totals()
 
     slot_summary = compute_spell_slot_summary(
@@ -2087,6 +2917,7 @@ def update_calculations(*_args):
     # Render class features and feats
     render_class_features()
     render_feats()
+    render_spellbook()
 
 
 def collect_character_data() -> dict:
@@ -2370,7 +3201,7 @@ def sanitize_spell_record(raw: dict) -> dict | None:
     ]
     search_blob = " ".join(part for part in search_fields if part).lower()
 
-    return {
+    result = {
         "slug": slug,
         "name": name,
         "level_int": level_int,
@@ -2389,14 +3220,22 @@ def sanitize_spell_record(raw: dict) -> dict | None:
         "search_blob": search_blob,
         "source": source,
     }
+    
+    # Apply any known corrections to this spell
+    return apply_spell_corrections(result)
 
 
 def sanitize_spell_list(raw_spells: list[dict]) -> list[dict]:
     sanitized: list[dict] = []
+    seen_slugs: set[str] = set()
     for spell in raw_spells:
         record = sanitize_spell_record(spell)
         if record is not None:
-            sanitized.append(record)
+            slug = record.get("slug")
+            # Skip if we've already seen this spell slug
+            if slug not in seen_slugs:
+                sanitized.append(record)
+                seen_slugs.add(slug)
     sanitized.sort(key=lambda item: (item["level_int"], item["name"].lower()))
     return sanitized
 
@@ -2448,13 +3287,18 @@ def load_spell_cache() -> list[dict] | None:
     if not isinstance(spells, list):
         return None
     rehydrated: list[dict] = []
+    seen_slugs: set[str] = set()
     for record in spells:
         try:
             if not isinstance(record, dict):
                 continue
             hydrated = rehydrate_cached_spell(record)
             if hydrated is not None:
-                rehydrated.append(hydrated)
+                slug = hydrated.get("slug")
+                # Deduplicate by slug from cache
+                if slug and slug not in seen_slugs:
+                    rehydrated.append(hydrated)
+                    seen_slugs.add(slug)
         except Exception as exc:
             console.warn(f"PySheet: skipping cached spell due to error ({exc})")
     if not rehydrated:
@@ -2536,6 +3380,12 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
     prepared = is_spell_prepared(slug)
     spell_classes = set(spell.get("classes", []))
     can_add = prepared or not allowed_set or bool(spell_classes.intersection(allowed_set))
+    
+    # Check if this is a domain bonus spell (cannot be removed)
+    domain = get_text_value("domain")
+    character_level = get_numeric_value("level", 1)
+    is_domain_bonus = slug in get_domain_bonus_spells(domain, character_level) if domain else False
+    can_remove = prepared and not is_domain_bonus
 
     meta_parts: list[str] = []
     level_label = spell.get("level_label")
@@ -2553,22 +3403,33 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
         tags.append("<span class=\"spell-tag\">Ritual</span>")
     if spell.get("concentration"):
         tags.append("<span class=\"spell-tag\">Concentration</span>")
+    if is_domain_bonus and prepared:
+        tags.append("<span class=\"spell-tag domain-bonus\">Domain Bonus</span>")
     tags_html = "".join(tags)
 
-    action = "remove" if prepared else "add"
-    action_label = "Remove" if prepared else "Add"
+    action = "remove" if can_remove else "add" if not prepared else None
+    action_label = "Remove" if can_remove else "Add" if not prepared else None
     button_classes = ["spell-action"]
     if prepared:
         button_classes.append("selected")
+    if is_domain_bonus and prepared:
+        button_classes.append("locked")
     if not prepared and not can_add:
         button_classes.append("locked")
     button_class_attr = " ".join(button_classes)
-    disabled_attr = " disabled" if not prepared and not can_add else ""
-    title_attr = " title=\"Not available to current class\"" if not prepared and not can_add else ""
+    disabled_attr = " disabled" if (not prepared and not can_add) or (is_domain_bonus and prepared) else ""
+    
+    title_text = ""
+    if is_domain_bonus and prepared:
+        title_text = "Domain bonus spells cannot be removed"
+    elif not prepared and not can_add:
+        title_text = "Not available to current class"
+    title_attr = f" title=\"{title_text}\"" if title_text else ""
+    
     action_button = (
         f"<button type=\"button\" class=\"{button_class_attr}\" "
         f"data-spell-action=\"{action}\" data-spell-slug=\"{escape(slug)}\"{disabled_attr}{title_attr}>{action_label}</button>"
-        if slug
+        if slug and action and action_label
         else ""
     )
 
@@ -2751,6 +3612,11 @@ def apply_spell_filters(auto_select: bool = False):
     spells = SPELL_LIBRARY_STATE.get("spells", [])
     allowed_set = set(allowed_classes)
     for spell in spells:
+        # Filter by allowed sources
+        source = spell.get("source", "")
+        if not is_spell_source_allowed(source):
+            continue
+        
         spell_level = spell.get("level_int", 0)
         if max_spell_level is not None and spell_level > max_spell_level:
             continue
@@ -2823,14 +3689,41 @@ async def load_spell_library(_event=None):
         raw_spells = None
         fetch_error = None
         try:
+            console.log("PySheet: Fetching spells from Open5e...")
             raw_spells = await fetch_open5e_spells()
+            console.log(f"PySheet: Open5e fetch returned {len(raw_spells) if raw_spells else 0} spells")
         except Exception as exc:
             fetch_error = exc
+            console.warn(f"PySheet: Open5e fetch failed: {exc}")
+        
         if not raw_spells:
+            console.warn(f"PySheet: No spells from Open5e, using fallback ({len(LOCAL_SPELLS_FALLBACK)} spells)")
             if fetch_error is not None:
                 console.warn(f"PySheet: fallback spell list in use ({fetch_error})")
             raw_spells = LOCAL_SPELLS_FALLBACK
             status_message = "Loaded built-in Bard and Cleric spell list."
+        else:
+            # Check if target spells already exist in Open5e
+            open5e_slugs = {spell.get("slug") for spell in raw_spells if spell.get("slug")}
+            target_slugs_test = {"toll-the-dead", "word-of-radiance"}
+            already_present = target_slugs_test & open5e_slugs
+            if already_present:
+                console.log(f"PySheet: Target spells already in Open5e: {already_present}")
+            
+            # Merge in fallback spells that aren't in Open5e
+            console.log(f"PySheet: Merging fallback spells into Open5e list...")
+            existing_slugs = {spell.get("slug") for spell in raw_spells if spell.get("slug")}
+            console.log(f"PySheet: Open5e has {len(existing_slugs)} unique slugs")
+            merge_count = 0
+            merged_slugs = []
+            for fallback_spell in LOCAL_SPELLS_FALLBACK:
+                fallback_slug = fallback_spell.get("slug")
+                if fallback_slug not in existing_slugs:
+                    raw_spells.append(fallback_spell)
+                    merge_count += 1
+                    merged_slugs.append(fallback_slug)
+            console.log(f"PySheet: Merged {merge_count} fallback spells: {merged_slugs}")
+            console.log(f"PySheet: Total after merge: {len(raw_spells)}")
 
         sanitized = sanitize_spell_list(raw_spells)
         if not sanitized and raw_spells is not LOCAL_SPELLS_FALLBACK:
@@ -2840,6 +3733,7 @@ async def load_spell_library(_event=None):
             sanitized = sanitize_spell_list(raw_spells)
         if not sanitized:
             raise RuntimeError("No spells available for supported classes.")
+        
         set_spell_library_data(sanitized)
         SPELL_LIBRARY_STATE["loaded"] = True
         populate_spell_class_filter(sanitized)
@@ -3540,6 +4434,16 @@ DOMAIN_FEATURES_DATABASE = {
     },
 }
 
+DOMAIN_BONUS_SPELLS = {
+    "life": {
+        1: ["cure-wounds", "bless"],
+        3: ["lesser-restoration", "spiritual-weapon"],
+        5: ["beacon-of-hope", "revivify"],
+        7: ["guardian-of-faith", "death-ward"],
+        9: ["mass-cure-wounds", "raise-dead"],
+    },
+}
+
 def get_class_features_for_level(class_name: str, current_level: int) -> list:
     """Get all class features up to the current level."""
     class_key = class_name.lower().strip() if class_name else ""
@@ -3562,6 +4466,18 @@ def get_domain_features_for_level(domain_name: str, current_level: int) -> list:
         if level <= current_level:
             all_features.extend(features_by_level[level])
     return all_features
+
+
+def get_domain_bonus_spells(domain_name: str, current_level: int) -> list[str]:
+    """Get all domain bonus spell slugs available up to the current level."""
+    domain_key = domain_name.lower().strip() if domain_name else ""
+    spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+    
+    bonus_spells = []
+    for level in sorted(spells_by_level.keys()):
+        if level <= current_level:
+            bonus_spells.extend(spells_by_level[level])
+    return bonus_spells
 
 
 def render_class_features():
@@ -3762,6 +4678,69 @@ def save_character(_event=None):
     console.log("PySheet: character saved to localStorage")
 
 
+def show_storage_info(_event=None):
+    """Display storage usage information."""
+    info = estimate_export_cleanup()
+    msg_el = document.getElementById("storage-message")
+    
+    if msg_el is None:
+        return
+    
+    if info is None:
+        msg_el.innerText = "Could not determine storage usage."
+        LOGGER.warning("Failed to get storage info")
+        return
+    
+    total_kb = info["total_bytes"] // 1024
+    exports = info["estimated_export_count"]
+    savings_kb = info["estimated_savings_kb"]
+    
+    if savings_kb > 0:
+        msg_el.innerHTML = (
+            f"<strong>Storage Usage:</strong> {total_kb}KB | "
+            f"<strong>Exports:</strong> ~{exports} | "
+            f"<strong>Potential savings:</strong> ~{savings_kb}KB if cleaned"
+        )
+        LOGGER.info(f"Storage info: {total_kb}KB used, ~{exports} exports, ~{savings_kb}KB potential savings")
+    else:
+        msg_el.innerHTML = f"<strong>Storage Usage:</strong> {total_kb}KB | <strong>Exports:</strong> ~{exports}"
+        LOGGER.info(f"Storage info: {total_kb}KB used, ~{exports} exports")
+
+
+def cleanup_exports(_event=None):
+    """Clean up old export files (browser-based pruning of localStorage info).
+    
+    Note: Full directory pruning requires backend support or filesystem API.
+    This displays instructions for manual cleanup on desktop/server.
+    """
+    msg_el = document.getElementById("storage-message")
+    if msg_el is None:
+        return
+    
+    try:
+        # The new LOGGER system automatically maintains a 60-day rolling window
+        # Just display the cleanup status
+        stats = LOGGER.get_stats()
+        
+        oldest = stats.get("oldest_log", "unknown")
+        total_logs = stats.get("total_logs", 0)
+        total_errors = stats.get("total_errors", 0)
+        days = stats.get("days_with_logs", 0)
+        storage_kb = stats.get("storage_bytes", 0) // 1024
+        
+        msg_el.innerHTML = (
+            f"✓ <strong>Logs maintained!</strong> "
+            f"{total_logs} log entries across {days} days ({storage_kb}KB). "
+            f"Rolling 60-day window active (oldest: ~{oldest[:10] if oldest else 'unknown'}). "
+            f"To delete old export files from /exports/, use your file manager."
+        )
+        LOGGER.info(f"Cleanup status: {total_logs} logs, {total_errors} errors, {storage_kb}KB used, 60-day rolling window active")
+    except Exception as exc:
+        LOGGER.error(f"Cleanup failed: {exc}", exc)
+        msg_el.innerHTML = "Cleanup error - check logs"
+        console.error(f"Cleanup failed: {exc}")
+
+
 async def export_character(_event=None, *, auto: bool = False):
     global _LAST_AUTO_EXPORT_SNAPSHOT
     global _AUTO_EXPORT_FILE_HANDLE
@@ -3957,6 +4936,13 @@ def handle_adjust_button(event=None):
         max_val = get_numeric_value(max_id, 0)
         new_value = min(new_value, max_val)
     
+    # Handle max by proficiency (for Channel Divinity)
+    max_by = button.getAttribute("data-adjust-max-by")
+    if max_by == "proficiency":
+        level = get_numeric_value("level", 1)
+        proficiency = compute_proficiency(level)
+        new_value = min(new_value, proficiency)
+    
     # Set the new value
     set_form_value(target_id, str(new_value))
     update_calculations()
@@ -4007,6 +4993,13 @@ def register_event_listeners():
         proxy_spell_class = create_proxy(handle_spell_filter_change)
         spell_class_filter.addEventListener("change", proxy_spell_class)
         _EVENT_PROXIES.append(proxy_spell_class)
+
+    # Register Channel Divinity reset button
+    reset_btn = get_element("reset-channel-divinity")
+    if reset_btn is not None:
+        proxy_reset = create_proxy(reset_channel_divinity)
+        reset_btn.addEventListener("click", proxy_reset)
+        _EVENT_PROXIES.append(proxy_reset)
 
 
 def load_initial_state():

@@ -467,6 +467,7 @@
                                         <td class="combat-label">Spell Attack Bonus</td>
                                         <td class="combat-readonly"><span id="spell-attack">+0</span></td>
                                     </tr>
+
                                     <tr>
                                         <td class="combat-label">Death Saves (Success)</td>
                                         <td class="combat-input" style="display: flex; gap: 0.5rem; justify-content: center;">
@@ -485,6 +486,25 @@
                                     </tr>
                                 </tbody>
                             </table>
+                            <tr style="display: none;">
+                                <td><input data-character-input type="hidden" id="channel_divinity_available" value="0"></td>
+                            </tr>
+                        </tbody>
+                            </table>
+                            
+                            <!-- Channel Divinity Counter -->
+                            <div class="channel-divinity-counter">
+                                <div class="counter-header">
+                                    <h3>Channel Divinity</h3>
+                                </div>
+                                <div class="counter-display">
+                                    <div id="cd-pips-container" class="cd-pips-container"></div>
+                                </div>
+                                <div class="counter-buttons">
+                                    <button type="button" data-adjust-target="channel_divinity_available" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-by="proficiency">Use 1</button>
+                                    <button type="button" class="outline" id="reset-channel-divinity">Reset</button>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Right column: Controls and Proficiencies -->
@@ -629,57 +649,54 @@
 
         <section id="tab-spells" class="tab-panel">
             <div class="panel-grid">
-                <section class="card spell-library-card">
-                    <h2>Spell Library</h2>
-                    <p class="hint">Load the Bard and Cleric portions of the 5e SRD spell list, filter it to your class and level, then use the buttons to add or remove spells.</p>
-                    <div class="spell-library-controls">
-                        <button id="spells-load-btn" type="button" py-click="load_spell_library">Load Spells</button>
-                        <input type="search" id="spell-search" placeholder="Search spell name or text">
-                        <select id="spell-level-filter">
-                            <option value="">Any level</option>
-                            <option value="0">Cantrip (0)</option>
-                            <option value="1">Level 1</option>
-                            <option value="2">Level 2</option>
-                            <option value="3">Level 3</option>
-                            <option value="4">Level 4</option>
-                            <option value="5">Level 5</option>
-                            <option value="6">Level 6</option>
-                            <option value="7">Level 7</option>
-                            <option value="8">Level 8</option>
-                            <option value="9">Level 9</option>
-                        </select>
-                        <select id="spell-class-filter">
-                            <option value="">Any class</option>
-                        </select>
+                <section class="card spell-left-column">
+                    <div class="spell-chooser-section">
+                        <h2>Spell Library</h2>
+                        <p class="hint">Load the Bard and Cleric portions of the 5e SRD spell list, filter it to your class and level, then use the buttons to add or remove spells.</p>
+                        <div class="spell-library-controls">
+                            <button id="spells-load-btn" type="button" py-click="load_spell_library">Load Spells</button>
+                            <button id="long-rest-spell-btn" type="button" py-click="reset_spell_slots">Long Rest</button>
+                            <input type="search" id="spell-search" placeholder="Search spell name or text">
+                            <select id="spell-level-filter">
+                                <option value="">Any level</option>
+                                <option value="0">Cantrip (0)</option>
+                                <option value="1">Level 1</option>
+                                <option value="2">Level 2</option>
+                                <option value="3">Level 3</option>
+                                <option value="4">Level 4</option>
+                                <option value="5">Level 5</option>
+                                <option value="6">Level 6</option>
+                                <option value="7">Level 7</option>
+                                <option value="8">Level 8</option>
+                                <option value="9">Level 9</option>
+                            </select>
+                            <select id="spell-class-filter">
+                                <option value="">Any class</option>
+                            </select>
+                        </div>
+                        <div class="spell-library-status" id="spell-library-status">Spells not loaded yet. Click "Load Spells" to fetch the Bard and Cleric list from Open5e (or use the built-in fallback).</div>
+                        <div class="spell-library-results" id="spell-library-results"></div>
                     </div>
-                    <div class="spell-library-status" id="spell-library-status">Spells not loaded yet. Click "Load Spells" to fetch the Bard and Cleric list from Open5e (or use the built-in fallback).</div>
-                    <div class="spell-library-results" id="spell-library-results"></div>
                 </section>
-                <section class="card spellbook-card">
-                    <h2>Prepared Spellbook</h2>
-                    <p class="hint">Spells you add from the library appear here along with your current slots. Spend and recover slots as you cast, then reset them after a long rest.</p>
-                    <div class="spellbook-layout">
+                <section class="card spell-right-column" style="grid-column: 2 / -1;">
+                    <div class="spellbook-section">
+                        <div class="spellbook-title-bar">
+                            <h2>Prepared Spellbook</h2>
+                            <div class="spellbook-counter-wrapper">
+                                <span class="spellbook-counter-label">Prepared:</span>
+                                <span class="spellbook-title-counter" id="spellbook-prepared-count">0 / 0</span>
+                            </div>
+                        </div>
+                        <p class="hint">Spells you add from the library appear here. Track spell slots as you cast.</p>
+                        <div class="spellbook-slots-summary" id="spellbook-slots-summary"></div>
                         <div class="spellbook-prepared">
                             <header class="spellbook-header">
                                 <h3>Your Spells</h3>
-                                <span class="spellbook-prepared-count" id="spellbook-prepared-count">0 / 0</span>
                             </header>
                             <div id="spellbook-empty-state" class="spellbook-empty">No spells prepared yet. Use the Spell Library to add spells.</div>
                             <div id="spellbook-levels" class="spellbook-levels"></div>
                         </div>
-                        <div class="spellbook-slots">
-                            <header class="spellbook-header">
-                                <h3>Spell Slots</h3>
-                            </header>
-                            <div id="spell-slots" class="spell-slots"></div>
-                            <div id="pact-slots" class="spell-slots"></div>
-                            <button id="spell-slots-reset" type="button" class="outline" py-click="reset_spell_slots">Long Rest Reset</button>
-                        </div>
                     </div>
-                    <label class="field spell-notes-field">
-                        <span>Spell Notes</span>
-                        <textarea data-character-input id="spell_notes" rows="4" placeholder="Prepared rituals, component reminders, or other quick notes."></textarea>
-                    </label>
                 </section>
             </div>
         </section>
@@ -725,6 +742,11 @@
                     <button id="resource-add-btn" type="button" py-click="add_resource">Add Resource</button>
                 </section>
                 <section class="card actions">
+                    <h2>Rest & Recovery</h2>
+                    <div class="actions-row">
+                        <button id="long-rest-btn" type="button" py-click="reset_spell_slots">Long Rest</button>
+                    </div>
+                    <p class="hint">Long Rest: Restores all spell slots, hit points, and recovers hit dice.</p>
                     <h2>Manage Data</h2>
                     <div class="actions-row">
                         <button id="save-btn" py-click="save_character">Save to Browser</button>
@@ -736,10 +758,39 @@
                         </label>
                     </div>
                     <p class="hint">Data is stored locally in your browser using localStorage so it follows you on your Chromebook.</p>
+                    
+                    <div class="character-actions" style="margin-top: 1.5rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 1.5rem;">
+                        <h4 style="margin-top: 0; margin-bottom: 0.75rem; color: #cbd5f5;">Storage & Cleanup</h4>
+                        <button id="storage-info-btn" type="button" py-click="show_storage_info">Storage Info</button>
+                        <button id="cleanup-btn" type="button" py-click="cleanup_exports">Cleanup Old Exports</button>
+                        <p id="storage-message" class="hint"></p>
+                    </div>
+                    <p class="hint">The exports folder accumulates files over time. Use Cleanup to remove old backups. See README for browser-specific instructions.</p>
                 </section>
             </div>
         </section>
     </main>
+
+    <!-- Spell Cast Confirmation Modal -->
+    <div id="spell-cast-modal" class="spell-cast-modal">
+        <div class="spell-cast-modal-content">
+            <div class="spell-cast-modal-header">
+                <h3 id="spell-cast-modal-title">Cast Spell</h3>
+                <button id="spell-cast-modal-close" class="spell-cast-modal-close">&times;</button>
+            </div>
+            <div class="spell-cast-modal-body">
+                <p id="spell-cast-modal-message"></p>
+            </div>
+            <div id="spell-cast-modal-boost-section" class="spell-cast-modal-boost-section" style="display: none;">
+                <label class="boost-section-label">Boost with higher slot:</label>
+                <div id="spell-cast-modal-boost-options" class="spell-cast-modal-boost-options"></div>
+            </div>
+            <div class="spell-cast-modal-footer">
+                <button id="spell-cast-modal-cancel" class="spell-cast-modal-btn spell-cast-modal-btn-cancel">Cancel</button>
+                <button id="spell-cast-modal-confirm" class="spell-cast-modal-btn spell-cast-modal-btn-confirm">OK</button>
+            </div>
+        </div>
+    </div>
 
     <footer class="app-footer">
         <span>Built with <a href="https://pyscript.net" target="_blank" rel="noreferrer">PyScript</a>.</span>
