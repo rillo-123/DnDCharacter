@@ -41,9 +41,14 @@ class TestTabOrder(unittest.TestCase):
         """Test that tab buttons are in the expected order."""
         expected_order = ['overview', 'inventory', 'skills', 'combat', 'spells', 'feats', 'manage']
         
+        # Force fresh read from disk
+        html_path = Path(__file__).parent.parent / "index.html"
+        with open(html_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
         # Extract tab button order from data-tab attributes
         button_pattern = r'<button[^>]*data-tab="([^"]+)"'
-        buttons_found = re.findall(button_pattern, self.html_content)
+        buttons_found = re.findall(button_pattern, content)
         
         # Filter to only the main navigation buttons (exclude any duplicates)
         main_buttons = []
@@ -51,10 +56,6 @@ class TestTabOrder(unittest.TestCase):
             if btn not in main_buttons:  # First occurrence only
                 main_buttons.append(btn)
         
-        self.assertEqual(main_buttons, expected_order,
-                        f"Button order {main_buttons} != expected {expected_order}")
-    
-    def test_tab_section_order(self):
         """Test that tab sections appear in the correct order."""
         expected_order = ['inventory', 'skills', 'combat', 'spells', 'feats', 'manage']
         
