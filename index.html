@@ -256,6 +256,81 @@
             </div>
         </section>
 
+        <section id="tab-inventory" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Equipment &amp; Wealth</h2>
+                    <div class="equipment-toolbar">
+                        <div class="equipment-actions">
+                            <button id="equipment-add-btn" type="button" py-click="add_equipment_item">Add Item</button>
+                        </div>
+                        <div class="equipment-totals">
+                            <span>Total Weight: <strong id="equipment-total-weight">0</strong></span>
+                            <span>Total Cost: <strong id="equipment-total-cost">0</strong></span>
+                        </div>
+                    </div>
+                    <div class="equipment-table-wrapper">
+                        <table class="equipment-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Qty</th>
+                                    <th>Cost (ea)</th>
+                                    <th>Weight (ea)</th>
+                                    <th>Notes</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="equipment-table-body"></tbody>
+                        </table>
+                        <div class="equipment-empty" id="equipment-empty-state">No equipment yet. Click <strong>Add Item</strong> to start building your pack.</div>
+                    </div>
+                    <div class="currency-card">
+                        <h3>Coin Pouch</h3>
+                        <div class="currency-grid">
+                            <label class="currency-field">
+                                <span>PP</span>
+                                <input data-character-input data-currency-field="pp" type="number" min="0" id="currency-pp" value="0">
+                            </label>
+                            <label class="currency-field">
+                                <span>GP</span>
+                                <input data-character-input data-currency-field="gp" type="number" min="0" id="currency-gp" value="0">
+                            </label>
+                            <label class="currency-field">
+                                <span>EP</span>
+                                <input data-character-input data-currency-field="ep" type="number" min="0" id="currency-ep" value="0">
+                            </label>
+                            <label class="currency-field">
+                                <span>SP</span>
+                                <input data-character-input data-currency-field="sp" type="number" min="0" id="currency-sp" value="0">
+                            </label>
+                            <label class="currency-field">
+                                <span>CP</span>
+                                <input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0">
+                            </label>
+                        </div>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>Features, Attacks &amp; Notes</h2>
+                    <div class="grid grid-2">
+                        <label class="field">
+                            <span>Features &amp; Traits</span>
+                            <textarea data-character-input id="features" rows="6" placeholder="Arcane Recovery, Ritual Casting"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>Attacks &amp; Spellcasting</span>
+                            <textarea data-character-input id="attacks" rows="6" placeholder="Fire Bolt +5 (1d10), Quarterstaff +1 (1d6)"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>Notes</span>
+                            <textarea data-character-input id="notes" rows="6" placeholder="Allies, goals, patron, etc."></textarea>
+                        </label>
+                    </div>
+                </section>
+            </div>
+        </section>
+
         <section id="tab-skills" class="tab-panel">
             <div class="panel-grid">
                 <section class="card">
@@ -420,81 +495,6 @@
                         <h3>Equipped</h3>
                         <div class="weapons-list" id="weapons-list"></div>
                         <div class="weapons-empty" id="weapons-empty-state">No weapons equipped yet. Search and select weapons to add them.</div>
-                    </div>
-                </section>
-            </div>
-        </section>
-
-        <section id="tab-inventory" class="tab-panel">
-            <div class="panel-grid">
-                <section class="card">
-                    <h2>Equipment &amp; Wealth</h2>
-                    <div class="equipment-toolbar">
-                        <div class="equipment-actions">
-                            <button id="equipment-add-btn" type="button" py-click="add_equipment_item">Add Item</button>
-                        </div>
-                        <div class="equipment-totals">
-                            <span>Total Weight: <strong id="equipment-total-weight">0</strong></span>
-                            <span>Total Cost: <strong id="equipment-total-cost">0</strong></span>
-                        </div>
-                    </div>
-                    <div class="equipment-table-wrapper">
-                        <table class="equipment-table">
-                            <thead>
-                                <tr>
-                                    <th>Item</th>
-                                    <th>Qty</th>
-                                    <th>Cost (ea)</th>
-                                    <th>Weight (ea)</th>
-                                    <th>Notes</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="equipment-table-body"></tbody>
-                        </table>
-                        <div class="equipment-empty" id="equipment-empty-state">No equipment yet. Click <strong>Add Item</strong> to start building your pack.</div>
-                    </div>
-                    <div class="currency-card">
-                        <h3>Coin Pouch</h3>
-                        <div class="currency-grid">
-                            <label class="currency-field">
-                                <span>PP</span>
-                                <input data-character-input data-currency-field="pp" type="number" min="0" id="currency-pp" value="0">
-                            </label>
-                            <label class="currency-field">
-                                <span>GP</span>
-                                <input data-character-input data-currency-field="gp" type="number" min="0" id="currency-gp" value="0">
-                            </label>
-                            <label class="currency-field">
-                                <span>EP</span>
-                                <input data-character-input data-currency-field="ep" type="number" min="0" id="currency-ep" value="0">
-                            </label>
-                            <label class="currency-field">
-                                <span>SP</span>
-                                <input data-character-input data-currency-field="sp" type="number" min="0" id="currency-sp" value="0">
-                            </label>
-                            <label class="currency-field">
-                                <span>CP</span>
-                                <input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0">
-                            </label>
-                        </div>
-                    </div>
-                </section>
-                <section class="card">
-                    <h2>Features, Attacks &amp; Notes</h2>
-                    <div class="grid grid-2">
-                        <label class="field">
-                            <span>Features &amp; Traits</span>
-                            <textarea data-character-input id="features" rows="6" placeholder="Arcane Recovery, Ritual Casting"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>Attacks &amp; Spellcasting</span>
-                            <textarea data-character-input id="attacks" rows="6" placeholder="Fire Bolt +5 (1d10), Quarterstaff +1 (1d6)"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>Notes</span>
-                            <textarea data-character-input id="notes" rows="6" placeholder="Allies, goals, patron, etc."></textarea>
-                        </label>
                     </div>
                 </section>
             </div>
