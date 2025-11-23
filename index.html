@@ -19,9 +19,9 @@
     <main class="layout">
         <nav class="tabs">
             <button class="tab active" data-tab="overview" type="button">Overview</button>
+            <button class="tab" data-tab="inventory" type="button">Inventory</button>
             <button class="tab" data-tab="skills" type="button">Skills</button>
             <button class="tab" data-tab="combat" type="button">Combat</button>
-            <button class="tab" data-tab="inventory" type="button">Inventory</button>
             <button class="tab" data-tab="spells" type="button">Spells</button>
             <button class="tab" data-tab="feats" type="button">Feats</button>
             <button class="tab" data-tab="manage" type="button">Manage</button>
@@ -263,6 +263,7 @@
                     <div class="equipment-toolbar">
                         <div class="equipment-actions">
                             <button id="equipment-add-btn" type="button" py-click="add_equipment_item">Add Item</button>
+                            <button id="equipment-clear-btn" type="button" py-click="clear_equipment_list">Clear List</button>
                         </div>
                         <div class="equipment-totals">
                             <span>Total Weight: <strong id="equipment-total-weight">0</strong></span>
@@ -309,23 +310,6 @@
                                 <input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0">
                             </label>
                         </div>
-                    </div>
-                </section>
-                <section class="card">
-                    <h2>Features, Attacks &amp; Notes</h2>
-                    <div class="grid grid-2">
-                        <label class="field">
-                            <span>Features &amp; Traits</span>
-                            <textarea data-character-input id="features" rows="6" placeholder="Arcane Recovery, Ritual Casting"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>Attacks &amp; Spellcasting</span>
-                            <textarea data-character-input id="attacks" rows="6" placeholder="Fire Bolt +5 (1d10), Quarterstaff +1 (1d6)"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>Notes</span>
-                            <textarea data-character-input id="notes" rows="6" placeholder="Allies, goals, patron, etc."></textarea>
-                        </label>
                     </div>
                 </section>
             </div>
@@ -792,6 +776,45 @@
         </div>
     </div>
 
+    <!-- Equipment Chooser Modal -->
+    <div id="equipment-chooser-modal" class="spell-cast-modal">
+        <div class="spell-cast-modal-content">
+            <div class="spell-cast-modal-header">
+                <h3>Add Equipment</h3>
+                <button id="equipment-chooser-close" class="spell-cast-modal-close">&times;</button>
+            </div>
+            <div class="spell-cast-modal-body">
+                <input id="equipment-search" type="text" placeholder="Search items... (e.g., sword, armor, rope)" style="width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px;">
+                <div id="equipment-results" style="max-height: 300px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="equipment-details-modal" class="spell-cast-modal" style="display: none;">
+        <div class="spell-cast-modal-content">
+            <div class="spell-cast-modal-header">
+                <h3 id="equipment-details-name">Equipment Details</h3>
+                <button id="equipment-details-close" class="spell-cast-modal-close">&times;</button>
+            </div>
+            <div class="spell-cast-modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <strong>Cost:</strong>
+                        <p id="equipment-details-cost" style="margin: 4px 0;">-</p>
+                    </div>
+                    <div>
+                        <strong>Weight:</strong>
+                        <p id="equipment-details-weight" style="margin: 4px 0;">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="spell-cast-modal-footer">
+                <button id="equipment-details-add" class="spell-cast-modal-btn spell-cast-modal-btn-confirm">Add to Inventory</button>
+                <button id="equipment-details-cancel" class="spell-cast-modal-btn spell-cast-modal-btn-cancel">Close</button>
+            </div>
+        </div>
+    </div>
+
     <footer class="app-footer">
         <span>Built with <a href="https://pyscript.net" target="_blank" rel="noreferrer">PyScript</a>.</span>
         <span>Project source: <code>DnDCharacter</code></span>
@@ -803,6 +826,87 @@
     </py-config>
     <py-script src="assets/py/character.py"></py-script>
     <script>
+        // Fetch equipment from Open5e API and cache it
+        async function fetchEquipmentFromOpen5e() {
+            const cacheKey = "dnd_equipment_cache_v1";
+            
+            // Check if we have cached data
+            try {
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    console.log("Using cached equipment data");
+                    const equipmentList = JSON.parse(cached);
+                    // Update the Python state
+                    if (window.pyscript && window.pyscript.EQUIPMENT_LIBRARY_STATE) {
+                        window.pyscript.EQUIPMENT_LIBRARY_STATE.equipment = equipmentList;
+                    }
+                    return;
+                }
+            } catch (e) {
+                console.warn("Cache read failed:", e);
+            }
+            
+            // Fetch from Open5e
+            try {
+                console.log("Fetching equipment from Open5e API...");
+                const equipmentList = [];
+                
+                // Fetch weapons
+                const weaponsResponse = await fetch("https://api.open5e.com/weapons/");
+                if (weaponsResponse.ok) {
+                    const weaponsData = await weaponsResponse.json();
+                    if (weaponsData.results) {
+                        for (const item of weaponsData.results) {
+                            equipmentList.push({
+                                name: item.name || "Unknown",
+                                cost: item.cost || "Unknown",
+                                weight: item.weight || "Unknown"
+                            });
+                        }
+                    }
+                }
+                
+                // Fetch armor
+                const armorResponse = await fetch("https://api.open5e.com/armor/");
+                if (armorResponse.ok) {
+                    const armorData = await armorResponse.json();
+                    if (armorData.results) {
+                        for (const item of armorData.results) {
+                            equipmentList.push({
+                                name: item.name || "Unknown",
+                                cost: item.cost || "Unknown",
+                                weight: item.weight || "Unknown"
+                            });
+                        }
+                    }
+                }
+                
+                console.log(`Fetched ${equipmentList.length} items from Open5e`);
+                
+                // Cache the results
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify(equipmentList));
+                    console.log(`Cached ${equipmentList.length} items from Open5e`);
+                } catch (e) {
+                    console.warn("Cache write failed:", e);
+                }
+                
+                // Update Python state if PyScript is ready
+                if (window.pyscript && window.pyscript.EQUIPMENT_LIBRARY_STATE) {
+                    window.pyscript.EQUIPMENT_LIBRARY_STATE.equipment = equipmentList;
+                }
+            } catch (error) {
+                console.error("Failed to fetch equipment from Open5e:", error);
+            }
+        }
+        
+        // Start fetching equipment in the background
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fetchEquipmentFromOpen5e);
+        } else {
+            fetchEquipmentFromOpen5e();
+        }
+        
         document.addEventListener('DOMContentLoaded', () => {
             const tabButtons = document.querySelectorAll('.tab');
             const panels = document.querySelectorAll('.tab-panel');

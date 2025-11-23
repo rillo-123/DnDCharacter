@@ -278,6 +278,13 @@ WEAPON_LIBRARY_STATE = {
     "weapon_map": {},
 }
 
+# Equipment library state - will be fetched from Open5e
+EQUIPMENT_LIBRARY_STATE = {
+    "loading": False,
+    "equipment": [],
+    "equipment_map": {},
+}
+
 _EVENT_PROXIES: list = []
 
 
@@ -4187,49 +4194,173 @@ Full API Data:
 
 def _create_equipment_row(item: dict) -> any:
     """Return a DOM <tr> element for the given item dict."""
-    tbody = get_element("equipment-table-body")
-    if tbody is None:
-        return None
-    tr = document.createElement("tr")
-    tr.setAttribute("data-item-id", item.get("id", generate_id("item")))
+    try:
+        tbody = get_element("equipment-table-body")
+        if tbody is None:
+            console.log("ERROR in _create_equipment_row: tbody is None")
+            return None
+        
+        tr = document.createElement("tr")
+        tr.setAttribute("data-item-id", item.get("id", generate_id("item")))
+        tr.className = "equipment-item-row"
 
-    def mk_cell(html_content):
+        # Create a details element for expandable view
+        details = document.createElement("details")
+        details.style.cursor = "pointer"
+        
+        summary = document.createElement("summary")
+        summary.style.listStyle = "none"
+        summary.style.display = "flex"
+        summary.style.justifyContent = "space-between"
+        summary.style.alignItems = "center"
+        summary.style.padding = "0.75rem"
+        summary.style.borderRadius = "0.5rem"
+        summary.style.backgroundColor = "rgba(30, 41, 59, 0.5)"
+        summary.style.cursor = "pointer"
+        summary.style.userSelect = "none"
+        
+        # Item name and summary
+        nameDiv = document.createElement("div")
+        nameDiv.style.fontWeight = "600"
+        nameDiv.style.color = "#cbd5f5"
+        nameDiv.textContent = f"{item.get('name', 'Unknown')} (x{int(item.get('qty', 1))})"
+        
+        costWeightDiv = document.createElement("div")
+        costWeightDiv.style.fontSize = "0.85rem"
+        costWeightDiv.style.color = "#94a3b8"
+        costWeightDiv.textContent = f"{format_money(item.get('cost', 0))} | {format_weight(item.get('weight', 0))}"
+        
+        summary.appendChild(nameDiv)
+        summary.appendChild(costWeightDiv)
+        details.appendChild(summary)
+        
+        # Expandable details section
+        detailsContent = document.createElement("div")
+        detailsContent.style.padding = "1rem"
+        detailsContent.style.borderTop = "1px solid rgba(148, 163, 184, 0.2)"
+        detailsContent.style.marginTop = "0.5rem"
+        
+        # Input fields in a grid
+        fieldsGrid = document.createElement("div")
+        fieldsGrid.style.display = "grid"
+        fieldsGrid.style.gridTemplateColumns = "1fr 1fr"
+        fieldsGrid.style.gap = "1rem"
+        fieldsGrid.style.marginBottom = "1rem"
+        
+        # Name field
+        nameField = _create_equipment_field("Name", "name", item)
+        # Qty field
+        qtyField = _create_equipment_field("Qty", "qty", item)
+        # Cost field
+        costField = _create_equipment_field("Cost (ea)", "cost", item)
+        # Weight field
+        weightField = _create_equipment_field("Weight (ea)", "weight", item)
+        
+        fieldsGrid.appendChild(nameField)
+        fieldsGrid.appendChild(qtyField)
+        fieldsGrid.appendChild(costField)
+        fieldsGrid.appendChild(weightField)
+        
+        detailsContent.appendChild(fieldsGrid)
+        
+        # Notes field (full width)
+        notesField = _create_equipment_field("Notes", "notes", item)
+        notesField.style.gridColumn = "1 / -1"
+        detailsContent.appendChild(notesField)
+        
+        # Remove button
+        removeBtn = document.createElement("button")
+        removeBtn.className = "equipment-remove"
+        removeBtn.type = "button"
+        removeBtn.textContent = "Remove"
+        removeBtn.style.marginTop = "1rem"
+        removeBtn.style.padding = "0.5rem 1rem"
+        removeBtn.style.backgroundColor = "rgba(239, 68, 68, 0.2)"
+        removeBtn.style.color = "#fca5a5"
+        removeBtn.style.border = "1px solid rgba(239, 68, 68, 0.5)"
+        removeBtn.style.borderRadius = "0.375rem"
+        removeBtn.style.cursor = "pointer"
+        removeBtn.addEventListener("click", create_proxy(lambda e, iid=item.get("id"): remove_equipment_item(iid)))
+        _EVENT_PROXIES.append(removeBtn)
+        
+        detailsContent.appendChild(removeBtn)
+        details.appendChild(detailsContent)
+        
+        # Add to tr
         td = document.createElement("td")
-        td.innerHTML = html_content
-        return td
+        td.colSpan = 6
+        td.style.padding = "0"
+        td.appendChild(details)
+        tr.appendChild(td)
+        
+        console.log(f"_create_equipment_row: created row for {item.get('name')}")
+        return tr
+    except Exception as e:
+        console.log(f"ERROR in _create_equipment_row: {e}")
+        return None
 
-    # name
-    name_html = f"<input data-item-field='name' type='text' value=\"{escape(item.get('name',''))}\" />"
-    tr.appendChild(mk_cell(name_html))
 
-    # qty
-    qty_html = f"<input data-item-field='qty' type='number' min='0' value=\"{int(item.get('qty',1))}\" />"
-    tr.appendChild(mk_cell(qty_html))
-
-    # cost
-    cost_html = f"<input data-item-field='cost' type='number' step='0.01' min='0' value=\"{format_money(item.get('cost',0))}\" />"
-    tr.appendChild(mk_cell(cost_html))
-
-    # weight
-    weight_html = f"<input data-item-field='weight' type='number' step='0.01' min='0' value=\"{format_weight(item.get('weight',0))}\" />"
-    tr.appendChild(mk_cell(weight_html))
-
-    # notes
-    notes_html = f"<input data-item-field='notes' type='text' value=\"{escape(item.get('notes',''))}\" />"
-    tr.appendChild(mk_cell(notes_html))
-
-    # remove button
-    remove_html = "<button class='equipment-remove' type='button'>Remove</button>"
-    tr.appendChild(mk_cell(remove_html))
-
-    return tr
+def _create_equipment_field(label: str, field_name: str, item: dict):
+    """Create a labeled input field for equipment item"""
+    container = document.createElement("div")
+    
+    labelEl = document.createElement("label")
+    labelEl.style.display = "flex"
+    labelEl.style.flexDirection = "column"
+    labelEl.style.gap = "0.5rem"
+    
+    span = document.createElement("span")
+    span.style.fontSize = "0.85rem"
+    span.style.color = "#94a3b8"
+    span.textContent = label
+    labelEl.appendChild(span)
+    
+    if field_name == "qty":
+        inp = document.createElement("input")
+        inp.type = "number"
+        inp.min = "0"
+        inp.value = str(int(item.get(field_name, 0)))
+    elif field_name == "cost":
+        inp = document.createElement("input")
+        inp.type = "number"
+        inp.step = "0.01"
+        inp.min = "0"
+        inp.value = format_money(item.get(field_name, 0))
+    elif field_name == "weight":
+        inp = document.createElement("input")
+        inp.type = "number"
+        inp.step = "0.01"
+        inp.min = "0"
+        inp.value = format_weight(item.get(field_name, 0))
+    else:
+        inp = document.createElement("input")
+        inp.type = "text"
+        inp.value = str(item.get(field_name, ""))
+    
+    inp.setAttribute("data-item-field", field_name)
+    inp.style.padding = "0.5rem"
+    inp.style.borderRadius = "0.375rem"
+    inp.style.border = "1px solid rgba(148, 163, 184, 0.3)"
+    inp.style.backgroundColor = "rgba(15, 23, 42, 0.8)"
+    inp.style.color = "#cbd5f5"
+    
+    item_id = item.get("id")
+    proxy = create_proxy(lambda e, iid=item_id: handle_equipment_input(e, iid))
+    inp.addEventListener("input", proxy)
+    _EVENT_PROXIES.append(proxy)
+    
+    labelEl.appendChild(inp)
+    container.appendChild(labelEl)
+    return container
 
 
 def render_equipment_table(items: list[dict]):
     tbody = get_element("equipment-table-body")
-    wrapper = get_element("equipment-table-wrapper")
+    # Get wrapper by class since it doesn't have an id
+    wrapper = document.querySelector(".equipment-table-wrapper")
     empty_state = get_element("equipment-empty-state")
     if tbody is None or wrapper is None or empty_state is None:
+        console.log(f"ERROR in render_equipment_table: tbody={tbody is not None}, wrapper={wrapper is not None}, empty_state={empty_state is not None}")
         return
     # clear
     tbody.innerHTML = ""
@@ -4239,14 +4370,20 @@ def render_equipment_table(items: list[dict]):
         return
     wrapper.classList.add("has-items")
     empty_state.style.display = "none"
+    
+    console.log(f"render_equipment_table: processing {len(items)} items")
     for item in items:
+        console.log(f"Creating row for: {item.get('name')}")
         row = _create_equipment_row(item)
         if row is None:
+            console.log(f"ERROR: _create_equipment_row returned None for {item.get('name')}")
             continue
         tbody.appendChild(row)
+        console.log(f"Appended row to tbody")
 
     # attach listeners to inputs and remove buttons
     rows = tbody.querySelectorAll("tr[data-item-id]")
+    console.log(f"Found {len(rows)} rows in DOM after render")
     for row in rows:
         item_id = row.getAttribute("data-item-id")
         inputs = row.querySelectorAll("input[data-item-field]")
@@ -4279,16 +4416,31 @@ def get_equipment_items_from_data(data: dict) -> list:
 
 
 def add_equipment_item(_event=None):
-    tbody = get_element("equipment-table-body")
-    if tbody is None:
-        return
-    new_item = {"id": generate_id("item"), "name": "", "qty": 1, "cost": 0.0, "weight": 0.0, "notes": ""}
-    items = [new_item]
-    # append existing items
+    """Show the equipment chooser modal"""
+    modal = get_element("equipment-chooser-modal")
+    if modal:
+        modal.style.display = "flex"
+        search_input = get_element("equipment-search")
+        if search_input:
+            search_input.value = ""
+            search_input.focus()
+        populate_equipment_results("")
+
+
+def clear_equipment_list(_event=None):
+    """Clear all equipment from the list"""
+    # Get current items from DOM to check if list is empty
     existing = get_equipment_items_from_dom()
-    items = existing + items
-    render_equipment_table(items)
+    if len(existing) == 0:
+        return
+    
+    # Render with empty list
+    render_equipment_table([])
+    
+    # Update totals
     update_equipment_totals()
+    
+    # Schedule export
     schedule_auto_export()
 
 
@@ -4332,6 +4484,199 @@ def remove_equipment_item(item_id: str):
         tbody.removeChild(row)
     update_equipment_totals()
     schedule_auto_export()
+
+
+def fetch_equipment_from_open5e():
+    """Fetch equipment data from Open5e API and cache locally"""
+    global EQUIPMENT_LIBRARY_STATE
+    import json
+    
+    # Check localStorage cache first
+    try:
+        cache_key = "dnd_equipment_cache_v1"
+        cached = window.localStorage.getItem(cache_key)
+        if cached:
+            cache_data = json.loads(cached)
+            EQUIPMENT_LIBRARY_STATE["equipment"] = cache_data
+            return
+    except:
+        pass
+    
+    # If no cache, we'll fetch async but return immediately with empty state
+    # The real fetching happens in JavaScript via fetch() in a background thread
+    if not EQUIPMENT_LIBRARY_STATE.get("equipment"):
+        # Return minimal fallback for now - will be replaced when JS fetches
+        EQUIPMENT_LIBRARY_STATE["equipment"] = [
+            {"name": "Shortsword", "cost": "10 gp", "weight": "2 lb."},
+            {"name": "Longsword", "cost": "15 gp", "weight": "3 lb."},
+            {"name": "Dagger", "cost": "2 gp", "weight": "1 lb."},
+            {"name": "Mace", "cost": "5 gp", "weight": "4 lb."},
+        ]
+
+
+def populate_equipment_results(search_term: str = ""):
+    """Populate equipment search results from Open5e"""
+    results_div = get_element("equipment-results")
+    if not results_div:
+        return
+    
+    # Ensure we have equipment data
+    fetch_equipment_from_open5e()
+    
+    search_term = search_term.lower().strip()
+    filtered = []
+    seen_names = set()
+    
+    # Filter from EQUIPMENT_LIBRARY_STATE and deduplicate by name
+    for item in EQUIPMENT_LIBRARY_STATE.get("equipment", []):
+        name = item.get("name", "")
+        if search_term == "" or search_term in name.lower():
+            # Only add if we haven't seen this exact name before
+            if name not in seen_names:
+                filtered.append(item)
+                seen_names.add(name)
+    
+    # Limit to 20 results
+    filtered = filtered[:20]
+    
+    results_div.innerHTML = ""
+    
+    if not filtered:
+        empty = document.createElement("div")
+        empty.style.padding = "1rem"
+        empty.style.textAlign = "center"
+        empty.style.color = "#94a3b8"
+        empty.textContent = "No items found"
+        results_div.appendChild(empty)
+        return
+    
+    # Create container for cards
+    container = document.createElement("div")
+    container.className = "equipment-results-container"
+    
+    for item in filtered:
+        name = item.get("name", "Unknown")
+        cost = item.get("cost", "Unknown")
+        weight = item.get("weight", "Unknown")
+        
+        # Create card
+        card = document.createElement("div")
+        card.className = "equipment-result-card"
+        card.setAttribute("data-name", name)
+        card.setAttribute("data-cost", cost)
+        card.setAttribute("data-weight", weight)
+        
+        # Item name
+        nameEl = document.createElement("div")
+        nameEl.className = "equipment-result-name"
+        nameEl.textContent = name
+        card.appendChild(nameEl)
+        
+        # Details (cost + weight)
+        detailsEl = document.createElement("div")
+        detailsEl.className = "equipment-result-details"
+        detailsEl.innerHTML = f"<span>{cost}</span><span>{weight}</span>"
+        card.appendChild(detailsEl)
+        
+        container.appendChild(card)
+    
+    results_div.appendChild(container)
+    
+    # Add event listener to results container (event delegation)
+    results_div.addEventListener("click", create_proxy(lambda e: _handle_equipment_click(e)))
+
+
+def _handle_equipment_click(event):
+    """Handle clicks on equipment result items - add directly without modal"""
+    target = event.target
+    # Walk up the DOM to find the result item div
+    while target and not target.getAttribute("data-name"):
+        target = target.parentElement
+    
+    if target and target.getAttribute("data-name"):
+        name = target.getAttribute("data-name")
+        cost = target.getAttribute("data-cost")
+        weight = target.getAttribute("data-weight")
+        console.log(f"Equipment clicked: {name}")
+        # Add directly without showing details modal
+        select_equipment_item(name, cost, weight)
+
+
+def show_equipment_details(name: str, cost: str, weight: str):
+    """Show equipment details modal"""
+    set_text("equipment-details-name", name)
+    set_text("equipment-details-cost", cost)
+    set_text("equipment-details-weight", weight)
+    
+    # Store current item data as data attributes on the button itself
+    add_button = get_element("equipment-details-add")
+    if add_button:
+        add_button.setAttribute("data-item-name", name)
+        add_button.setAttribute("data-item-cost", cost)
+        add_button.setAttribute("data-item-weight", weight)
+    
+    modal = get_element("equipment-details-modal")
+    if modal:
+        modal.style.display = "block"
+        # Close the chooser modal
+        chooser = get_element("equipment-chooser-modal")
+        if chooser:
+            chooser.style.display = "none"
+
+
+def select_equipment_item(name: str, cost: str, weight: str):
+    """Add selected item to equipment table"""
+    console.log(f"select_equipment_item called: {name}, {cost}, {weight}")
+    
+    tbody = get_element("equipment-table-body")
+    if tbody is None:
+        console.log("ERROR: equipment-table-body not found")
+        return
+    
+    # Parse cost and weight (they might be strings like "10 gp" or "2 lbs")
+    import re
+    cost_numeric = 0.0
+    weight_numeric = 0.0
+    
+    # Extract numeric value from cost string
+    cost_match = re.search(r'(\d+(?:\.\d+)?)', str(cost))
+    if cost_match:
+        cost_numeric = float(cost_match.group(1))
+    
+    # Extract numeric value from weight string
+    weight_match = re.search(r'(\d+(?:\.\d+)?)', str(weight))
+    if weight_match:
+        weight_numeric = float(weight_match.group(1))
+    
+    console.log(f"Parsed: cost={cost_numeric}, weight={weight_numeric}")
+    
+    new_item = {"id": generate_id("item"), "name": name, "qty": 1, "cost": cost_numeric, "weight": weight_numeric, "notes": ""}
+    existing = get_equipment_items_from_dom()
+    console.log(f"Existing items: {len(existing)}")
+    items = existing + [new_item]
+    console.log(f"Total items after add: {len(items)}")
+    console.log(f"New item: {new_item}")
+    
+    render_equipment_table(items)
+    console.log("render_equipment_table called")
+    
+    # Verify it was added
+    verify_items = get_equipment_items_from_dom()
+    console.log(f"Items in DOM after render: {len(verify_items)}")
+    if verify_items:
+        console.log(f"Last item: {verify_items[-1]}")
+    
+    update_equipment_totals()
+    console.log("Totals updated")
+    
+    schedule_auto_export()
+    console.log("Export scheduled")
+    
+    # Close the chooser modal
+    modal = get_element("equipment-chooser-modal")
+    if modal:
+        modal.style.display = "none"
+        console.log("Chooser modal closed")
 
 
 def update_equipment_totals():
@@ -5000,6 +5345,54 @@ def register_event_listeners():
         proxy_reset = create_proxy(reset_channel_divinity)
         reset_btn.addEventListener("click", proxy_reset)
         _EVENT_PROXIES.append(proxy_reset)
+
+    # Register equipment search
+    equipment_search = get_element("equipment-search")
+    if equipment_search is not None:
+        proxy_equip_search = create_proxy(lambda e: populate_equipment_results(e.target.value))
+        equipment_search.addEventListener("input", proxy_equip_search)
+        _EVENT_PROXIES.append(proxy_equip_search)
+
+    # Register equipment chooser close button
+    equipment_close = get_element("equipment-chooser-close")
+    if equipment_close is not None:
+        proxy_equip_close = create_proxy(lambda e: get_element("equipment-chooser-modal").style.display == "none" or setattr(get_element("equipment-chooser-modal"), "style.display", "none"))
+        equipment_close.addEventListener("click", proxy_equip_close)
+        _EVENT_PROXIES.append(proxy_equip_close)
+
+    # Register equipment details modal handlers
+    equipment_details_close = get_element("equipment-details-close")
+    if equipment_details_close is not None:
+        proxy_details_close = create_proxy(lambda e: get_element("equipment-details-modal").style.display == "none" or setattr(get_element("equipment-details-modal"), "style.display", "none"))
+        equipment_details_close.addEventListener("click", proxy_details_close)
+        _EVENT_PROXIES.append(proxy_details_close)
+
+    equipment_details_cancel = get_element("equipment-details-cancel")
+    if equipment_details_cancel is not None:
+        proxy_details_cancel = create_proxy(lambda e: get_element("equipment-details-modal").style.display == "none" or setattr(get_element("equipment-details-modal"), "style.display", "none"))
+        equipment_details_cancel.addEventListener("click", proxy_details_cancel)
+        _EVENT_PROXIES.append(proxy_details_cancel)
+
+    equipment_details_add = get_element("equipment-details-add")
+    if equipment_details_add is not None:
+        def handle_details_add(e):
+            button = e.target
+            name = button.getAttribute("data-item-name") or ""
+            cost = button.getAttribute("data-item-cost") or ""
+            weight = button.getAttribute("data-item-weight") or ""
+            
+            console.log(f"Adding from details: {name}, {cost}, {weight}")
+            
+            if name:
+                select_equipment_item(name, cost, weight)
+                # Close details modal
+                details_modal = get_element("equipment-details-modal")
+                if details_modal:
+                    details_modal.style.display = "none"
+        
+        proxy_details_add = create_proxy(handle_details_add)
+        equipment_details_add.addEventListener("click", proxy_details_add)
+        _EVENT_PROXIES.append(proxy_details_add)
 
 
 def load_initial_state():
