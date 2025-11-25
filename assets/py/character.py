@@ -2750,6 +2750,10 @@ def update_calculations(*_args):
     dex_mod = ability_modifier(scores["dex"] + race_bonuses.get("dex", 0))
     set_text("initiative", format_bonus(dex_mod))
 
+    # Calculate concentration save (1d20 + CON modifier vs DC 10)
+    con_mod = ability_modifier(scores["con"] + race_bonuses.get("con", 0))
+    set_text("concentration-save", f"1d20 {format_bonus(con_mod)} vs DC 10")
+
     skill_totals = {}
     for skill_key in SKILLS:
         _, _, total = _compute_skill_entry(skill_key, scores, proficiency, race_bonuses)
