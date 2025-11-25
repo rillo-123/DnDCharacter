@@ -294,6 +294,7 @@ _AUTO_EXPORT_TIMER_ID: int | None = None
 _AUTO_EXPORT_PROXY = None
 _AUTO_EXPORT_SUPPRESS = False
 _LAST_AUTO_EXPORT_SNAPSHOT = ""
+_LAST_AUTO_EXPORT_DATE = ""
 _AUTO_EXPORT_EVENT_COUNT = 0
 _AUTO_EXPORT_FILE_HANDLE = None
 _AUTO_EXPORT_DISABLED = False
@@ -629,6 +630,7 @@ async def _attempt_persistent_export(
             else:
                 _AUTO_EXPORT_LAST_FILENAME = getattr(file_handle, "name", proposed_filename)
                 _LAST_AUTO_EXPORT_SNAPSHOT = payload
+                _LAST_AUTO_EXPORT_DATE = datetime.now().strftime("%Y%m%d")
                 verb = "auto-exported" if auto else "exported"
                 console.log(f"PySheet: {verb} character JSON to {_AUTO_EXPORT_LAST_FILENAME}")
                 _AUTO_EXPORT_DISABLED = False
@@ -652,6 +654,7 @@ async def _attempt_persistent_export(
             else:
                 _AUTO_EXPORT_LAST_FILENAME = getattr(handle, "name", proposed_filename)
                 _LAST_AUTO_EXPORT_SNAPSHOT = payload
+                _LAST_AUTO_EXPORT_DATE = datetime.now().strftime("%Y%m%d")
                 verb = "auto-exported" if auto else "exported"
                 console.log(f"PySheet: {verb} character JSON to {_AUTO_EXPORT_LAST_FILENAME}")
                 _AUTO_EXPORT_DISABLED = False
@@ -5088,6 +5091,7 @@ def cleanup_exports(_event=None):
 
 async def export_character(_event=None, *, auto: bool = False):
     global _LAST_AUTO_EXPORT_SNAPSHOT
+    global _LAST_AUTO_EXPORT_DATE
     global _AUTO_EXPORT_FILE_HANDLE
     global _AUTO_EXPORT_DISABLED
     global _AUTO_EXPORT_SUPPORT_WARNED
@@ -5121,9 +5125,13 @@ async def export_character(_event=None, *, auto: bool = False):
         console.log("PySheet: auto-export re-enabled after manual export request")
     data = collect_character_data()
     payload = json.dumps(data, indent=2)
+    
+    # For auto-exports: skip only if data hasn't changed AND we've already exported today
     if auto and payload == _LAST_AUTO_EXPORT_SNAPSHOT:
-        fade_indicator()
-        return
+        today = datetime.now().strftime("%Y%m%d")
+        if today == _LAST_AUTO_EXPORT_DATE:
+            fade_indicator()
+            return
     
     # Show green SAVING state
     show_saving_state()
@@ -5164,6 +5172,7 @@ async def export_character(_event=None, *, auto: bool = False):
     link.click()
     URL.revokeObjectURL(url)
     _LAST_AUTO_EXPORT_SNAPSHOT = payload
+    _LAST_AUTO_EXPORT_DATE = datetime.now().strftime("%Y%m%d")
     if auto:
         console.log(f"PySheet: auto-exported character JSON (download) to {proposed_filename}")
     else:
