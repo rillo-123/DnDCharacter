@@ -7,7 +7,7 @@ import json
 import re
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from html import escape
 from math import ceil, floor
 from pathlib import Path
@@ -319,7 +319,12 @@ def _build_export_filename(data: dict, *, now: datetime | None = None) -> str:
         now = datetime.now()
     raw_name = (data.get("identity", {}).get("name") or "character").strip()
     base_name = _normalize_export_basename(raw_name)
-    date_stamp = now.strftime("%Y%m%d")
+    
+    # Get class
+    class_name = (data.get("identity", {}).get("class") or "unknown").strip()
+    class_part = _normalize_export_basename(class_name)
+    
+    # Get level
     level_value = 0
     try:
         level_value = int(data.get("level", 0))
@@ -327,8 +332,10 @@ def _build_export_filename(data: dict, *, now: datetime | None = None) -> str:
         level_value = 0
     if level_value <= 0:
         level_value = 0
-    level_part = f"lvl_{level_value}"
-    return f"{base_name}_{date_stamp}_{level_part}.json"
+    
+    # Format: <character_name>_<class>_lvl<level_number>_YYYYMMDD_HHMM.json
+    timestamp = now.strftime("%Y%m%d_%H%M")
+    return f"{base_name}_{class_part}_lvl{level_value}_{timestamp}.json"
 
 
 # ===================================================================
@@ -336,13 +343,15 @@ def _build_export_filename(data: dict, *, now: datetime | None = None) -> str:
 # ===================================================================
 
 MAX_EXPORTS_PER_CHARACTER = 20  # Keep last N exports per character
+EXPORT_PRUNE_DAYS = 30  # Remove exports older than this many days
 
 
 def _extract_character_name_from_filename(filename: str) -> str:
     """Extract character name from export filename.
     
     Handles formats like:
-    - enwer_20251120_lvl_9.json
+    - enwer_cleric_lvl9_20251120_1234.json (new format)
+    - enwer_20251120_lvl_9.json (old format)
     - rillobaby.json
     - character (1).json
     """
@@ -352,12 +361,16 @@ def _extract_character_name_from_filename(filename: str) -> str:
     # Remove .json
     name_part = filename[:-5]
     
-    # Remove timestamps (YYYYMMDD pattern)
     import re
-    # Remove pattern like _20251120_lvl_9 or _20251111_230734
+    # Try new format: <name>_<class>_lvl<level>_YYYYMMDD_HHMM
+    match = re.match(r'^(.+?)_[a-z]+_lvl\d+_\d{8}_\d{4}$', name_part)
+    if match:
+        return match.group(1).lower()
+    
+    # Try old format: <name>_YYYYMMDD_lvl_<level>
     cleaned = re.sub(r'_\d{8}(_lvl_\d+)?$', '', name_part)
-    # Remove pattern like _20251111_230734 (with time)
-    cleaned = re.sub(r'_\d{8}_\d{6}$', '', cleaned)
+    # Try old format with time: <name>_YYYYMMDD_HHMM
+    cleaned = re.sub(r'_\d{8}_\d{4}$', '', cleaned)
     # Remove (N) suffix from duplicates
     cleaned = re.sub(r'\s*\(\d+\)$', '', cleaned)
     
@@ -379,6 +392,50 @@ def prune_old_exports(directory_handle, max_keep: int = MAX_EXPORTS_PER_CHARACTE
     except Exception as exc:
         LOGGER.warning(f"Could not prune exports: {exc}")
         return False
+
+
+async def _prune_old_exports_from_directory(directory_handle):
+    """Prune exports older than EXPORT_PRUNE_DAYS from the directory.
+    
+    Only works if directory_handle supports async iteration (desktop/Chrome).
+    """
+    if directory_handle is None:
+        return
+    
+    try:
+        import re
+        cutoff_date = datetime.now() - timedelta(days=EXPORT_PRUNE_DAYS)
+        pruned_count = 0
+        
+        # Attempt to iterate and delete old files
+        async for entry in directory_handle.entries():
+            if not entry.name.endswith(".json"):
+                continue
+            
+            # Extract timestamp from filename (YYYYMMDD_HHMM format)
+            match = re.search(r'_(\d{8})_(\d{4})\.json$', entry.name)
+            if not match:
+                continue
+            
+            date_str, time_str = match.groups()
+            try:
+                file_date = datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M")
+                if file_date < cutoff_date:
+                    # Attempt to remove old file
+                    await directory_handle.removeEntry(entry.name)
+                    pruned_count += 1
+                    LOGGER.info(f"Pruned old export: {entry.name}")
+            except (ValueError, JsException):
+                continue
+        
+        if pruned_count > 0:
+            LOGGER.info(f"Pruned {pruned_count} exports older than {EXPORT_PRUNE_DAYS} days")
+    
+    except (AttributeError, JsException):
+        # Directory iteration not supported in this browser
+        pass
+    except Exception as exc:
+        LOGGER.warning(f"Error during export pruning: {exc}")
 
 
 def estimate_export_cleanup():
