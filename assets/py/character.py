@@ -1777,9 +1777,24 @@ class SpellcastingManager:
                 )
                 description_html = record.get("description_html")
                 if not description_html:
-                    description_html = (
-                        "<p class=\"spellbook-description-empty\">No detailed description available.</p>"
-                    )
+                    # Try to build from desc/higher_level if available
+                    desc_text = _coerce_spell_text(record.get("desc"))
+                    higher_text = _coerce_spell_text(record.get("higher_level"))
+                    desc_html = _make_paragraphs(desc_text)
+                    higher_html = _make_paragraphs(higher_text)
+                    if desc_html:
+                        description_html = desc_html
+                        if higher_html:
+                            description_html += "<p class=\"spell-section-title\">At Higher Levels</p>" + higher_html
+                    else:
+                        # Fall back to description field if available
+                        description_text = record.get("description", "")
+                        if description_text:
+                            description_html = _make_paragraphs(_coerce_spell_text(description_text))
+                        else:
+                            description_html = (
+                                "<p class=\"spellbook-description-empty\">No detailed description available.</p>"
+                            )
                 body_sections = []
                 if tags_html:
                     body_sections.append(
@@ -1807,6 +1822,42 @@ class SpellcastingManager:
                 bonus_spell_slugs = get_domain_bonus_spells(domain, get_numeric_value("level", 1)) if domain else []
                 is_bonus_spell = slug in bonus_spell_slugs
                 
+                # Build mnemonics for spellbook view (concentration, ritual, range, domain bonus)
+                mnemonics_html = ""
+                mnemonics_list = []
+                if record.get("concentration"):
+                    mnemonics_list.append("<span class=\"spell-mnemonic\" title=\"Concentration\">Conc.</span>")
+                if record.get("ritual"):
+                    mnemonics_list.append("<span class=\"spell-mnemonic\" title=\"Ritual\">Rit.</span>")
+                if is_bonus_spell:
+                    mnemonics_list.append("<span class=\"spell-mnemonic domain\" title=\"Domain Bonus\">Dom.</span>")
+                
+                # Add range mnemonic
+                range_text = record.get("range", "").lower()
+                if range_text:
+                    if "self" in range_text:
+                        range_label = "Self"
+                    elif "touch" in range_text:
+                        range_label = "Touch"
+                    elif "sight" in range_text:
+                        range_label = "Sight"
+                    elif "unlimited" in range_text:
+                        range_label = "∞"
+                    else:
+                        # Extract number from range
+                        import re
+                        match = re.search(r'(\d+)\s*(?:feet|ft)', range_text)
+                        if match:
+                            range_label = f"{match.group(1)}ft"
+                        else:
+                            range_label = None
+                    
+                    if range_label:
+                        mnemonics_list.append(f"<span class=\"spell-mnemonic range\" title=\"Range: {escape(record.get('range', ''))}\">{escape(range_label)}</span>")
+                
+                if mnemonics_list:
+                    mnemonics_html = f"<span class=\"spell-mnemonics\">{''.join(mnemonics_list)}</span>"
+                
                 # Add cast button for non-cantrips
                 cast_button_html = ""
                 if level > 0:
@@ -1825,8 +1876,7 @@ class SpellcastingManager:
                     + "<summary>"
                     + "<div class=\"spellbook-summary-main\">"
                     + f"<span class=\"spellbook-name\">{escape(name)}</span>"
-                    + meta_html
-                    + source_html
+                    + mnemonics_html
                     + "</div>"
                     + "<div class=\"spellbook-actions\">"
                     + cast_button_html
@@ -3555,14 +3605,49 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
     ]
     if meta_text:
         summary_parts.append(f"<span class=\"spell-meta\">{escape(meta_text)}</span>")
+    
+    # Add mnemonics for key spell properties
+    mnemonics = []
+    if spell.get("concentration"):
+        mnemonics.append("<span class=\"spell-mnemonic\" title=\"Concentration\">Conc.</span>")
+    if spell.get("ritual"):
+        mnemonics.append("<span class=\"spell-mnemonic\" title=\"Ritual\">Rit.</span>")
+    if is_domain_bonus and prepared:
+        mnemonics.append("<span class=\"spell-mnemonic domain\" title=\"Domain Bonus\">Dom.</span>")
+    
+    # Add range mnemonic
+    range_text = spell.get("range", "").lower()
+    if range_text:
+        if "self" in range_text:
+            range_label = "Self"
+        elif "touch" in range_text:
+            range_label = "Touch"
+        elif "sight" in range_text:
+            range_label = "Sight"
+        elif "unlimited" in range_text:
+            range_label = "∞"
+        else:
+            # Extract number from range (e.g., "60 feet" -> "60ft")
+            import re
+            match = re.search(r'(\d+)\s*(?:feet|ft)', range_text)
+            if match:
+                range_label = f"{match.group(1)}ft"
+            else:
+                range_label = None
+        
+        if range_label:
+            mnemonics.append(f"<span class=\"spell-mnemonic range\" title=\"Range: {escape(spell.get('range', ''))}\">{escape(range_label)}</span>")
+    
+    if mnemonics:
+        summary_parts.append(f"<span class=\"spell-mnemonics\">{''.join(mnemonics)}</span>")
+    
     summary_parts.append("</div>")
-    if tags_html:
-        summary_parts.append(f"<div class=\"spell-tags\">{tags_html}</div>")
-    if action_button:
-        summary_parts.append(
-            f"<div class=\"spell-summary-actions\">{action_button}</div>"
-        )
     summary_parts.append("</summary>")
+    
+    # Add tags and action button after summary
+    summary_parts.append(f"<div class=\"spell-tags\">{tags_html}</div>" if tags_html else "")
+    summary_parts.append(f"<div class=\"spell-summary-actions\">{action_button}</div>" if action_button else "")
+    
     summary_html = "".join(summary_parts)
 
     class_list = ["spell-card"]

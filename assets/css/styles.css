@@ -1528,6 +1528,37 @@ body {
     text-transform: uppercase;
 }
 
+.spell-mnemonics {
+    display: inline-flex;
+    gap: 0.3rem;
+    margin-left: 0.5rem;
+    align-items: center;
+}
+
+.spell-mnemonic {
+    background: rgba(99, 102, 241, 0.25);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    color: #c7d2fe;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    cursor: help;
+}
+
+.spell-mnemonic.domain {
+    background: rgba(251, 146, 60, 0.2);
+    border-color: rgba(251, 146, 60, 0.4);
+    color: #fed7aa;
+}
+
+.spell-mnemonic.range {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #bbf7d0;
+}
+
 .spell-tags {
     display: inline-flex;
     gap: 0.4rem;
@@ -1847,17 +1878,16 @@ body {
 
 .spellbook-summary-main {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.3rem;
-    justify-content: flex-start;
-    flex: 1;
+    align-items: center;
 }
 
 .spellbook-actions {
     display: flex;
     gap: 0.5rem;
-    flex-direction: column;
-    min-width: 80px;
+    flex-direction: row-reverse;
+    min-width: auto;
 }
 
 .spellbook-cast,
@@ -1910,8 +1940,10 @@ body {
 
 .spellbook-summary-main {
     display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
+    flex-direction: row;
+    gap: 0.3rem;
+    align-items: center;
+    flex-wrap: nowrap;
 }
 
 .spellbook-name {
