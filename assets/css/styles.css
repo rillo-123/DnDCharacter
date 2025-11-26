@@ -270,12 +270,15 @@ body {
     background: rgba(15, 23, 42, 0.6);
     border-radius: 0.9rem;
     border: 1px solid rgba(148, 163, 184, 0.2);
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
+    z-index: 1;
 }
 
 .abilities-table {
     width: 100%;
     border-collapse: collapse;
+    overflow: visible;
 }
 
 .abilities-table th,
@@ -283,6 +286,8 @@ body {
     padding: 0.65rem 0.4rem;
     text-align: center;
     border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    overflow: visible;
+    position: relative;
 }
 
 .abilities-table th:first-child,
@@ -378,11 +383,15 @@ body {
     color: #d8b4fe;
     font-size: 0.9rem;
     font-weight: 600;
+    overflow: visible;
+    position: relative;
 }
 
 .ability-save span {
     display: inline-block;
     min-width: 1.75rem;
+    position: relative;
+    overflow: visible;
 }
 
 .ability-prof {
@@ -2520,21 +2529,26 @@ body {
     background: rgba(15, 23, 42, 0.6);
     border-radius: 0.9rem;
     border: 1px solid rgba(148, 163, 184, 0.2);
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
     height: 100%;
+    position: relative;
+    z-index: 1;
 }
 
 .combat-stats-table {
     width: 100%;
     border-collapse: collapse;
+    overflow: visible;
 }
 
 .combat-stats-table td {
     padding: 0.65rem 0.75rem;
     text-align: left;
     border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    overflow: visible;
+    position: relative;
 }
 
 .combat-stats-table tbody tr:nth-child(odd) {
@@ -2587,6 +2601,8 @@ body {
     color: #fef08a;
     font-size: 0.9rem;
     font-weight: 700;
+    position: relative;
+    overflow: visible;
 }
 
 .proficiency-grid-wrapper {
@@ -3045,5 +3061,81 @@ body {
     color: #94a3b8;
     display: flex;
     gap: 1rem;
+}
+
+/* Tooltip Styling */
+.stat-value {
+    position: relative;
+    cursor: help;
+    border-bottom: 1px dotted rgba(148, 163, 184, 0.4);
+}
+
+.stat-value:hover {
+    border-bottom-color: rgba(148, 163, 184, 0.7);
+}
+
+.stat-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    z-index: 1000;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1e293b;
+    color: #e2e8f0;
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+}
+
+.stat-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #1e293b transparent transparent transparent;
+}
+
+.stat-value:hover .stat-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Multi-line tooltip */
+.stat-tooltip.multiline {
+    white-space: normal;
+    width: 240px;
+}
+
+/* Tooltip content styling */
+.tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: baseline;
+}
+
+.tooltip-row:not(:last-child) {
+    margin-bottom: 0.4rem;
+}
+
+.tooltip-label {
+    color: #94a3b8;
+    font-weight: normal;
+}
+
+.tooltip-value {
+    color: #60a5fa;
+    font-weight: 600;
 }
 

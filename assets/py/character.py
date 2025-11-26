@@ -2336,6 +2336,13 @@ class InventoryManager:
         """Remove an item by ID."""
         self.items = [item for item in self.items if item.get("id") != item_id]
     
+    def get_item(self, item_id: str) -> dict | None:
+        """Get an item by ID."""
+        for item in self.items:
+            if item.get("id") == item_id:
+                return item
+        return None
+    
     def update_item(self, item_id: str, updates: dict):
         """Update item fields."""
         for item in self.items:
@@ -2461,6 +2468,11 @@ class InventoryManager:
                 custom_props = extra_props.get("custom_properties", "")
                 body_html += f'<div class="inventory-item-field"><label>Item Effects/Properties</label><input type="text" data-item-custom-props="{item_id}" value="{escape(str(custom_props))}" placeholder="e.g., +1 AC and saves" style="width: 100%;"></div>'
                 
+                # Add modifier fields for AC and Saves
+                ac_mod = extra_props.get("ac_modifier", "")
+                saves_mod = extra_props.get("saves_modifier", "")
+                body_html += f'<div class="inventory-item-field" style="display: flex; gap: 10px;"><div style="flex: 1;"><label>AC Modifier</label><input type="number" data-item-ac-mod="{item_id}" value="{ac_mod}" placeholder="0" style="width: 100%;"></div><div style="flex: 1;"><label>Saves Modifier</label><input type="number" data-item-saves-mod="{item_id}" value="{saves_mod}" placeholder="0" style="width: 100%;"></div></div>'
+                
                 body_html += f'<div class="inventory-item-field"><label>Quantity</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" style="width: 80px;"></div>'
                 
                 # Build category dropdown with current category selected
@@ -2552,6 +2564,22 @@ class InventoryManager:
             proxy = create_proxy(lambda event, iid=item_id: self._handle_custom_props_change(event, iid))
             props_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
+        
+        # AC modifier changes
+        ac_mod_inputs = get_element("inventory-list").querySelectorAll("[data-item-ac-mod]")
+        for ac_input in ac_mod_inputs:
+            item_id = ac_input.getAttribute("data-item-ac-mod")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_modifier_change(event, iid, "ac_modifier"))
+            ac_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Saves modifier changes
+        saves_mod_inputs = get_element("inventory-list").querySelectorAll("[data-item-saves-mod]")
+        for saves_input in saves_mod_inputs:
+            item_id = saves_input.getAttribute("data-item-saves-mod")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_modifier_change(event, iid, "saves_modifier"))
+            saves_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
     
     def _handle_item_toggle(self, event, item_id: str):
         """Toggle item details visibility."""
@@ -2612,6 +2640,48 @@ class InventoryManager:
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()
             schedule_auto_export()
+    
+    def _handle_modifier_change(self, event, item_id: str, modifier_type: str):
+        """Handle AC or Saves modifier changes."""
+        mod_input = event.target
+        mod_value_str = mod_input.value.strip()
+        
+        # Convert to int or keep empty
+        try:
+            mod_value = int(mod_value_str) if mod_value_str else ""
+        except:
+            mod_value = ""
+        
+        # Update the item's notes field with the modifier
+        item = self.get_item(item_id)
+        if item:
+            try:
+                # Parse existing notes to preserve other properties
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                else:
+                    extra_props = {}
+            except:
+                extra_props = {}
+            
+            # Update modifier
+            if mod_value != "":
+                extra_props[modifier_type] = mod_value
+            else:
+                # Remove if empty
+                if modifier_type in extra_props:
+                    del extra_props[modifier_type]
+            
+            # Save back to notes
+            notes = json.dumps(extra_props) if extra_props else ""
+            self.update_item(item_id, {"notes": notes})
+            self.render_inventory()  # Update display
+            
+            # Update calculations (which will recalculate AC and stats)
+            update_calculations()
+            schedule_auto_export()
+
 
 
 INVENTORY_MANAGER = InventoryManager()
@@ -3101,6 +3171,184 @@ def compute_proficiency(level: int) -> int:
     return 2 + (level - 1) // 4
 
 
+def generate_ac_tooltip() -> tuple[int, str]:
+    """
+    Generate AC tooltip showing breakdown of components.
+    Returns: (ac_value, tooltip_html)
+    """
+    dex_score = get_numeric_value("dex-score", 10)
+    dex_mod = ability_modifier(dex_score)
+    
+    # Check for armor
+    armor_ac = None
+    armor_name = None
+    for item in INVENTORY_MANAGER.items:
+        if item.get("category") == "Armor" and item.get("qty", 0) > 0:
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                    ac_val = extra_props.get("armor_class", extra_props.get("ac"))
+                    if ac_val:
+                        armor_ac = int(ac_val)
+                        armor_name = item.get("name", "Unknown Armor")
+                        break
+            except:
+                pass
+    
+    # Build breakdown
+    rows = []
+    if armor_ac is not None:
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">{escape(armor_name)}</span><span class="tooltip-value">{armor_ac}</span></div>')
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div>')
+        base_ac = armor_ac + dex_mod
+    else:
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">Base AC</span><span class="tooltip-value">10</span></div>')
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div>')
+        base_ac = 10 + dex_mod
+    
+    # Add item modifiers
+    item_ac_mod = 0
+    item_mods = []
+    for item in INVENTORY_MANAGER.items:
+        try:
+            notes_str = item.get("notes", "")
+            if notes_str and notes_str.startswith("{"):
+                extra_props = json.loads(notes_str)
+                ac_mod = extra_props.get("ac_modifier", 0)
+                if ac_mod:
+                    ac_mod = int(ac_mod)
+                    item_ac_mod += ac_mod
+                    item_mods.append((item.get("name", "Unknown"), ac_mod))
+        except:
+            pass
+    
+    if item_mods:
+        rows.append('<div style="margin-top: 0.4rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 0.4rem;"></div>')
+        for item_name, mod_val in item_mods:
+            rows.append(f'<div class="tooltip-row"><span class="tooltip-label">{escape(item_name)}</span><span class="tooltip-value">{format_bonus(mod_val)}</span></div>')
+    
+    total_ac = base_ac + item_ac_mod
+    tooltip_html = f'<div class="stat-tooltip multiline">{"".join(rows)}</div>'
+    return max(1, total_ac), tooltip_html
+
+
+def generate_save_tooltip(ability: str, ability_score: int, proficient: bool, proficiency: int) -> tuple[int, str]:
+    """Generate tooltip for ability save. Returns: (save_total, tooltip_html)"""
+    mod = ability_modifier(ability_score)
+    save_bonus = mod + (proficiency if proficient else 0)
+    
+    rows = []
+    rows.append(f'<div class="tooltip-row"><span class="tooltip-label">Ability mod ({ability.upper()})</span><span class="tooltip-value">{format_bonus(mod)}</span></div>')
+    
+    if proficient:
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">Proficiency</span><span class="tooltip-value">{format_bonus(proficiency)}</span></div>')
+    
+    # Add saves modifiers from items
+    item_saves_mod = 0
+    for item in INVENTORY_MANAGER.items:
+        try:
+            notes_str = item.get("notes", "")
+            if notes_str and notes_str.startswith("{"):
+                extra_props = json.loads(notes_str)
+                saves_mod = extra_props.get("saves_modifier", 0)
+                if saves_mod:
+                    item_saves_mod += int(saves_mod)
+        except:
+            pass
+    
+    if item_saves_mod:
+        rows.append('<div style="margin-top: 0.4rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 0.4rem;"></div>')
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">Item modifiers</span><span class="tooltip-value">{format_bonus(item_saves_mod)}</span></div>')
+    
+    save_total = save_bonus + item_saves_mod
+    tooltip_html = f'<div class="stat-tooltip multiline">{"".join(rows)}</div>'
+    return save_total, tooltip_html
+
+
+def generate_skill_tooltip(skill_key: str, ability_scores: dict, proficiency: int, race_bonuses: dict) -> str:
+    """Generate tooltip for skill bonus."""
+    ability_key = SKILLS.get(skill_key, {}).get("ability", "")
+    ability_score = ability_scores.get(ability_key, 10)
+    race_bonus = race_bonuses.get(ability_key, 0)
+    total_score = ability_score + race_bonus
+    
+    mod = ability_modifier(total_score)
+    proficient = get_checkbox(f"{skill_key}-prof")
+    expertise = get_checkbox(f"{skill_key}-exp")
+    
+    rows = []
+    rows.append(f'<div class="tooltip-row"><span class="tooltip-label">{ability_key.upper()} mod</span><span class="tooltip-value">{format_bonus(mod)}</span></div>')
+    
+    if race_bonus:
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">Race bonus</span><span class="tooltip-value">{format_bonus(race_bonus)}</span></div>')
+    
+    if expertise:
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">Expertise</span><span class="tooltip-value">{format_bonus(proficiency * 2)}</span></div>')
+    elif proficient:
+        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">Proficiency</span><span class="tooltip-value">{format_bonus(proficiency)}</span></div>')
+    
+    return f'<div class="stat-tooltip multiline">{"".join(rows)}</div>'
+
+
+def calculate_armor_class() -> int:
+    """
+    Calculate AC based on armor type, DEX modifier, and item modifiers.
+    AC calculation:
+    - 10 + DEX if no armor
+    - Armor AC + DEX (if light/medium) if wearing armor
+    - Armor AC (no DEX) if wearing heavy armor
+    Plus any AC modifiers from equipped items
+    """
+    # Get DEX modifier
+    dex_score = get_numeric_value("dex-score", 10)
+    dex_mod = ability_modifier(dex_score)
+    
+    # Check for armor in inventory
+    armor_ac = None
+    armor_name = None
+    
+    for item in INVENTORY_MANAGER.items:
+        category = item.get("category", "")
+        if category == "Armor" and item.get("qty", 0) > 0:
+            # Found an armor item - try to get its AC
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                    ac_val = extra_props.get("armor_class", extra_props.get("ac"))
+                    if ac_val:
+                        armor_ac = int(ac_val)
+                        armor_name = item.get("name", "Unknown Armor")
+                        break  # Use first armor found
+            except:
+                pass
+    
+    # Calculate base AC
+    if armor_ac is not None:
+        # Wearing armor - use armor's AC + DEX (simplified - assumes light/medium)
+        # TODO: In future, check armor type to determine if DEX applies
+        base_ac = armor_ac + dex_mod
+    else:
+        # No armor - use 10 + DEX
+        base_ac = 10 + dex_mod
+    
+    # Add AC modifiers from items
+    item_ac_mod = 0
+    for item in INVENTORY_MANAGER.items:
+        try:
+            notes_str = item.get("notes", "")
+            if notes_str and notes_str.startswith("{"):
+                extra_props = json.loads(notes_str)
+                ac_mod = extra_props.get("ac_modifier", 0)
+                if ac_mod:
+                    item_ac_mod += int(ac_mod)
+        except:
+            pass
+    
+    return max(1, base_ac + item_ac_mod)
+
+
 def _compute_skill_entry(
     skill_key: str,
     ability_scores: dict[str, int],
@@ -3233,24 +3481,47 @@ def update_calculations(*_args):
         mod = ability_modifier(total_score)
         set_text(f"{ability}-mod", format_bonus(mod))
         proficient = get_checkbox(f"{ability}-save-prof")
-        save_total = mod + (proficiency if proficient else 0)
-        set_text(f"{ability}-save", format_bonus(save_total))
+        save_total, save_tooltip = generate_save_tooltip(ability, total_score, proficient, proficiency)
+        save_elem = get_element(f"{ability}-save")
+        if save_elem:
+            save_elem.innerHTML = f'<span class="stat-value">{format_bonus(save_total)}{save_tooltip}</span>'
 
     dex_mod = ability_modifier(scores["dex"] + race_bonuses.get("dex", 0))
-    set_text("initiative", format_bonus(dex_mod))
+    # Initiative tooltip: just DEX modifier
+    initiative_tooltip = f'<div class="stat-tooltip"><div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div></div>'
+    initiative_elem = get_element("initiative")
+    if initiative_elem:
+        initiative_elem.innerHTML = f'<span class="stat-value">{format_bonus(dex_mod)}{initiative_tooltip}</span>'
+
+    # Calculate and update Armor Class with tooltip
+    ac, ac_tooltip = generate_ac_tooltip()
+    armor_class_elem = get_element("armor_class")
+    if armor_class_elem:
+        armor_class_elem.innerHTML = f'<span class="stat-value">{ac}{ac_tooltip}</span>'
 
     # Calculate concentration save (1d20 + CON modifier vs DC 10)
     con_mod = ability_modifier(scores["con"] + race_bonuses.get("con", 0))
-    set_text("concentration-save", f"1d20 {format_bonus(con_mod)} vs DC 10")
+    con_tooltip = f'<div class="stat-tooltip"><div class="tooltip-row"><span class="tooltip-label">CON modifier</span><span class="tooltip-value">{format_bonus(con_mod)}</span></div><div class="tooltip-row"><span class="tooltip-label">DC</span><span class="tooltip-value">10</span></div></div>'
+    conc_save_elem = get_element("concentration-save")
+    if conc_save_elem:
+        conc_save_elem.innerHTML = f'<span class="stat-value">1d20 {format_bonus(con_mod)} vs DC 10{con_tooltip}</span>'
 
     skill_totals = {}
     for skill_key in SKILLS:
         _, _, total = _compute_skill_entry(skill_key, scores, proficiency, race_bonuses)
         skill_totals[skill_key] = total
-        set_text(f"{skill_key}-total", format_bonus(total))
+        skill_tooltip = generate_skill_tooltip(skill_key, scores, proficiency, race_bonuses)
+        skill_elem = get_element(f"{skill_key}-total")
+        if skill_elem:
+            skill_elem.innerHTML = f'<span class="stat-value">{format_bonus(total)}{skill_tooltip}</span>'
 
+    # Passive Perception
     passive_perception = 10 + skill_totals.get("perception", 0)
-    set_text("passive-perception", str(passive_perception))
+    perception_total = skill_totals.get("perception", 0)
+    passive_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Base</span><span class="tooltip-value">10</span></div><div class="tooltip-row"><span class="tooltip-label">Perception bonus</span><span class="tooltip-value">{format_bonus(perception_total)}</span></div></div>'
+    passive_elem = get_element("passive-perception")
+    if passive_elem:
+        passive_elem.innerHTML = f'<span class="stat-value">{passive_perception}{passive_tooltip}</span>'
 
     # Derive spell ability from class
     class_spell_ability_map = {
@@ -3269,8 +3540,18 @@ def update_calculations(*_args):
     spell_mod = ability_modifier(spell_score)
     spell_save_dc = 8 + proficiency + spell_mod
     spell_attack = proficiency + spell_mod
-    set_text("spell-save-dc", str(spell_save_dc))
-    set_text("spell-attack", format_bonus(spell_attack))
+    
+    # Spell Save DC tooltip
+    spell_dc_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Base</span><span class="tooltip-value">8</span></div><div class="tooltip-row"><span class="tooltip-label">Proficiency</span><span class="tooltip-value">{format_bonus(proficiency)}</span></div><div class="tooltip-row"><span class="tooltip-label">{spell_ability.upper()} modifier</span><span class="tooltip-value">{format_bonus(spell_mod)}</span></div></div>'
+    spell_dc_elem = get_element("spell-save-dc")
+    if spell_dc_elem:
+        spell_dc_elem.innerHTML = f'<span class="stat-value">{spell_save_dc}{spell_dc_tooltip}</span>'
+    
+    # Spell Attack tooltip
+    spell_attack_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Proficiency</span><span class="tooltip-value">{format_bonus(proficiency)}</span></div><div class="tooltip-row"><span class="tooltip-label">{spell_ability.upper()} modifier</span><span class="tooltip-value">{format_bonus(spell_mod)}</span></div></div>'
+    spell_attack_elem = get_element("spell-attack")
+    if spell_attack_elem:
+        spell_attack_elem.innerHTML = f'<span class="stat-value">{format_bonus(spell_attack)}{spell_attack_tooltip}</span>'
 
     # Calculate max prepared spells (class_name already lowercased above)
     if class_name == "cleric":
@@ -3441,7 +3722,7 @@ def collect_character_data() -> dict:
         "abilities": {},
         "skills": {},
         "combat": {
-            "armor_class": get_numeric_value("armor_class", 10),
+            "armor_class": calculate_armor_class(),
             "speed": get_numeric_value("speed", 30),
             "max_hp": get_numeric_value("max_hp", 8),
             "current_hp": get_numeric_value("current_hp", 8),
