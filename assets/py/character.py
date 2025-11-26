@@ -2455,7 +2455,12 @@ class InventoryManager:
                     body_html += f'<div class="inventory-item-field"><label>Range</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("range")))}</div></div>'
                 if extra_props.get("properties"):
                     body_html += f'<div class="inventory-item-field"><label>Properties/Contents</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("properties")))}</div></div>'
-                if extra_props.get("armor_class"):
+                
+                # For armor items, show editable AC field
+                if category == "Armor" and extra_props.get("armor_class"):
+                    ac_val = extra_props.get("armor_class", "")
+                    body_html += f'<div class="inventory-item-field"><label>AC</label><input type="number" data-item-armor-ac="{item_id}" value="{ac_val}" placeholder="Base AC" style="width: 100%;"></div>'
+                elif extra_props.get("armor_class"):
                     body_html += f'<div class="inventory-item-field"><label>AC</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("armor_class")))}</div></div>'
                 if extra_props.get("ac_string"):
                     body_html += f'<div class="inventory-item-field"><label>AC String</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("ac_string")))}</div></div>'
@@ -2471,7 +2476,9 @@ class InventoryManager:
                 # Add modifier fields for AC and Saves
                 ac_mod = extra_props.get("ac_modifier", "")
                 saves_mod = extra_props.get("saves_modifier", "")
+                armor_only = extra_props.get("armor_only", False)
                 body_html += f'<div class="inventory-item-field" style="display: flex; gap: 10px;"><div style="flex: 1;"><label>AC Modifier</label><input type="number" data-item-ac-mod="{item_id}" value="{ac_mod}" placeholder="0" style="width: 100%;"></div><div style="flex: 1;"><label>Saves Modifier</label><input type="number" data-item-saves-mod="{item_id}" value="{saves_mod}" placeholder="0" style="width: 100%;"></div></div>'
+                body_html += f'<div class="inventory-item-field"><label><input type="checkbox" data-item-armor-only="{item_id}" {"checked" if armor_only else ""} style="margin-right: 0.5rem;">Magic Armor/Shield Only (AC modifier affects AC only)</label></div>'
                 
                 body_html += f'<div class="inventory-item-field"><label>Quantity</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" style="width: 80px;"></div>'
                 
@@ -2580,6 +2587,22 @@ class InventoryManager:
             proxy = create_proxy(lambda event, iid=item_id: self._handle_modifier_change(event, iid, "saves_modifier"))
             saves_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
+        
+        # Armor-only checkbox changes
+        armor_only_checkboxes = get_element("inventory-list").querySelectorAll("[data-item-armor-only]")
+        for checkbox in armor_only_checkboxes:
+            item_id = checkbox.getAttribute("data-item-armor-only")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_armor_only_toggle(event, iid))
+            checkbox.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Armor AC value changes
+        armor_ac_inputs = get_element("inventory-list").querySelectorAll("[data-item-armor-ac]")
+        for ac_input in armor_ac_inputs:
+            item_id = ac_input.getAttribute("data-item-armor-ac")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_armor_ac_change(event, iid))
+            ac_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
     
     def _handle_item_toggle(self, event, item_id: str):
         """Toggle item details visibility."""
@@ -2596,6 +2619,7 @@ class InventoryManager:
         event.preventDefault()
         self.remove_item(item_id)
         self.render_inventory()
+        update_calculations()
         schedule_auto_export()
     
     def _handle_qty_change(self, event, item_id: str):
@@ -2679,6 +2703,82 @@ class InventoryManager:
             self.render_inventory()  # Update display
             
             # Update calculations (which will recalculate AC and stats)
+            update_calculations()
+            schedule_auto_export()
+    
+    def _handle_armor_only_toggle(self, event, item_id: str):
+        """Handle armor-only flag toggle for magic armor/shields."""
+        checkbox = event.target
+        is_armor_only = checkbox.checked
+        
+        # Update the item's notes field with the armor_only flag
+        item = self.get_item(item_id)
+        if item:
+            try:
+                # Parse existing notes to preserve other properties
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                else:
+                    extra_props = {}
+            except:
+                extra_props = {}
+            
+            # Update armor_only flag
+            if is_armor_only:
+                extra_props["armor_only"] = True
+                # When marking as armor-only, clear saves_modifier since it shouldn't apply
+                if "saves_modifier" in extra_props:
+                    del extra_props["saves_modifier"]
+            else:
+                if "armor_only" in extra_props:
+                    del extra_props["armor_only"]
+            
+            # Save back to notes
+            notes = json.dumps(extra_props) if extra_props else ""
+            self.update_item(item_id, {"notes": notes})
+            self.render_inventory()  # Update display
+            
+            # Update calculations (which will recalculate AC and stats)
+            update_calculations()
+            schedule_auto_export()
+    
+    def _handle_armor_ac_change(self, event, item_id: str):
+        """Handle armor AC base value changes."""
+        ac_input = event.target
+        ac_val_str = ac_input.value.strip()
+        
+        # Parse AC value
+        try:
+            ac_val = int(ac_val_str) if ac_val_str else None
+        except:
+            ac_val = None
+        
+        # Update the item's notes field with the armor_class value
+        item = self.get_item(item_id)
+        if item:
+            try:
+                # Parse existing notes to preserve other properties
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                else:
+                    extra_props = {}
+            except:
+                extra_props = {}
+            
+            # Update armor_class value
+            if ac_val is not None:
+                extra_props["armor_class"] = ac_val
+            elif "armor_class" in extra_props:
+                del extra_props["armor_class"]
+            
+            # Save back to notes
+            notes = json.dumps(extra_props) if extra_props else ""
+            self.update_item(item_id, {"notes": notes})
+            self.render_inventory()  # Update display
+            
+            # Update calculations (which will recalculate AC with new armor base)
             update_calculations()
             schedule_auto_export()
 
@@ -3178,6 +3278,22 @@ ARMOR_TYPES = {
     "heavy": ["plate", "chain mail", "splint", "splint armor"],
 }
 
+# D&D 5e standard armor AC values (from PHB)
+ARMOR_AC_VALUES = {
+    "leather": 11,
+    "studded leather": 12,
+    "studded": 12,
+    "hide": 12,
+    "chain shirt": 13,
+    "scale mail": 14,
+    "breastplate": 14,
+    "half plate": 15,
+    "plate": 18,
+    "chain mail": 16,
+    "splint": 17,
+    "splint armor": 17,
+}
+
 
 def get_armor_type(armor_name: str) -> str:
     """Determine armor type (light, medium, heavy) from armor name."""
@@ -3187,6 +3303,15 @@ def get_armor_type(armor_name: str) -> str:
             if name_pattern in name_lower:
                 return armor_type
     return "unknown"
+
+
+def get_armor_ac(armor_name: str) -> int:
+    """Get standard D&D 5e AC value for armor by name. Returns None if not standard armor."""
+    name_lower = armor_name.lower()
+    for armor_pattern, ac_value in ARMOR_AC_VALUES.items():
+        if armor_pattern in name_lower:
+            return ac_value
+    return None
 
 
 def generate_ac_tooltip() -> tuple[int, str]:
@@ -3246,7 +3371,7 @@ def generate_ac_tooltip() -> tuple[int, str]:
         rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div>')
         base_ac = 10 + dex_mod
     
-    # Add item modifiers
+    # Add item modifiers (skip armor-only items)
     item_ac_mod = 0
     item_mods = []
     for item in INVENTORY_MANAGER.items:
@@ -3254,6 +3379,9 @@ def generate_ac_tooltip() -> tuple[int, str]:
             notes_str = item.get("notes", "")
             if notes_str and notes_str.startswith("{"):
                 extra_props = json.loads(notes_str)
+                # Skip armor-only items - they affect AC differently in calculate_armor_class
+                if extra_props.get("armor_only", False):
+                    continue
                 ac_mod = extra_props.get("ac_modifier", 0)
                 if ac_mod:
                     ac_mod = int(ac_mod)
@@ -3382,6 +3510,8 @@ def calculate_armor_class() -> int:
         base_ac = 10 + dex_mod
     
     # Add AC modifiers from items
+    # armor-only items add to AC but not to saves (e.g. +1 breastplate)
+    # regular items add to both AC and saves (e.g. Ring of Protection)
     item_ac_mod = 0
     for item in INVENTORY_MANAGER.items:
         try:
@@ -5639,6 +5769,11 @@ def submit_custom_item(_event=None):
         extra_props["range"] = range_text
     if ac:
         extra_props["armor_class"] = ac
+    elif category == "Armor":
+        # Auto-detect standard D&D 5e armor AC values by name
+        detected_ac = get_armor_ac(name)
+        if detected_ac:
+            extra_props["armor_class"] = detected_ac
     if properties:
         extra_props["properties"] = properties
     if notes:
@@ -5684,6 +5819,11 @@ def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str 
         extra_props["ac_string"] = ac_string
     if armor_class:
         extra_props["armor_class"] = armor_class
+    else:
+        # Auto-detect standard D&D 5e armor AC values by name
+        detected_ac = get_armor_ac(name)
+        if detected_ac:
+            extra_props["armor_class"] = detected_ac
     
     # Store properties as JSON in notes field
     notes = json.dumps(extra_props) if extra_props else ""
