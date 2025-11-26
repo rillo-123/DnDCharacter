@@ -3171,10 +3171,34 @@ def compute_proficiency(level: int) -> int:
     return 2 + (level - 1) // 4
 
 
+# Armor type mapping - for AC calculations
+ARMOR_TYPES = {
+    "light": ["leather", "studded leather", "studded"],
+    "medium": ["hide", "chain shirt", "scale mail", "breastplate", "half plate"],
+    "heavy": ["plate", "chain mail", "splint", "splint armor"],
+}
+
+
+def get_armor_type(armor_name: str) -> str:
+    """Determine armor type (light, medium, heavy) from armor name."""
+    name_lower = armor_name.lower()
+    for armor_type, names in ARMOR_TYPES.items():
+        for name_pattern in names:
+            if name_pattern in name_lower:
+                return armor_type
+    return "unknown"
+
+
 def generate_ac_tooltip() -> tuple[int, str]:
     """
     Generate AC tooltip showing breakdown of components.
     Returns: (ac_value, tooltip_html)
+    
+    D&D 5e AC Rules:
+    - No armor: 10 + DEX modifier
+    - Light armor: AC + DEX modifier
+    - Medium armor: AC + DEX modifier (max +2)
+    - Heavy armor: AC (no DEX modifier)
     """
     dex_score = get_numeric_value("dex-score", 10)
     dex_mod = ability_modifier(dex_score)
@@ -3182,6 +3206,7 @@ def generate_ac_tooltip() -> tuple[int, str]:
     # Check for armor
     armor_ac = None
     armor_name = None
+    armor_type = None
     for item in INVENTORY_MANAGER.items:
         if item.get("category") == "Armor" and item.get("qty", 0) > 0:
             try:
@@ -3192,6 +3217,7 @@ def generate_ac_tooltip() -> tuple[int, str]:
                     if ac_val:
                         armor_ac = int(ac_val)
                         armor_name = item.get("name", "Unknown Armor")
+                        armor_type = get_armor_type(armor_name)
                         break
             except:
                 pass
@@ -3200,9 +3226,22 @@ def generate_ac_tooltip() -> tuple[int, str]:
     rows = []
     if armor_ac is not None:
         rows.append(f'<div class="tooltip-row"><span class="tooltip-label">{escape(armor_name)}</span><span class="tooltip-value">{armor_ac}</span></div>')
-        rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div>')
-        base_ac = armor_ac + dex_mod
+        
+        if armor_type == "heavy":
+            # Heavy armor: AC is fixed, no DEX modifier
+            rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">—</span><span style="font-size: 0.8rem; color: #94a3b8;">(heavy armor, no DEX)</span></div>')
+            base_ac = armor_ac
+        elif armor_type == "medium":
+            # Medium armor: AC + DEX (capped at +2)
+            dex_applied = min(dex_mod, 2)
+            rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_applied)}</span><span style="font-size: 0.8rem; color: #94a3b8;">(max +2)</span></div>')
+            base_ac = armor_ac + dex_applied
+        else:
+            # Light armor or unknown: AC + full DEX
+            rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div>')
+            base_ac = armor_ac + dex_mod
     else:
+        # No armor
         rows.append(f'<div class="tooltip-row"><span class="tooltip-label">Base AC</span><span class="tooltip-value">10</span></div>')
         rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div>')
         base_ac = 10 + dex_mod
@@ -3294,10 +3333,11 @@ def generate_skill_tooltip(skill_key: str, ability_scores: dict, proficiency: in
 def calculate_armor_class() -> int:
     """
     Calculate AC based on armor type, DEX modifier, and item modifiers.
-    AC calculation:
+    D&D 5e AC Rules:
     - 10 + DEX if no armor
-    - Armor AC + DEX (if light/medium) if wearing armor
-    - Armor AC (no DEX) if wearing heavy armor
+    - Light Armor: Armor AC + DEX modifier
+    - Medium Armor: Armor AC + DEX modifier (max +2)
+    - Heavy Armor: Armor AC (no DEX modifier)
     Plus any AC modifiers from equipped items
     """
     # Get DEX modifier
@@ -3307,6 +3347,7 @@ def calculate_armor_class() -> int:
     # Check for armor in inventory
     armor_ac = None
     armor_name = None
+    armor_type = None
     
     for item in INVENTORY_MANAGER.items:
         category = item.get("category", "")
@@ -3320,15 +3361,22 @@ def calculate_armor_class() -> int:
                     if ac_val:
                         armor_ac = int(ac_val)
                         armor_name = item.get("name", "Unknown Armor")
+                        armor_type = get_armor_type(armor_name)
                         break  # Use first armor found
             except:
                 pass
     
     # Calculate base AC
     if armor_ac is not None:
-        # Wearing armor - use armor's AC + DEX (simplified - assumes light/medium)
-        # TODO: In future, check armor type to determine if DEX applies
-        base_ac = armor_ac + dex_mod
+        if armor_type == "heavy":
+            # Heavy armor: AC is fixed, no DEX modifier
+            base_ac = armor_ac
+        elif armor_type == "medium":
+            # Medium armor: AC + DEX (max +2)
+            base_ac = armor_ac + min(dex_mod, 2)
+        else:
+            # Light armor or unknown: AC + DEX (no cap)
+            base_ac = armor_ac + dex_mod
     else:
         # No armor - use 10 + DEX
         base_ac = 10 + dex_mod
