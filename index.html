@@ -263,6 +263,7 @@
                     <div class="equipment-toolbar">
                         <div class="equipment-actions">
                             <button id="equipment-add-btn" type="button" py-click="add_equipment_item">Add Item</button>
+                            <button id="equipment-custom-btn" type="button" py-click="add_custom_item">Custom Item</button>
                             <button id="equipment-clear-btn" type="button" py-click="clear_equipment_list">Clear List</button>
                         </div>
                         <div class="equipment-totals">
@@ -270,21 +271,9 @@
                             <span>Total Cost: <strong id="equipment-total-cost">0</strong></span>
                         </div>
                     </div>
-                    <div class="equipment-table-wrapper">
-                        <table class="equipment-table">
-                            <thead>
-                                <tr>
-                                    <th>Item</th>
-                                    <th>Qty</th>
-                                    <th>Cost (ea)</th>
-                                    <th>Weight (ea)</th>
-                                    <th>Notes</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="equipment-table-body"></tbody>
-                        </table>
-                        <div class="equipment-empty" id="equipment-empty-state">No equipment yet. Click <strong>Add Item</strong> to start building your pack.</div>
+                    <div class="inventory-container">
+                        <ul id="inventory-list" class="inventory-list"></ul>
+                        <div class="inventory-empty" id="inventory-empty-state">No items yet. Click <strong>Add Item</strong> or <strong>Custom Item</strong> to build your inventory.</div>
                     </div>
                     <div class="currency-card">
                         <h3>Coin Pouch</h3>
@@ -819,6 +808,60 @@
         </div>
     </div>
 
+    <!-- Custom Item Modal -->
+    <div id="custom-item-modal" class="spell-cast-modal" style="display: none;">
+        <div class="spell-cast-modal-content">
+            <div class="spell-cast-modal-header">
+                <h3>Add Custom Item</h3>
+                <button id="custom-item-close" class="spell-cast-modal-close">&times;</button>
+            </div>
+            <div class="spell-cast-modal-body">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Item Name *</strong>
+                        <input id="custom-item-name" type="text" placeholder="e.g., Bedroll, Rope, Healing Potion" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </label>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Category</strong>
+                        <select id="custom-item-category" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                            <option value="">Other (auto-detect)</option>
+                            <option value="Armor">Armor</option>
+                            <option value="Weapons">Weapons</option>
+                            <option value="Ammunition">Ammunition</option>
+                            <option value="Adventuring Gear">Adventuring Gear</option>
+                            <option value="Tools">Tools</option>
+                            <option value="Mounts & Vehicles">Mounts & Vehicles</option>
+                            <option value="Potions">Potions</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Cost</strong>
+                            <input id="custom-item-cost" type="text" placeholder="e.g., 5 gp, 1 cp" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Weight</strong>
+                            <input id="custom-item-weight" type="text" placeholder="e.g., 2 lb, 0.5 lb" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                    </div>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Quantity</strong>
+                        <input id="custom-item-qty" type="number" min="1" value="1" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </label>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Notes</strong>
+                        <textarea id="custom-item-notes" placeholder="Optional notes" rows="3" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></textarea>
+                    </label>
+                </div>
+            </div>
+            <div class="spell-cast-modal-footer">
+                <button id="custom-item-add" class="spell-cast-modal-btn spell-cast-modal-btn-confirm">Add Item</button>
+                <button id="custom-item-cancel" class="spell-cast-modal-btn spell-cast-modal-btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <footer class="app-footer">
         <span>Built with <a href="https://pyscript.net" target="_blank" rel="noreferrer">PyScript</a>.</span>
         <span>Project source: <code>DnDCharacter</code></span>
@@ -829,6 +872,72 @@
         paths = ["./assets/py"]
     </py-config>
     <py-script src="assets/py/character.py"></py-script>
+
+    <!-- Modal event handlers -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Custom Item Modal handlers
+            const customItemModal = document.getElementById('custom-item-modal');
+            const customItemAddBtn = document.getElementById('custom-item-add');
+            const customItemCancelBtn = document.getElementById('custom-item-cancel');
+            const customItemCloseBtn = document.getElementById('custom-item-close');
+
+            if (customItemAddBtn && typeof submit_custom_item !== 'undefined') {
+                customItemAddBtn.addEventListener('click', () => {
+                    // Call Python function through PyScript
+                    try {
+                        PyScript.interpreter.interface.submit_custom_item();
+                    } catch (e) {
+                        console.error("Failed to call submit_custom_item:", e);
+                    }
+                });
+            }
+
+            if (customItemCancelBtn) {
+                customItemCancelBtn.addEventListener('click', () => {
+                    if (customItemModal) {
+                        customItemModal.style.display = 'none';
+                    }
+                });
+            }
+
+            if (customItemCloseBtn) {
+                customItemCloseBtn.addEventListener('click', () => {
+                    if (customItemModal) {
+                        customItemModal.style.display = 'none';
+                    }
+                });
+            }
+
+            // Equipment chooser modal close handlers
+            const equipmentChooserModal = document.getElementById('equipment-chooser-modal');
+            const equipmentCloseBtn = document.getElementById('equipment-chooser-close');
+            const equipmentSearchInput = document.getElementById('equipment-search');
+
+            if (equipmentCloseBtn) {
+                equipmentCloseBtn.addEventListener('click', () => {
+                    if (equipmentChooserModal) {
+                        equipmentChooserModal.style.display = 'none';
+                    }
+                });
+            }
+
+            if (equipmentSearchInput) {
+                let searchTimeout;
+                equipmentSearchInput.addEventListener('input', (e) => {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        try {
+                            PyScript.interpreter.interface.populate_equipment_results(e.target.value);
+                        } catch (ex) {
+                            console.error("Failed to populate equipment results:", ex);
+                        }
+                    }, 300);
+                });
+            }
+        });
+    </script>
+
     <script>
         // Fetch equipment from Open5e API and cache it
         async function fetchEquipmentFromOpen5e() {

@@ -2244,6 +2244,284 @@ class SpellcastingManager:
         schedule_auto_export()
 
 
+class InventoryManager:
+    """Manages character inventory with categories, sorting, and detailed item view."""
+    
+    # Common item categories for auto-detection
+    ARMOR_KEYWORDS = ["armor", "plate", "mail", "leather", "chain", "scale", "shield", "helmet", "breastplate"]
+    WEAPON_KEYWORDS = ["sword", "axe", "spear", "bow", "staff", "mace", "hammer", "dagger", "knife", "blade", "rapier", "wand"]
+    AMMO_KEYWORDS = ["arrow", "bolt", "ammo", "ammunition", "shot"]
+    TOOL_KEYWORDS = ["tool", "kit", "instrument", "lock pick", "thieves'", "healer's"]
+    POTION_KEYWORDS = ["potion", "elixir", "oil", "poison", "cure", "healing"]
+    GEAR_KEYWORDS = ["rope", "torch", "bedroll", "tent", "lantern", "backpack", "rope", "grappling hook", "caltrops", "chalk"]
+    MOUNT_KEYWORDS = ["horse", "mule", "donkey", "camel", "mount", "vehicle", "cart", "boat", "ship"]
+    
+    def __init__(self):
+        self.items: list[dict] = []
+    
+    def load_state(self, state: dict | None):
+        """Load inventory from character state."""
+        if not state:
+            self.items = []
+            return
+        equipment = state.get("equipment", [])
+        self.items = []
+        for item in equipment:
+            if isinstance(item, dict):
+                # Ensure all required fields exist
+                if "id" not in item:
+                    item["id"] = str(len(self.items))
+                if "category" not in item:
+                    item["category"] = self._infer_category(item.get("name", ""))
+                if "qty" not in item:
+                    item["qty"] = item.get("quantity", 1)
+                self.items.append(item)
+    
+    def _infer_category(self, name: str) -> str:
+        """Auto-detect item category from name."""
+        name_lower = name.lower()
+        if any(keyword in name_lower for keyword in self.ARMOR_KEYWORDS):
+            return "Armor"
+        elif any(keyword in name_lower for keyword in self.WEAPON_KEYWORDS):
+            return "Weapons"
+        elif any(keyword in name_lower for keyword in self.AMMO_KEYWORDS):
+            return "Ammunition"
+        elif any(keyword in name_lower for keyword in self.TOOL_KEYWORDS):
+            return "Tools"
+        elif any(keyword in name_lower for keyword in self.POTION_KEYWORDS):
+            return "Potions"
+        elif any(keyword in name_lower for keyword in self.GEAR_KEYWORDS):
+            return "Adventuring Gear"
+        elif any(keyword in name_lower for keyword in self.MOUNT_KEYWORDS):
+            return "Mounts & Vehicles"
+        return "Other"
+    
+    def add_item(self, name: str, cost: str = "", weight: str = "", qty: int = 1, 
+                 category: str = "", notes: str = "", source: str = "custom") -> str:
+        """Add an item to inventory and return its ID."""
+        item_id = str(len(self.items))
+        if not category:
+            category = self._infer_category(name)
+        
+        item = {
+            "id": item_id,
+            "name": name,
+            "cost": cost,
+            "weight": weight,
+            "qty": qty,
+            "category": category,
+            "notes": notes,
+            "source": source,
+        }
+        self.items.append(item)
+        return item_id
+    
+    def remove_item(self, item_id: str):
+        """Remove an item by ID."""
+        self.items = [item for item in self.items if item.get("id") != item_id]
+    
+    def update_item(self, item_id: str, updates: dict):
+        """Update item fields."""
+        for item in self.items:
+            if item.get("id") == item_id:
+                for key, value in updates.items():
+                    if key in ("name", "cost", "weight", "qty", "category", "notes"):
+                        item[key] = value
+                break
+    
+    def get_items_by_category(self) -> dict[str, list[dict]]:
+        """Group items by category, sorted within each category."""
+        grouped = {}
+        for item in self.items:
+            category = item.get("category", "Other")
+            if category not in grouped:
+                grouped[category] = []
+            grouped[category].append(item)
+        
+        # Sort items within each category alphabetically
+        for category in grouped:
+            grouped[category].sort(key=lambda x: x.get("name", "").lower())
+        
+        # Define category order
+        category_order = [
+            "Armor", "Weapons", "Ammunition", "Potions", "Tools", 
+            "Adventuring Gear", "Mounts & Vehicles", "Other"
+        ]
+        
+        # Return in defined order, putting unlisted categories at end
+        result = {}
+        for category in category_order:
+            if category in grouped:
+                result[category] = grouped[category]
+        for category in sorted(grouped.keys()):
+            if category not in result:
+                result[category] = grouped[category]
+        
+        return result
+    
+    def get_total_weight(self) -> float:
+        """Calculate total weight of items."""
+        total = 0.0
+        for item in self.items:
+            weight_str = item.get("weight", "").strip().lower()
+            qty = item.get("qty", 1)
+            if weight_str:
+                # Extract number from strings like "2 lb", "0.5 lb", "2lb"
+                import re
+                match = re.search(r'(\d+\.?\d*)', weight_str)
+                if match:
+                    try:
+                        total += float(match.group(1)) * qty
+                    except:
+                        pass
+        return total
+    
+    def render_inventory(self):
+        """Render inventory list with categories and expandable items."""
+        container = get_element("inventory-list")
+        if container is None:
+            return
+        
+        items_grouped = self.get_items_by_category()
+        sections_html = []
+        
+        if not self.items:
+            container.innerHTML = ""
+            empty_msg = get_element("inventory-empty-state")
+            if empty_msg:
+                empty_msg.style.display = "block"
+            return
+        
+        empty_msg = get_element("inventory-empty-state")
+        if empty_msg:
+            empty_msg.style.display = "none"
+        
+        # Build HTML for each category
+        for category, items in items_grouped.items():
+            category_html = f'<div class="inventory-category">'
+            category_html += f'<div class="inventory-category-header">{escape(category)}</div>'
+            
+            # Add items in this category
+            for item in items:
+                item_id = item.get("id", "")
+                name = item.get("name", "Unknown Item")
+                qty = item.get("qty", 1)
+                cost = item.get("cost", "")
+                weight = item.get("weight", "")
+                notes = item.get("notes", "")
+                
+                # Build cost/weight display
+                details_html = ""
+                if cost:
+                    details_html += f'<span class="inventory-item-cost"><strong>Cost:</strong> {escape(cost)}</span>'
+                if weight:
+                    details_html += f'<span class="inventory-item-weight"><strong>Weight:</strong> {escape(weight)}</span>'
+                
+                # Build body content
+                body_html = ''
+                if notes:
+                    body_html += f'<div class="inventory-item-field"><label>Notes</label><div style="color: #bfdbfe;">{escape(notes)}</div></div>'
+                body_html += f'<div class="inventory-item-field"><label>Quantity</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" style="width: 80px;"></div>'
+                body_html += f'<div class="inventory-item-field"><label>Category</label><select data-item-category="{item_id}" style="width: 100%;"><option value="Armor">Armor</option><option value="Weapons">Weapons</option><option value="Ammunition">Ammunition</option><option value="Tools">Tools</option><option value="Potions">Potions</option><option value="Adventuring Gear">Adventuring Gear</option><option value="Mounts & Vehicles">Mounts & Vehicles</option><option value="Other">Other</option></select></div>'
+                
+                category_html += f'''<li class="inventory-item" data-item-id="{escape(item_id)}">
+                    <div class="inventory-item-summary" data-toggle-item="{escape(item_id)}">
+                        <div class="inventory-item-main">
+                            <span class="inventory-item-name">{escape(name)}</span>
+                            <span class="inventory-item-qty">×{qty}</span>
+                        </div>
+                        <div class="inventory-item-details">
+                            {details_html}
+                        </div>
+                        <div class="inventory-item-actions">
+                            <button class="inventory-item-remove" data-remove-item="{escape(item_id)}" type="button">Remove</button>
+                        </div>
+                    </div>
+                    <div class="inventory-item-body" data-item-body="{escape(item_id)}">
+                        {body_html}
+                    </div>
+                </li>'''
+            
+            category_html += '</div>'
+            sections_html.append(category_html)
+        
+        container.innerHTML = "".join(sections_html)
+        
+        # Register event handlers
+        self._register_item_handlers()
+        
+        # Update totals
+        update_inventory_totals()
+    
+    def _register_item_handlers(self):
+        """Register click handlers for inventory items."""
+        # Toggle expand/collapse
+        toggles = get_element("inventory-list").querySelectorAll("[data-toggle-item]")
+        for toggle in toggles:
+            item_id = toggle.getAttribute("data-toggle-item")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_item_toggle(event, iid))
+            toggle.addEventListener("click", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Remove buttons
+        removes = get_element("inventory-list").querySelectorAll("[data-remove-item]")
+        for remove_btn in removes:
+            item_id = remove_btn.getAttribute("data-remove-item")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_item_remove(event, iid))
+            remove_btn.addEventListener("click", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Qty changes
+        qty_inputs = get_element("inventory-list").querySelectorAll("[data-item-qty]")
+        for qty_input in qty_inputs:
+            item_id = qty_input.getAttribute("data-item-qty")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_qty_change(event, iid))
+            qty_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Category changes
+        cat_selects = get_element("inventory-list").querySelectorAll("[data-item-category]")
+        for cat_select in cat_selects:
+            item_id = cat_select.getAttribute("data-item-category")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_category_change(event, iid))
+            cat_select.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+    
+    def _handle_item_toggle(self, event, item_id: str):
+        """Toggle item details visibility."""
+        body = get_element(f"[data-item-body='{item_id}']")
+        if body:
+            if body.classList.contains("open"):
+                body.classList.remove("open")
+            else:
+                body.classList.add("open")
+    
+    def _handle_item_remove(self, event, item_id: str):
+        """Remove an item."""
+        event.stopPropagation()
+        event.preventDefault()
+        self.remove_item(item_id)
+        self.render_inventory()
+        schedule_auto_export()
+    
+    def _handle_qty_change(self, event, item_id: str):
+        """Handle quantity changes."""
+        qty_input = event.target
+        qty = parse_int(qty_input.value, 1)
+        self.update_item(item_id, {"qty": qty})
+        self.render_inventory()
+        schedule_auto_export()
+    
+    def _handle_category_change(self, event, item_id: str):
+        """Handle category changes."""
+        cat_select = event.target
+        category = cat_select.value or "Other"
+        self.update_item(item_id, {"category": category})
+        self.render_inventory()
+        schedule_auto_export()
+
+
+INVENTORY_MANAGER = InventoryManager()
 SPELLCASTING_MANAGER = SpellcastingManager()
 
 
@@ -2302,6 +2580,17 @@ def adjust_pact_slot(delta: int):
 def reset_spell_slots(_event=None):
     SPELLCASTING_MANAGER.reset_spell_slots()
     reset_channel_divinity()
+
+
+def load_inventory_state(state: dict | None):
+    """Load inventory from character state."""
+    INVENTORY_MANAGER.load_state(state)
+
+
+def render_inventory():
+    """Render the inventory list."""
+    INVENTORY_MANAGER.render_inventory()
+
 
 MAX_RESOURCES = 12
 MAX_INVENTORY_ITEMS = 50
@@ -3076,8 +3365,8 @@ def collect_character_data() -> dict:
             "notes": get_text_value("notes"),
         },
         "inventory": {
-            # items collected from the equipment table DOM
-            "items": [],
+            # items collected from the inventory manager
+            "items": INVENTORY_MANAGER.items,
             "currency": {key: get_numeric_value(f"currency-{key}", 0) for key in CURRENCY_ORDER},
         },
         "spells": {
@@ -3101,29 +3390,6 @@ def collect_character_data() -> dict:
             "expertise": get_checkbox(f"{skill}-exp"),
             "bonus": total,
         }
-
-    # collect equipment items from the table
-    items = []
-    tbody = get_element("equipment-table-body")
-    if tbody is not None:
-        rows = tbody.querySelectorAll("tr[data-item-id]")
-        for row in rows:
-            item_id = row.getAttribute("data-item-id")
-            name_el = row.querySelector("input[data-item-field='name']")
-            qty_el = row.querySelector("input[data-item-field='qty']")
-            cost_el = row.querySelector("input[data-item-field='cost']")
-            weight_el = row.querySelector("input[data-item-field='weight']")
-            notes_el = row.querySelector("input[data-item-field='notes']")
-            item = {
-                "id": item_id,
-                "name": name_el.value if name_el is not None else "",
-                "qty": parse_int(qty_el.value if qty_el is not None else 0, 0),
-                "cost": parse_float(cost_el.value if cost_el is not None else 0.0, 0.0),
-                "weight": parse_float(weight_el.value if weight_el is not None else 0.0, 0.0),
-                "notes": notes_el.value if notes_el is not None else "",
-            }
-            items.append(item)
-    data["inventory"]["items"] = items
 
     data["spellcasting"] = SPELLCASTING_MANAGER.export_state()
 
@@ -3208,6 +3474,10 @@ def populate_form(data: dict):
 
         load_spellcasting_state(normalized.get("spellcasting"))
         update_calculations()
+
+        # Load inventory
+        load_inventory_state(normalized)
+        render_inventory()
 
         # populate currency and equipment
         inv = normalized.get("inventory", {})
@@ -4576,63 +4846,39 @@ def add_equipment_item(_event=None):
         populate_equipment_results("")
 
 
+def add_custom_item(_event=None):
+    """Show the custom item modal"""
+    modal = get_element("custom-item-modal")
+    if modal:
+        modal.style.display = "flex"
+        # Focus on name field
+        name_input = get_element("custom-item-name")
+        if name_input:
+            name_input.value = ""
+            name_input.focus()
+
+
 def clear_equipment_list(_event=None):
-    """Clear all equipment from the list"""
-    # Get current items from DOM to check if list is empty
-    existing = get_equipment_items_from_dom()
-    if len(existing) == 0:
+    """Clear all equipment from the inventory"""
+    if len(INVENTORY_MANAGER.items) == 0:
         return
-    
-    # Render with empty list
-    render_equipment_table([])
-    
-    # Update totals
-    update_equipment_totals()
-    
-    # Schedule export
+    INVENTORY_MANAGER.items = []
+    INVENTORY_MANAGER.render_inventory()
     schedule_auto_export()
+
+
+def update_inventory_totals():
+    """Update total weight and cost displays"""
+    total_weight = INVENTORY_MANAGER.get_total_weight()
+    weight_el = get_element("equipment-total-weight")
+    if weight_el:
+        weight_el.textContent = f"{total_weight:.1f} lb"
+    # TODO: Add cost calculation if needed
 
 
 def get_equipment_items_from_dom() -> list:
-    tbody = get_element("equipment-table-body")
-    result = []
-    if tbody is None:
-        return result
-    rows = tbody.querySelectorAll("tr[data-item-id]")
-    for row in rows:
-        item_id = row.getAttribute("data-item-id")
-        name_el = row.querySelector("input[data-item-field='name']")
-        qty_el = row.querySelector("input[data-item-field='qty']")
-        cost_el = row.querySelector("input[data-item-field='cost']")
-        weight_el = row.querySelector("input[data-item-field='weight']")
-        notes_el = row.querySelector("input[data-item-field='notes']")
-        item = {
-            "id": item_id,
-            "name": name_el.value if name_el is not None else "",
-            "qty": parse_int(qty_el.value if qty_el is not None else 0, 0),
-            "cost": parse_float(cost_el.value if cost_el is not None else 0.0, 0.0),
-            "weight": parse_float(weight_el.value if weight_el is not None else 0.0, 0.0),
-            "notes": notes_el.value if notes_el is not None else "",
-        }
-        result.append(item)
-    return result
-
-
-def handle_equipment_input(event, item_id=None):
-    # any change to equipment updates totals
-    update_equipment_totals()
-    schedule_auto_export()
-
-
-def remove_equipment_item(item_id: str):
-    tbody = get_element("equipment-table-body")
-    if tbody is None:
-        return
-    row = tbody.querySelector(f"tr[data-item-id='{item_id}']")
-    if row is not None:
-        tbody.removeChild(row)
-    update_equipment_totals()
-    schedule_auto_export()
+    """Legacy function - now returns from INVENTORY_MANAGER"""
+    return INVENTORY_MANAGER.items
 
 
 def fetch_equipment_from_open5e():
@@ -4840,6 +5086,53 @@ def update_equipment_totals():
         total_cost += q * c
     set_text("equipment-total-weight", format_weight(total_weight))
     set_text("equipment-total-cost", format_money(total_cost))
+
+
+def submit_custom_item(_event=None):
+    """Handle custom item form submission"""
+    name_input = get_element("custom-item-name")
+    category_select = get_element("custom-item-category")
+    cost_input = get_element("custom-item-cost")
+    weight_input = get_element("custom-item-weight")
+    qty_input = get_element("custom-item-qty")
+    notes_textarea = get_element("custom-item-notes")
+    
+    name = name_input.value.strip() if name_input else ""
+    if not name:
+        console.warn("PySheet: Item name is required")
+        return
+    
+    category = category_select.value if category_select else ""
+    cost = cost_input.value.strip() if cost_input else ""
+    weight = weight_input.value.strip() if weight_input else ""
+    qty = parse_int(qty_input.value if qty_input else 1, 1)
+    notes = notes_textarea.value.strip() if notes_textarea else ""
+    
+    # Add to inventory
+    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=qty, category=category, notes=notes, source="custom")
+    
+    # Render inventory
+    INVENTORY_MANAGER.render_inventory()
+    
+    # Close modal
+    modal = get_element("custom-item-modal")
+    if modal:
+        modal.style.display = "none"
+    
+    schedule_auto_export()
+
+
+def submit_open5e_item(name: str, cost: str = "", weight: str = ""):
+    """Add an Open5e item to inventory"""
+    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category="", notes="", source="open5e")
+    INVENTORY_MANAGER.render_inventory()
+    
+    # Close modal
+    modal = get_element("equipment-chooser-modal")
+    if modal:
+        modal.style.display = "none"
+    
+    schedule_auto_export()
 
 
 # Class Features & Feats functions
