@@ -825,13 +825,14 @@
                         <strong>Category</strong>
                         <select id="custom-item-category" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
                             <option value="">Other (auto-detect)</option>
-                            <option value="Armor">Armor</option>
+                            <option value="Magic Items">Magic Items</option>
                             <option value="Weapons">Weapons</option>
+                            <option value="Armor">Armor</option>
                             <option value="Ammunition">Ammunition</option>
-                            <option value="Adventuring Gear">Adventuring Gear</option>
-                            <option value="Tools">Tools</option>
-                            <option value="Mounts & Vehicles">Mounts & Vehicles</option>
                             <option value="Potions">Potions</option>
+                            <option value="Tools">Tools</option>
+                            <option value="Adventuring Gear">Adventuring Gear</option>
+                            <option value="Mounts & Vehicles">Mounts & Vehicles</option>
                             <option value="Other">Other</option>
                         </select>
                     </label>
@@ -849,9 +850,33 @@
                         <strong>Quantity</strong>
                         <input id="custom-item-qty" type="number" min="1" value="1" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
                     </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Damage (optional)</strong>
+                            <input id="custom-item-damage" type="text" placeholder="e.g., 1d8, 2d6" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Damage Type (optional)</strong>
+                            <input id="custom-item-damage-type" type="text" placeholder="e.g., piercing, slashing" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Range (optional)</strong>
+                            <input id="custom-item-range" type="text" placeholder="e.g., 30/120 ft, melee" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>AC (Armor)</strong>
+                            <input id="custom-item-ac" type="text" placeholder="e.g., 13, 10+Dex" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                    </div>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Properties (optional)</strong>
+                        <input id="custom-item-properties" type="text" placeholder="e.g., ammunition, two-handed, finesse" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </label>
                     <label style="display: flex; flex-direction: column; gap: 4px;">
                         <strong>Notes</strong>
-                        <textarea id="custom-item-notes" placeholder="Optional notes" rows="3" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></textarea>
+                        <textarea id="custom-item-notes" placeholder="Optional notes (useful for Roll20/other source details)" rows="3" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></textarea>
                     </label>
                 </div>
             </div>
@@ -883,14 +908,22 @@
             const customItemCloseBtn = document.getElementById('custom-item-close');
 
             if (customItemAddBtn && typeof submit_custom_item !== 'undefined') {
-                customItemAddBtn.addEventListener('click', () => {
-                    // Call Python function through PyScript
-                    try {
-                        PyScript.interpreter.interface.submit_custom_item();
-                    } catch (e) {
-                        console.error("Failed to call submit_custom_item:", e);
+                // Wait for PyScript to be ready before setting up handler
+                function setupCustomItemBtn() {
+                    if (typeof PyScript !== 'undefined' && PyScript.interpreter && PyScript.interpreter.interface) {
+                        customItemAddBtn.addEventListener('click', () => {
+                            try {
+                                PyScript.interpreter.interface.submit_custom_item();
+                            } catch (e) {
+                                console.error("Failed to call submit_custom_item:", e);
+                            }
+                        });
+                    } else {
+                        // PyScript not ready yet, retry in 100ms
+                        setTimeout(setupCustomItemBtn, 100);
                     }
-                });
+                }
+                setupCustomItemBtn();
             }
 
             if (customItemCancelBtn) {
@@ -924,24 +957,33 @@
 
             if (equipmentSearchInput) {
                 let searchTimeout;
-                equipmentSearchInput.addEventListener('input', (e) => {
-                    clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(() => {
-                        try {
-                            PyScript.interpreter.interface.populate_equipment_results(e.target.value);
-                        } catch (ex) {
-                            console.error("Failed to populate equipment results:", ex);
-                        }
-                    }, 300);
-                });
+                // Wait for PyScript to be ready before setting up handler
+                function setupEquipmentSearch() {
+                    if (typeof PyScript !== 'undefined' && PyScript.interpreter && PyScript.interpreter.interface) {
+                        equipmentSearchInput.addEventListener('input', (e) => {
+                            clearTimeout(searchTimeout);
+                            searchTimeout = setTimeout(() => {
+                                try {
+                                    PyScript.interpreter.interface.populate_equipment_results(e.target.value);
+                                } catch (ex) {
+                                    console.error("Failed to populate equipment results:", ex);
+                                }
+                            }, 300);
+                        });
+                    } else {
+                        // PyScript not ready yet, retry in 100ms
+                        setTimeout(setupEquipmentSearch, 100);
+                    }
+                }
+                setupEquipmentSearch();
             }
         });
     </script>
 
     <script>
-        // Fetch equipment from Open5e API and cache it
+        // Fetch equipment from Open5e API and Roll20 and cache it
         async function fetchEquipmentFromOpen5e() {
-            const cacheKey = "dnd_equipment_cache_v1";
+            const cacheKey = "dnd_equipment_cache_v6";  // Bumped version to force cache rebuild with contents extraction
             
             // Check if we have cached data
             try {
@@ -949,10 +991,7 @@
                 if (cached) {
                     console.log("Using cached equipment data");
                     const equipmentList = JSON.parse(cached);
-                    // Update the Python state
-                    if (window.pyscript && window.pyscript.EQUIPMENT_LIBRARY_STATE) {
-                        window.pyscript.EQUIPMENT_LIBRARY_STATE.equipment = equipmentList;
-                    }
+                    console.log(`Cache contains ${equipmentList.length} items`);
                     return;
                 }
             } catch (e) {
@@ -961,55 +1000,244 @@
             
             // Fetch from Open5e
             try {
-                console.log("Fetching equipment from Open5e API...");
+                console.log("Fetching equipment from multiple D&D APIs...");
                 const equipmentList = [];
+                const seenNames = new Set();
                 
-                // Fetch weapons
-                const weaponsResponse = await fetch("https://api.open5e.com/weapons/");
-                if (weaponsResponse.ok) {
-                    const weaponsData = await weaponsResponse.json();
-                    if (weaponsData.results) {
-                        for (const item of weaponsData.results) {
-                            equipmentList.push({
-                                name: item.name || "Unknown",
-                                cost: item.cost || "Unknown",
-                                weight: item.weight || "Unknown"
-                            });
+                // First try D&D 5e API - most comprehensive
+                try {
+                    console.log("Trying D&D 5e API...");
+                    const dnd5eResponse = await fetch("https://www.dnd5eapi.co/api/equipment");
+                    if (dnd5eResponse.ok) {
+                        const dnd5eData = await dnd5eResponse.json();
+                        if (dnd5eData.results && Array.isArray(dnd5eData.results)) {
+                            console.log(`D&D 5e API returned ${dnd5eData.results.length} items`);
+                            // D&D 5e API returns list of items with URLs, we need to fetch details for each
+                            for (const itemRef of dnd5eData.results.slice(0, 100)) {  // Limit to first 100 to avoid too many requests
+                                try {
+                                    const detailUrl = `https://www.dnd5eapi.co${itemRef.url}`;
+                                    const detailResponse = await fetch(detailUrl);
+                                    if (detailResponse.ok) {
+                                        const item = await detailResponse.json();
+                                        const name = item.name || itemRef.name || "Unknown";
+                                        if (!seenNames.has(name)) {
+                                            seenNames.add(name);
+                                            const costStr = item.cost ? `${item.cost.quantity} ${item.cost.unit}` : "Unknown";
+                                            const weightVal = item.weight || 0;
+                                            
+                                            // Extract properties/description - check multiple fields
+                                            let props = "";
+                                            if (item.contents && Array.isArray(item.contents)) {
+                                                // For equipment packs, list the contents
+                                                props = item.contents.map(c => `${c.item.name}${c.quantity > 1 ? ` (${c.quantity})` : ""}`).join(", ");
+                                            } else if (item.properties && Array.isArray(item.properties) && item.properties.length > 0) {
+                                                props = item.properties.join(", ");
+                                            } else if (item.desc && Array.isArray(item.desc) && item.desc.length > 0) {
+                                                props = item.desc.join(" ");
+                                            } else if (typeof item.desc === "string") {
+                                                props = item.desc;
+                                            }
+                                            
+                                            // Debug first few items
+                                            if (seenNames.size <= 5) {
+                                                console.log(`D&D 5e item: ${name}`, item);
+                                            }
+                                            
+                                            equipmentList.push({
+                                                name: name,
+                                                cost: costStr,
+                                                weight: weightVal > 0 ? `${weightVal} lb.` : "0 lb.",
+                                                properties: props,
+                                                source: "dnd5eapi"
+                                            });
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.log(`Failed to fetch details for ${itemRef.name}:`, e.message);
+                                }
+                            }
                         }
+                        console.log(`D&D 5e API: Got ${equipmentList.length} items after recursion`);
+                    }
+                } catch (e) {
+                    console.log("D&D 5e API unavailable:", e.message);
+                }
+                
+                // Try Open5e as secondary source
+                try {
+                    if (equipmentList.length < 50) {
+                        console.log("Trying Open5e API for weapons...");
+                        const weaponsResponse = await fetch("https://api.open5e.com/weapons/");
+                        if (weaponsResponse.ok) {
+                            const weaponsData = await weaponsResponse.json();
+                            if (weaponsData.results) {
+                                for (const item of weaponsData.results) {
+                                    const name = item.name || "Unknown";
+                                    if (!seenNames.has(name)) {
+                                        seenNames.add(name);
+                                        equipmentList.push({
+                                            name: name,
+                                            cost: item.cost || "Unknown",
+                                            weight: item.weight || "Unknown",
+                                            damage: item.damage || "",
+                                            damage_type: item.damage_type || "",
+                                            range: item.range || "",
+                                            properties: item.properties || "",
+                                            ac: item.ac || "",
+                                            armor_class: item.armor_class || "",
+                                            source: "open5e"
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        
+                        console.log("Trying Open5e API for armor...");
+                        const armorResponse = await fetch("https://api.open5e.com/armor/");
+                        if (armorResponse.ok) {
+                            const armorData = await armorResponse.json();
+                            if (armorData.results) {
+                                for (const item of armorData.results) {
+                                    const name = item.name || "Unknown";
+                                    if (!seenNames.has(name)) {
+                                        seenNames.add(name);
+                                        equipmentList.push({
+                                            name: name,
+                                            cost: item.cost || "Unknown",
+                                            weight: item.weight || "Unknown",
+                                            damage: item.damage || "",
+                                            damage_type: item.damage_type || "",
+                                            range: item.range || "",
+                                            properties: item.properties || "",
+                                            ac: item.ac || "",
+                                            armor_class: item.armor_class || "",
+                                            source: "open5e"
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        console.log(`Open5e API: Now have ${equipmentList.length} items`);
+                    }
+                } catch (e) {
+                    console.log("Open5e API issue:", e.message);
+                }
+                
+                // Try Roll20 API (if available - they have a public compendium)
+                // Note: Roll20 doesn't expose a public API, so this is commented out for now
+                /*
+                try {
+                    console.log("Also checking Roll20 data...");
+                    // Roll20 has equipment data at their API endpoint
+                    const roll20Response = await fetch("https://app.roll20.net/compendium/", {
+                        headers: { "Accept": "application/json" }
+                    });
+                    if (roll20Response.ok) {
+                        const roll20Data = await roll20Response.json();
+                        // Roll20 data structure may vary - try to extract equipment
+                        if (roll20Data && Array.isArray(roll20Data)) {
+                            for (const item of roll20Data.slice(0, 100)) {
+                                const name = item.name || item.title || "Unknown";
+                                if (name && !seenNames.has(name) && 
+                                    (item.type === "equipment" || item.type === "weapon" || item.type === "armor")) {
+                                    seenNames.add(name);
+                                    equipmentList.push({
+                                        name: name,
+                                        cost: item.cost || item.price || "Unknown",
+                                        weight: item.weight || item.wt || "Unknown",
+                                        damage: item.damage || item.dmg1 || "",
+                                        damage_type: item.damage_type || item.dmgtype || "",
+                                        range: item.range || item.range_type || "",
+                                        properties: item.properties || "",
+                                        ac: item.ac || "",
+                                        armor_class: item.armor_class || "",
+                                        source: "roll20"
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log("Roll20 fetch not available:", e.message);
+                }
+                */
+                
+                
+                const commonItems = [
+                    // Starter Packs
+                    { name: "Explorer's Pack", cost: "10 gp", weight: "59 lb.", source: "phb" },
+                    { name: "Adventurer's Pack", cost: "5 gp", weight: "54 lb.", source: "phb" },
+                    { name: "Burglar's Pack", cost: "16 gp", weight: "44 lb.", source: "phb" },
+                    { name: "Diplomat's Pack", cost: "39 gp", weight: "46 lb.", source: "phb" },
+                    { name: "Dungeoneer's Pack", cost: "12 gp", weight: "61 lb.", source: "phb" },
+                    { name: "Entertainer's Pack", cost: "40 gp", weight: "38 lb.", source: "phb" },
+                    { name: "Priest's Pack", cost: "19 gp", weight: "24 lb.", source: "phb" },
+                    { name: "Scholar's Pack", cost: "40 gp", weight: "10 lb.", source: "phb" },
+                    
+                    // Adventuring Gear
+                    { name: "Rope (50 feet)", cost: "1 gp", weight: "10 lb.", source: "phb" },
+                    { name: "Torch", cost: "0.01 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Lantern (Bullseye)", cost: "12 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Lantern (Hooded)", cost: "5 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Backpack", cost: "2 gp", weight: "5 lb.", source: "phb" },
+                    { name: "Bedroll", cost: "0.1 gp", weight: "10 lb.", source: "phb" },
+                    { name: "Tent", cost: "2 gp", weight: "20 lb.", source: "phb" },
+                    { name: "Grappling Hook", cost: "2 gp", weight: "4 lb.", source: "phb" },
+                    { name: "Caltrops (20)", cost: "1 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Chalk (1 piece)", cost: "0.01 gp", weight: "0.01 lb.", source: "phb" },
+                    { name: "Waterskin", cost: "0.5 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Hempen Rope (50 feet)", cost: "1 gp", weight: "10 lb.", source: "phb" },
+                    { name: "Silk Rope (50 feet)", cost: "10 gp", weight: "5 lb.", source: "phb" },
+                    { name: "Crowbar", cost: "2 gp", weight: "5 lb.", source: "phb" },
+                    { name: "Hammer", cost: "1 gp", weight: "3 lb.", source: "phb" },
+                    { name: "Piton", cost: "0.05 gp", weight: "0.25 lb.", source: "phb" },
+                    { name: "Tinderbox", cost: "0.5 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Candle", cost: "0.01 gp", weight: "0.1 lb.", source: "phb" },
+                    { name: "Mess Kit", cost: "0.2 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Rope (50 feet, silk)", cost: "10 gp", weight: "5 lb.", source: "phb" },
+                    { name: "Component Pouch", cost: "25 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Spellcasting Focus", cost: "5-15 gp", weight: "varies", source: "phb" },
+                    { name: "Holy Water (Flask)", cost: "25 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Mirror (steel)", cost: "5 gp", weight: "0.5 lb.", source: "phb" },
+                    
+                    // Magical Items (common)
+                    { name: "Ring of Protection +1", cost: "varies", weight: "0 lb.", source: "phb" },
+                    { name: "Amulet of Health", cost: "varies", weight: "0 lb.", source: "phb" },
+                    { name: "Cloak of Protection", cost: "varies", weight: "1 lb.", source: "phb" },
+                    { name: "Wand of Magic Missiles", cost: "varies", weight: "1 lb.", source: "phb" },
+                    { name: "Staff of Fire", cost: "varies", weight: "4 lb.", source: "phb" },
+                ];
+                
+                for (const item of commonItems) {
+                    if (!seenNames.has(item.name)) {
+                        seenNames.add(item.name);
+                        equipmentList.push(item);
                     }
                 }
                 
-                // Fetch armor
-                const armorResponse = await fetch("https://api.open5e.com/armor/");
-                if (armorResponse.ok) {
-                    const armorData = await armorResponse.json();
-                    if (armorData.results) {
-                        for (const item of armorData.results) {
-                            equipmentList.push({
-                                name: item.name || "Unknown",
-                                cost: item.cost || "Unknown",
-                                weight: item.weight || "Unknown"
-                            });
-                        }
-                    }
-                }
-                
-                console.log(`Fetched ${equipmentList.length} items from Open5e`);
+                console.log(`Fetched ${equipmentList.length} items total (Open5e + common)`);
+                console.log(`Common items added. Cache will have: ${equipmentList.length} items`);
                 
                 // Cache the results
                 try {
                     localStorage.setItem(cacheKey, JSON.stringify(equipmentList));
-                    console.log(`Cached ${equipmentList.length} items from Open5e`);
+                    console.log(`Cached ${equipmentList.length} equipment items to localStorage`);
                 } catch (e) {
                     console.warn("Cache write failed:", e);
                 }
                 
                 // Update Python state if PyScript is ready
-                if (window.pyscript && window.pyscript.EQUIPMENT_LIBRARY_STATE) {
-                    window.pyscript.EQUIPMENT_LIBRARY_STATE.equipment = equipmentList;
+                // Note: The Python fetch_equipment_from_open5e will read from localStorage,
+                // so we don't strictly need to update it here
+                try {
+                    if (window.PyScript && window.PyScript.interpreter && window.PyScript.interpreter.interface) {
+                        window.PyScript.interpreter.interface.EQUIPMENT_LIBRARY_STATE = { equipment: equipmentList };
+                    }
+                } catch (e) {
+                    console.log("Could not update Python state:", e.message);
                 }
             } catch (error) {
-                console.error("Failed to fetch equipment from Open5e:", error);
+                console.error("Failed to fetch equipment:", error);
             }
         }
         

@@ -286,6 +286,7 @@ EQUIPMENT_LIBRARY_STATE = {
 }
 
 _EVENT_PROXIES: list = []
+_EQUIPMENT_RESULT_PROXY = None  # Track the current equipment results listener to remove it
 
 
 AUTO_EXPORT_DELAY_MS = 2000
@@ -2253,8 +2254,12 @@ class InventoryManager:
     AMMO_KEYWORDS = ["arrow", "bolt", "ammo", "ammunition", "shot"]
     TOOL_KEYWORDS = ["tool", "kit", "instrument", "lock pick", "thieves'", "healer's"]
     POTION_KEYWORDS = ["potion", "elixir", "oil", "poison", "cure", "healing"]
-    GEAR_KEYWORDS = ["rope", "torch", "bedroll", "tent", "lantern", "backpack", "rope", "grappling hook", "caltrops", "chalk"]
+    GEAR_KEYWORDS = ["rope", "torch", "bedroll", "tent", "lantern", "backpack", "grappling hook", "caltrops", "chalk", "pack", "explorer", "adventurer", "burglar", "diplomat", "dungeoneer", "entertainer", "priest", "scholar"]
     MOUNT_KEYWORDS = ["horse", "mule", "donkey", "camel", "mount", "vehicle", "cart", "boat", "ship"]
+    MAGIC_KEYWORDS = ["+1", "+2", "+3", "magical", "magic", "enchanted", "ring of", "cloak of", "amulet of", "wand of", "staff of", "artifact", "relic"]
+    
+    # Category ordering for display
+    CATEGORY_ORDER = ["Magic Items", "Weapons", "Armor", "Ammunition", "Potions", "Tools", "Adventuring Gear", "Mounts & Vehicles", "Other"]
     
     def __init__(self):
         self.items: list[dict] = []
@@ -2264,9 +2269,17 @@ class InventoryManager:
         if not state:
             self.items = []
             return
-        equipment = state.get("equipment", [])
+        
+        # Try to get items from inventory.items (new format)
+        inventory = state.get("inventory", {})
+        items_list = inventory.get("items", [])
+        
+        # Fallback to equipment for backward compatibility
+        if not items_list:
+            items_list = state.get("equipment", [])
+        
         self.items = []
-        for item in equipment:
+        for item in items_list:
             if isinstance(item, dict):
                 # Ensure all required fields exist
                 if "id" not in item:
@@ -2280,7 +2293,10 @@ class InventoryManager:
     def _infer_category(self, name: str) -> str:
         """Auto-detect item category from name."""
         name_lower = name.lower()
-        if any(keyword in name_lower for keyword in self.ARMOR_KEYWORDS):
+        # Check for magic items first (they might contain weapon/armor keywords too)
+        if any(keyword in name_lower for keyword in self.MAGIC_KEYWORDS):
+            return "Magic Items"
+        elif any(keyword in name_lower for keyword in self.ARMOR_KEYWORDS):
             return "Armor"
         elif any(keyword in name_lower for keyword in self.WEAPON_KEYWORDS):
             return "Weapons"
@@ -2342,15 +2358,9 @@ class InventoryManager:
         for category in grouped:
             grouped[category].sort(key=lambda x: x.get("name", "").lower())
         
-        # Define category order
-        category_order = [
-            "Armor", "Weapons", "Ammunition", "Potions", "Tools", 
-            "Adventuring Gear", "Mounts & Vehicles", "Other"
-        ]
-        
         # Return in defined order, putting unlisted categories at end
         result = {}
-        for category in category_order:
+        for category in self.CATEGORY_ORDER:
             if category in grouped:
                 result[category] = grouped[category]
         for category in sorted(grouped.keys()):
@@ -2410,19 +2420,67 @@ class InventoryManager:
                 weight = item.get("weight", "")
                 notes = item.get("notes", "")
                 
+                # Parse extra properties from notes JSON if present
+                extra_props = {}
+                try:
+                    if notes and notes.startswith("{"):
+                        extra_props = json.loads(notes)
+                        notes = ""  # Clear notes since we're using it for storage
+                except:
+                    pass
+                
                 # Build cost/weight display
                 details_html = ""
                 if cost:
-                    details_html += f'<span class="inventory-item-cost"><strong>Cost:</strong> {escape(cost)}</span>'
+                    details_html += f'<span class="inventory-item-cost"><strong>Cost:</strong> {escape(str(cost))}</span>'
                 if weight:
-                    details_html += f'<span class="inventory-item-weight"><strong>Weight:</strong> {escape(weight)}</span>'
+                    details_html += f'<span class="inventory-item-weight"><strong>Weight:</strong> {escape(str(weight))}</span>'
                 
-                # Build body content
+                # Build body content with expandable properties
                 body_html = ''
+                
+                # Show weapon/armor properties if available
+                if extra_props.get("damage"):
+                    body_html += f'<div class="inventory-item-field"><label>Damage</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("damage")))}</div></div>'
+                if extra_props.get("damage_type"):
+                    body_html += f'<div class="inventory-item-field"><label>Damage Type</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("damage_type")))}</div></div>'
+                if extra_props.get("range"):
+                    body_html += f'<div class="inventory-item-field"><label>Range</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("range")))}</div></div>'
+                if extra_props.get("properties"):
+                    body_html += f'<div class="inventory-item-field"><label>Properties/Contents</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("properties")))}</div></div>'
+                if extra_props.get("armor_class"):
+                    body_html += f'<div class="inventory-item-field"><label>AC</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("armor_class")))}</div></div>'
+                if extra_props.get("ac_string"):
+                    body_html += f'<div class="inventory-item-field"><label>AC String</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("ac_string")))}</div></div>'
+                
+                # Show notes if present (after we cleared it for prop parsing)
                 if notes:
                     body_html += f'<div class="inventory-item-field"><label>Notes</label><div style="color: #bfdbfe;">{escape(notes)}</div></div>'
+                
+                # Add editable custom properties field for things like "+1 AC and saves"
+                custom_props = extra_props.get("custom_properties", "")
+                body_html += f'<div class="inventory-item-field"><label>Item Effects/Properties</label><input type="text" data-item-custom-props="{item_id}" value="{escape(str(custom_props))}" placeholder="e.g., +1 AC and saves" style="width: 100%;"></div>'
+                
                 body_html += f'<div class="inventory-item-field"><label>Quantity</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" style="width: 80px;"></div>'
-                body_html += f'<div class="inventory-item-field"><label>Category</label><select data-item-category="{item_id}" style="width: 100%;"><option value="Armor">Armor</option><option value="Weapons">Weapons</option><option value="Ammunition">Ammunition</option><option value="Tools">Tools</option><option value="Potions">Potions</option><option value="Adventuring Gear">Adventuring Gear</option><option value="Mounts & Vehicles">Mounts & Vehicles</option><option value="Other">Other</option></select></div>'
+                
+                # Build category dropdown with current category selected
+                category_options = [
+                    ("Magic Items", "Magic Items"),
+                    ("Weapons", "Weapons"),
+                    ("Armor", "Armor"),
+                    ("Ammunition", "Ammunition"),
+                    ("Potions", "Potions"),
+                    ("Tools", "Tools"),
+                    ("Adventuring Gear", "Adventuring Gear"),
+                    ("Mounts & Vehicles", "Mounts & Vehicles"),
+                    ("Other", "Other")
+                ]
+                category_select_html = f'<select data-item-category="{item_id}" style="width: 100%;">'
+                for cat_value, cat_label in category_options:
+                    selected = "selected" if cat_value == item.get("category", "Other") else ""
+                    category_select_html += f'<option value="{cat_value}" {selected}>{cat_label}</option>'
+                category_select_html += '</select>'
+                body_html += f'<div class="inventory-item-field"><label>Category</label>{category_select_html}</div>'
                 
                 category_html += f'''<li class="inventory-item" data-item-id="{escape(item_id)}">
                     <div class="inventory-item-summary" data-toggle-item="{escape(item_id)}">
@@ -2486,10 +2544,18 @@ class InventoryManager:
             proxy = create_proxy(lambda event, iid=item_id: self._handle_category_change(event, iid))
             cat_select.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
+        
+        # Custom properties changes
+        custom_props_inputs = get_element("inventory-list").querySelectorAll("[data-item-custom-props]")
+        for props_input in custom_props_inputs:
+            item_id = props_input.getAttribute("data-item-custom-props")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_custom_props_change(event, iid))
+            props_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
     
     def _handle_item_toggle(self, event, item_id: str):
         """Toggle item details visibility."""
-        body = get_element(f"[data-item-body='{item_id}']")
+        body = document.querySelector(f"[data-item-body='{item_id}']")
         if body:
             if body.classList.contains("open"):
                 body.classList.remove("open")
@@ -2519,6 +2585,33 @@ class InventoryManager:
         self.update_item(item_id, {"category": category})
         self.render_inventory()
         schedule_auto_export()
+    
+    def _handle_custom_props_change(self, event, item_id: str):
+        """Handle custom properties/effects changes."""
+        props_input = event.target
+        custom_props = props_input.value.strip()
+        
+        # Update the item's notes field with the custom properties
+        item = self.get_item(item_id)
+        if item:
+            try:
+                # Parse existing notes to preserve other properties
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                else:
+                    extra_props = {}
+            except:
+                extra_props = {}
+            
+            # Update custom properties
+            extra_props["custom_properties"] = custom_props
+            
+            # Save back to notes
+            notes = json.dumps(extra_props) if extra_props else ""
+            self.update_item(item_id, {"notes": notes})
+            self.render_inventory()
+            schedule_auto_export()
 
 
 INVENTORY_MANAGER = InventoryManager()
@@ -3473,21 +3566,24 @@ def populate_form(data: dict):
             set_form_value(element_id, spells.get(key, ""))
 
         load_spellcasting_state(normalized.get("spellcasting"))
-        update_calculations()
 
-        # Load inventory
+        # Load inventory BEFORE update_calculations so totals can be calculated correctly
         load_inventory_state(normalized)
         render_inventory()
 
-        # populate currency and equipment
+        # NOW update calculations (which calls update_equipment_totals)
+        update_calculations()
+
+        # populate currency
         inv = normalized.get("inventory", {})
         currency = inv.get("currency", {})
         for key in CURRENCY_ORDER:
             set_form_value(f"currency-{key}", currency.get(key, 0))
 
-        items = get_equipment_items_from_data(normalized)
-        render_equipment_table(items)
-        update_equipment_totals()
+        # NOTE: Old equipment table code removed - using new InventoryManager system instead
+        # items = get_equipment_items_from_data(normalized)
+        # render_equipment_table(items)
+        # update_equipment_totals()
     finally:
         _AUTO_EXPORT_SUPPRESS = previous_suppression
 
@@ -4823,12 +4919,29 @@ def get_equipment_items_from_data(data: dict) -> list:
     # ensure shape
     sanitized = []
     for it in items:
+        # Parse cost and weight - they might be strings like "5 gp" or "8 lb"
+        cost_val = it.get("cost", 0.0)
+        if isinstance(cost_val, str):
+            # Extract numeric value from strings like "5 gp"
+            match = re.search(r'(\d+(?:\.\d+)?)', cost_val.lower())
+            cost_val = float(match.group(1)) if match else 0.0
+        else:
+            cost_val = float(cost_val) if cost_val else 0.0
+        
+        weight_val = it.get("weight", 0.0)
+        if isinstance(weight_val, str):
+            # Extract numeric value from strings like "8 lb"
+            match = re.search(r'(\d+(?:\.\d+)?)', weight_val.lower())
+            weight_val = float(match.group(1)) if match else 0.0
+        else:
+            weight_val = float(weight_val) if weight_val else 0.0
+        
         sanitized.append({
             "id": it.get("id") or generate_id("item"),
             "name": it.get("name", ""),
-            "qty": int(it.get("qty", 0)),
-            "cost": float(it.get("cost", 0.0)),
-            "weight": float(it.get("weight", 0.0)),
+            "qty": int(it.get("qty", 1)),
+            "cost": cost_val,
+            "weight": weight_val,
             "notes": it.get("notes", ""),
         })
     return sanitized
@@ -4888,18 +5001,22 @@ def fetch_equipment_from_open5e():
     
     # Check localStorage cache first
     try:
-        cache_key = "dnd_equipment_cache_v1"
+        cache_key = "dnd_equipment_cache_v6"
         cached = window.localStorage.getItem(cache_key)
         if cached:
             cache_data = json.loads(cached)
+            console.log(f"PySheet: Loaded {len(cache_data)} items from cache")
             EQUIPMENT_LIBRARY_STATE["equipment"] = cache_data
             return
-    except:
-        pass
+        else:
+            console.log("PySheet: No cache found in localStorage")
+    except Exception as e:
+        console.log(f"PySheet: Cache load error: {str(e)}")
     
     # If no cache, we'll fetch async but return immediately with empty state
     # The real fetching happens in JavaScript via fetch() in a background thread
     if not EQUIPMENT_LIBRARY_STATE.get("equipment"):
+        console.log("PySheet: Using fallback equipment list")
         # Return minimal fallback for now - will be replaced when JS fetches
         EQUIPMENT_LIBRARY_STATE["equipment"] = [
             {"name": "Shortsword", "cost": "10 gp", "weight": "2 lb."},
@@ -4913,6 +5030,7 @@ def populate_equipment_results(search_term: str = ""):
     """Populate equipment search results from Open5e"""
     results_div = get_element("equipment-results")
     if not results_div:
+        console.error("PySheet: equipment-results element not found")
         return
     
     # Ensure we have equipment data
@@ -4922,14 +5040,24 @@ def populate_equipment_results(search_term: str = ""):
     filtered = []
     seen_names = set()
     
+    equipment_list = EQUIPMENT_LIBRARY_STATE.get("equipment", [])
+    console.log(f"PySheet: populate_equipment_results - equipment count: {len(equipment_list)}")
+    
+    # Debug: show first few items
+    if equipment_list:
+        console.log(f"PySheet: first item: {equipment_list[0]}")
+        console.log(f"PySheet: search term: '{search_term}'")
+    
     # Filter from EQUIPMENT_LIBRARY_STATE and deduplicate by name
-    for item in EQUIPMENT_LIBRARY_STATE.get("equipment", []):
+    for item in equipment_list:
         name = item.get("name", "")
         if search_term == "" or search_term in name.lower():
             # Only add if we haven't seen this exact name before
             if name not in seen_names:
                 filtered.append(item)
                 seen_names.add(name)
+    
+    console.log(f"PySheet: filtered results: {len(filtered)}")
     
     # Limit to 20 results
     filtered = filtered[:20]
@@ -4953,6 +5081,12 @@ def populate_equipment_results(search_term: str = ""):
         name = item.get("name", "Unknown")
         cost = item.get("cost", "Unknown")
         weight = item.get("weight", "Unknown")
+        damage = item.get("damage", "")
+        damage_type = item.get("damage_type", "")
+        range_text = item.get("range", "")
+        properties = item.get("properties", "")
+        ac_string = item.get("ac", "")
+        armor_class = item.get("armor_class", "")
         
         # Create card
         card = document.createElement("div")
@@ -4960,6 +5094,13 @@ def populate_equipment_results(search_term: str = ""):
         card.setAttribute("data-name", name)
         card.setAttribute("data-cost", cost)
         card.setAttribute("data-weight", weight)
+        card.setAttribute("data-damage", damage)
+        card.setAttribute("data-damage-type", damage_type)
+        card.setAttribute("data-range", range_text)
+        card.setAttribute("data-properties", properties)
+        card.setAttribute("data-ac-string", ac_string)
+        card.setAttribute("data-armor-class", armor_class)
+        card.style.cursor = "pointer"
         
         # Item name
         nameEl = document.createElement("div")
@@ -4967,22 +5108,31 @@ def populate_equipment_results(search_term: str = ""):
         nameEl.textContent = name
         card.appendChild(nameEl)
         
-        # Details (cost + weight)
+        # Details (cost + weight + damage if present)
         detailsEl = document.createElement("div")
         detailsEl.className = "equipment-result-details"
-        detailsEl.innerHTML = f"<span>{cost}</span><span>{weight}</span>"
+        details_text = [cost, weight]
+        if damage:
+            details_text.append(damage)
+        detailsEl.innerHTML = "".join(f"<span>{d}</span>" for d in details_text)
         card.appendChild(detailsEl)
         
         container.appendChild(card)
     
     results_div.appendChild(container)
     
-    # Add event listener to results container (event delegation)
-    results_div.addEventListener("click", create_proxy(lambda e: _handle_equipment_click(e)))
+    # Remove old listener if it exists
+    global _EQUIPMENT_RESULT_PROXY
+    if _EQUIPMENT_RESULT_PROXY:
+        results_div.removeEventListener("click", _EQUIPMENT_RESULT_PROXY)
+    
+    # Add single new listener
+    _EQUIPMENT_RESULT_PROXY = create_proxy(_handle_equipment_click)
+    results_div.addEventListener("click", _EQUIPMENT_RESULT_PROXY)
 
 
 def _handle_equipment_click(event):
-    """Handle clicks on equipment result items - add directly without modal"""
+    """Handle clicks on equipment result items - add directly to inventory"""
     target = event.target
     # Walk up the DOM to find the result item div
     while target and not target.getAttribute("data-name"):
@@ -4992,9 +5142,15 @@ def _handle_equipment_click(event):
         name = target.getAttribute("data-name")
         cost = target.getAttribute("data-cost")
         weight = target.getAttribute("data-weight")
+        damage = target.getAttribute("data-damage") or ""
+        damage_type = target.getAttribute("data-damage-type") or ""
+        range_text = target.getAttribute("data-range") or ""
+        properties = target.getAttribute("data-properties") or ""
+        ac_string = target.getAttribute("data-ac-string") or ""
+        armor_class = target.getAttribute("data-armor-class") or ""
         console.log(f"Equipment clicked: {name}")
-        # Add directly without showing details modal
-        select_equipment_item(name, cost, weight)
+        # Add directly to inventory with all properties
+        submit_open5e_item(name, cost, weight, damage, damage_type, range_text, properties, ac_string, armor_class)
 
 
 def show_equipment_details(name: str, cost: str, weight: str):
@@ -5075,15 +5231,39 @@ def select_equipment_item(name: str, cost: str, weight: str):
 
 
 def update_equipment_totals():
-    items = get_equipment_items_from_dom()
-    total_weight = 0.0
-    total_cost = 0.0
-    for it in items:
-        q = float(it.get("qty", 0))
-        w = float(it.get("weight", 0.0))
-        c = float(it.get("cost", 0.0))
-        total_weight += q * w
-        total_cost += q * c
+    """Update total weight and cost from equipment table (legacy) or inventory"""
+    # Try to get items from the new inventory system first
+    if hasattr(INVENTORY_MANAGER, 'items') and INVENTORY_MANAGER.items:
+        total_weight = INVENTORY_MANAGER.get_total_weight()
+        total_cost = 0.0
+        for item in INVENTORY_MANAGER.items:
+            # Parse cost - could be "5 gp" or just "5"
+            cost_str = str(item.get("cost", "0")).lower()
+            cost_match = re.search(r'(\d+(?:\.\d+)?)', cost_str)
+            cost = float(cost_match.group(1)) if cost_match else 0.0
+            qty = float(item.get("qty", 1))
+            total_cost += cost * qty
+    else:
+        # Fallback to old equipment table
+        items = get_equipment_items_from_dom()
+        total_weight = 0.0
+        total_cost = 0.0
+        for it in items:
+            try:
+                q = float(it.get("qty", 0))
+                # Parse weight - could be "8 lb" or just "8"
+                w_str = str(it.get("weight", "0")).lower()
+                w_match = re.search(r'(\d+(?:\.\d+)?)', w_str)
+                w = float(w_match.group(1)) if w_match else 0.0
+                # Parse cost - could be "5 gp" or just "5"
+                c_str = str(it.get("cost", "0")).lower()
+                c_match = re.search(r'(\d+(?:\.\d+)?)', c_str)
+                c = float(c_match.group(1)) if c_match else 0.0
+                total_weight += q * w
+                total_cost += q * c
+            except (ValueError, TypeError):
+                continue
+    
     set_text("equipment-total-weight", format_weight(total_weight))
     set_text("equipment-total-cost", format_money(total_cost))
 
@@ -5096,35 +5276,90 @@ def submit_custom_item(_event=None):
     weight_input = get_element("custom-item-weight")
     qty_input = get_element("custom-item-qty")
     notes_textarea = get_element("custom-item-notes")
+    damage_input = get_element("custom-item-damage")
+    damage_type_input = get_element("custom-item-damage-type")
+    range_input = get_element("custom-item-range")
+    ac_input = get_element("custom-item-ac")
+    properties_input = get_element("custom-item-properties")
     
     name = name_input.value.strip() if name_input else ""
     if not name:
         console.warn("PySheet: Item name is required")
         return
     
+    console.log(f"PySheet: Adding custom item: {name}")
+    
     category = category_select.value if category_select else ""
     cost = cost_input.value.strip() if cost_input else ""
     weight = weight_input.value.strip() if weight_input else ""
     qty = parse_int(qty_input.value if qty_input else 1, 1)
+    damage = damage_input.value.strip() if damage_input else ""
+    damage_type = damage_type_input.value.strip() if damage_type_input else ""
+    range_text = range_input.value.strip() if range_input else ""
+    ac = ac_input.value.strip() if ac_input else ""
+    properties = properties_input.value.strip() if properties_input else ""
     notes = notes_textarea.value.strip() if notes_textarea else ""
     
+    # Build extra properties dict
+    extra_props = {}
+    if damage:
+        extra_props["damage"] = damage
+    if damage_type:
+        extra_props["damage_type"] = damage_type
+    if range_text:
+        extra_props["range"] = range_text
+    if ac:
+        extra_props["armor_class"] = ac
+    if properties:
+        extra_props["properties"] = properties
+    if notes:
+        extra_props["notes"] = notes
+    
+    # Store as JSON in notes field
+    final_notes = json.dumps(extra_props) if extra_props else ""
+    
     # Add to inventory
-    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=qty, category=category, notes=notes, source="custom")
+    console.log(f"PySheet: Adding to inventory manager: name={name}, qty={qty}, category={category}")
+    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=qty, category=category, notes=final_notes, source="custom")
+    
+    console.log(f"PySheet: Total items in inventory: {len(INVENTORY_MANAGER.items)}")
     
     # Render inventory
     INVENTORY_MANAGER.render_inventory()
+    console.log("PySheet: Inventory rendered")
     
     # Close modal
     modal = get_element("custom-item-modal")
     if modal:
         modal.style.display = "none"
+        console.log("PySheet: Modal closed")
     
     schedule_auto_export()
+    console.log("PySheet: Export scheduled")
 
 
-def submit_open5e_item(name: str, cost: str = "", weight: str = ""):
-    """Add an Open5e item to inventory"""
-    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category="", notes="", source="open5e")
+def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str = "", damage_type: str = "", 
+                       range_text: str = "", properties: str = "", ac_string: str = "", armor_class: str = ""):
+    """Add an Open5e item to inventory with all properties"""
+    # Build a properties dict to store extra info as JSON in notes
+    extra_props = {}
+    if damage:
+        extra_props["damage"] = damage
+    if damage_type:
+        extra_props["damage_type"] = damage_type
+    if range_text:
+        extra_props["range"] = range_text
+    if properties:
+        extra_props["properties"] = properties
+    if ac_string:
+        extra_props["ac_string"] = ac_string
+    if armor_class:
+        extra_props["armor_class"] = armor_class
+    
+    # Store properties as JSON in notes field
+    notes = json.dumps(extra_props) if extra_props else ""
+    
+    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category="", notes=notes, source="open5e")
     INVENTORY_MANAGER.render_inventory()
     
     # Close modal
@@ -5582,7 +5817,7 @@ async def export_character(_event=None, *, auto: bool = False):
         payload,
         proposed_filename,
         auto=auto,
-        allow_prompt=not auto,
+        allow_prompt=not _AUTO_EXPORT_SETUP_PROMPTED,  # Prompt only once, on first attempt (auto or manual)
     )
     if persistent_used:
         fade_indicator()
@@ -5591,18 +5826,21 @@ async def export_character(_event=None, *, auto: bool = False):
     if auto:
         if not _supports_persistent_auto_export():
             if not _AUTO_EXPORT_SUPPORT_WARNED:
-                console.warn("PySheet: browser does not support persistent auto-export; automatic downloads disabled")
+                console.warn("PySheet: browser does not support persistent auto-export; using fallback downloads")
                 _AUTO_EXPORT_SUPPORT_WARNED = True
-            _AUTO_EXPORT_DISABLED = True
-            _AUTO_EXPORT_SETUP_PROMPTED = False
+            # Continue to fallback download below (don't return)
+        elif not (_AUTO_EXPORT_DIRECTORY_HANDLE or _AUTO_EXPORT_FILE_HANDLE):
+            # Persistent export not yet set up, but that's OK - just skip this export and try again next time
+            # Don't disable auto-export - user may set it up manually later
+            console.log("PySheet: auto-export not yet configured; will try again on next change")
             fade_indicator()
             return
-        # Persistent export not yet set up, but that's OK - just skip this export and try again next time
-        # Don't disable auto-export - user may set it up manually later
-        console.log("PySheet: auto-export not yet configured; will try again on next change")
-        fade_indicator()
-        return
+        else:
+            # Persistent export is set up, we already tried it above
+            fade_indicator()
+            return
 
+    # Fallback: download via browser if persistent export didn't work or if manual export
     blob = Blob.new([payload], {"type": "application/json"})
     url = URL.createObjectURL(blob)
     link = document.createElement("a")
