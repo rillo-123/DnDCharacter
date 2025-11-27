@@ -2567,16 +2567,20 @@ class InventoryManager:
                 if notes:
                     body_html += f'<div class="inventory-item-field"><label>Notes</label><div style="color: #bfdbfe;">{escape(notes)}</div></div>'
                 
-                # Add editable custom properties field for things like "+1 AC and saves"
+                # Get modifier fields
                 custom_props = extra_props.get("custom_properties", "")
-                body_html += f'<div class="inventory-item-field"><label>Item Effects/Properties</label><input type="text" data-item-custom-props="{item_id}" value="{escape(str(custom_props))}" placeholder="e.g., +1 AC and saves" style="width: 100%;"></div>'
-                
-                # Add modifier fields for AC and Saves
                 ac_mod = extra_props.get("ac_modifier", "")
                 saves_mod = extra_props.get("saves_modifier", "")
                 armor_only = extra_props.get("armor_only", False)
-                body_html += f'<div class="inventory-item-field" style="display: flex; gap: 10px;"><div style="flex: 1;"><label>AC Modifier</label><input type="number" data-item-ac-mod="{item_id}" value="{ac_mod}" placeholder="0" style="width: 100%;"></div><div style="flex: 1;"><label>Saves Modifier</label><input type="number" data-item-saves-mod="{item_id}" value="{saves_mod}" placeholder="0" style="width: 100%;"></div></div>'
-                body_html += f'<div class="inventory-item-field"><label><input type="checkbox" data-item-armor-only="{item_id}" {"checked" if armor_only else ""} style="margin-right: 0.5rem;">Magic Armor/Shield Only (AC modifier affects AC only)</label></div>'
+                
+                # Only show modifier fields if there are values, OR if this is armor (might need modifiers)
+                if custom_props or ac_mod or saves_mod or category == "Armor":
+                    # Add editable custom properties field for things like "+1 AC and saves"
+                    body_html += f'<div class="inventory-item-field"><label>Item Effects/Properties</label><input type="text" data-item-custom-props="{item_id}" value="{escape(str(custom_props))}" placeholder="e.g., +1 AC and saves" style="width: 100%;"></div>'
+                    
+                    # Add modifier fields for AC and Saves
+                    body_html += f'<div class="inventory-item-field" style="display: flex; gap: 10px;"><div style="flex: 1;"><label>AC Modifier</label><input type="number" data-item-ac-mod="{item_id}" value="{ac_mod}" placeholder="0" style="width: 100%;"></div><div style="flex: 1;"><label>Saves Modifier</label><input type="number" data-item-saves-mod="{item_id}" value="{saves_mod}" placeholder="0" style="width: 100%;"></div></div>'
+                    body_html += f'<div class="inventory-item-field"><label><input type="checkbox" data-item-armor-only="{item_id}" {"checked" if armor_only else ""} style="margin-right: 0.5rem;">Magic Armor/Shield Only (AC modifier affects AC only)</label></div>'
                 
                 body_html += f'<div class="inventory-item-field"><label>Quantity</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" style="width: 80px;"></div>'
                 
@@ -5707,12 +5711,19 @@ def populate_equipment_results(search_term: str = ""):
         card.setAttribute("data-name", name)
         card.setAttribute("data-cost", cost)
         card.setAttribute("data-weight", weight)
-        card.setAttribute("data-damage", damage)
-        card.setAttribute("data-damage-type", damage_type)
-        card.setAttribute("data-range", range_text)
-        card.setAttribute("data-properties", properties)
-        card.setAttribute("data-ac-string", ac_string)
-        card.setAttribute("data-armor-class", armor_class)
+        # Only set optional attributes if they have values
+        if damage:
+            card.setAttribute("data-damage", damage)
+        if damage_type:
+            card.setAttribute("data-damage-type", damage_type)
+        if range_text:
+            card.setAttribute("data-range", range_text)
+        if properties:
+            card.setAttribute("data-properties", properties)
+        if ac_string:
+            card.setAttribute("data-ac-string", ac_string)
+        if armor_class:
+            card.setAttribute("data-armor-class", armor_class)
         card.style.cursor = "pointer"
         
         # Item name
@@ -5753,8 +5764,9 @@ def _handle_equipment_click(event):
     
     if target and target.getAttribute("data-name"):
         name = target.getAttribute("data-name")
-        cost = target.getAttribute("data-cost")
-        weight = target.getAttribute("data-weight")
+        cost = target.getAttribute("data-cost") or ""
+        weight = target.getAttribute("data-weight") or ""
+        # Only include optional fields if they exist
         damage = target.getAttribute("data-damage") or ""
         damage_type = target.getAttribute("data-damage-type") or ""
         range_text = target.getAttribute("data-range") or ""
@@ -5762,7 +5774,7 @@ def _handle_equipment_click(event):
         ac_string = target.getAttribute("data-ac-string") or ""
         armor_class = target.getAttribute("data-armor-class") or ""
         console.log(f"Equipment clicked: {name}")
-        # Add directly to inventory with all properties
+        # Add directly to inventory with only non-empty properties
         submit_open5e_item(name, cost, weight, damage, damage_type, range_text, properties, ac_string, armor_class)
 
 
