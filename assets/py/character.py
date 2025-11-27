@@ -5460,29 +5460,82 @@ def fetch_equipment_from_open5e():
     
     # Check localStorage cache first
     try:
-        cache_key = "dnd_equipment_cache_v6"
+        cache_key = "dnd_equipment_cache_v7"
         cached = window.localStorage.getItem(cache_key)
         if cached:
             cache_data = json.loads(cached)
             console.log(f"PySheet: Loaded {len(cache_data)} items from cache")
-            EQUIPMENT_LIBRARY_STATE["equipment"] = cache_data
-            return
+            # Only use cache if it has a reasonable number of items (more than just common items)
+            if len(cache_data) > 20:
+                EQUIPMENT_LIBRARY_STATE["equipment"] = cache_data
+                return
+            else:
+                console.log(f"PySheet: Cache too small ({len(cache_data)} items), using fallback")
         else:
             console.log("PySheet: No cache found in localStorage")
     except Exception as e:
         console.log(f"PySheet: Cache load error: {str(e)}")
     
-    # If no cache, we'll fetch async but return immediately with empty state
-    # The real fetching happens in JavaScript via fetch() in a background thread
-    if not EQUIPMENT_LIBRARY_STATE.get("equipment"):
-        console.log("PySheet: Using fallback equipment list")
-        # Return minimal fallback for now - will be replaced when JS fetches
-        EQUIPMENT_LIBRARY_STATE["equipment"] = [
-            {"name": "Shortsword", "cost": "10 gp", "weight": "2 lb."},
-            {"name": "Longsword", "cost": "15 gp", "weight": "3 lb."},
-            {"name": "Dagger", "cost": "2 gp", "weight": "1 lb."},
-            {"name": "Mace", "cost": "5 gp", "weight": "4 lb."},
-        ]
+    # Use comprehensive fallback of common D&D 5e items
+    console.log("PySheet: Using comprehensive fallback equipment list")
+    EQUIPMENT_LIBRARY_STATE["equipment"] = [
+        # Melee Weapons
+        {"name": "Mace", "cost": "5 gp", "weight": "4 lb.", "damage": "1d6", "damage_type": "bludgeoning"},
+        {"name": "Longsword", "cost": "15 gp", "weight": "3 lb.", "damage": "1d8", "damage_type": "slashing"},
+        {"name": "Shortsword", "cost": "10 gp", "weight": "2 lb.", "damage": "1d6", "damage_type": "piercing"},
+        {"name": "Rapier", "cost": "25 gp", "weight": "2 lb.", "damage": "1d8", "damage_type": "piercing"},
+        {"name": "Dagger", "cost": "2 gp", "weight": "1 lb.", "damage": "1d4", "damage_type": "piercing"},
+        {"name": "Greataxe", "cost": "30 gp", "weight": "7 lb.", "damage": "1d12", "damage_type": "slashing"},
+        {"name": "Greatsword", "cost": "50 gp", "weight": "6 lb.", "damage": "2d6", "damage_type": "slashing"},
+        {"name": "Warhammer", "cost": "15 gp", "weight": "2 lb.", "damage": "1d8", "damage_type": "bludgeoning"},
+        {"name": "Morningstar", "cost": "15 gp", "weight": "4 lb.", "damage": "1d8", "damage_type": "piercing"},
+        {"name": "Pike", "cost": "5 gp", "weight": "18 lb.", "damage": "1d10", "damage_type": "piercing"},
+        {"name": "Spear", "cost": "1 gp", "weight": "3 lb.", "damage": "1d6", "damage_type": "piercing"},
+        {"name": "Club", "cost": "0.1 gp", "weight": "2 lb.", "damage": "1d4", "damage_type": "bludgeoning"},
+        {"name": "Quarterstaff", "cost": "0.2 gp", "weight": "4 lb.", "damage": "1d6", "damage_type": "bludgeoning"},
+        {"name": "Falchion", "cost": "20 gp", "weight": "4 lb.", "damage": "1d8", "damage_type": "slashing"},
+        
+        # Ranged Weapons
+        {"name": "Longbow", "cost": "50 gp", "weight": "3 lb.", "damage": "1d8", "damage_type": "piercing", "range": "150/600"},
+        {"name": "Shortbow", "cost": "25 gp", "weight": "2 lb.", "damage": "1d6", "damage_type": "piercing", "range": "80/320"},
+        {"name": "Crossbow, light", "cost": "25 gp", "weight": "5 lb.", "damage": "1d8", "damage_type": "piercing", "range": "80/320"},
+        {"name": "Crossbow, heavy", "cost": "50 gp", "weight": "18 lb.", "damage": "1d10", "damage_type": "piercing", "range": "100/400"},
+        {"name": "Sling", "cost": "0.1 gp", "weight": "0 lb.", "damage": "1d4", "damage_type": "bludgeoning", "range": "30/120"},
+        
+        # Armor
+        {"name": "Leather", "cost": "5 gp", "weight": "10 lb.", "armor_class": 11},
+        {"name": "Studded Leather", "cost": "45 gp", "weight": "13 lb.", "armor_class": 12},
+        {"name": "Hide", "cost": "10 gp", "weight": "12 lb.", "armor_class": 12},
+        {"name": "Chain Shirt", "cost": "50 gp", "weight": "20 lb.", "armor_class": 13},
+        {"name": "Scale Mail", "cost": "50 gp", "weight": "45 lb.", "armor_class": 14},
+        {"name": "Breastplate", "cost": "400 gp", "weight": "20 lb.", "armor_class": 14},
+        {"name": "Half Plate", "cost": "750 gp", "weight": "40 lb.", "armor_class": 15},
+        {"name": "Ring Mail", "cost": "30 gp", "weight": "40 lb.", "armor_class": 14},
+        {"name": "Chain Mail", "cost": "75 gp", "weight": "55 lb.", "armor_class": 16},
+        {"name": "Splint", "cost": "200 gp", "weight": "60 lb.", "armor_class": 17},
+        {"name": "Plate", "cost": "1500 gp", "weight": "65 lb.", "armor_class": 18},
+        
+        # Common Gear
+        {"name": "Rope (50 feet)", "cost": "1 gp", "weight": "10 lb."},
+        {"name": "Torch", "cost": "0.01 gp", "weight": "1 lb."},
+        {"name": "Lantern (Hooded)", "cost": "5 gp", "weight": "2 lb."},
+        {"name": "Backpack", "cost": "2 gp", "weight": "5 lb."},
+        {"name": "Bedroll", "cost": "0.1 gp", "weight": "10 lb."},
+        {"name": "Tent", "cost": "2 gp", "weight": "20 lb."},
+        {"name": "Grappling Hook", "cost": "2 gp", "weight": "4 lb."},
+        {"name": "Crowbar", "cost": "2 gp", "weight": "5 lb."},
+        {"name": "Hammer", "cost": "1 gp", "weight": "3 lb."},
+        {"name": "Holy Water (Flask)", "cost": "25 gp", "weight": "1 lb."},
+        
+        # Packs
+        {"name": "Explorer's Pack", "cost": "10 gp", "weight": "59 lb."},
+        {"name": "Adventurer's Pack", "cost": "5 gp", "weight": "54 lb."},
+        {"name": "Burglar's Pack", "cost": "16 gp", "weight": "44 lb."},
+        
+        # Magic Items
+        {"name": "Ring of Protection +1", "cost": "varies", "weight": "0 lb."},
+        {"name": "Amulet of Health", "cost": "varies", "weight": "0 lb."},
+    ]
 
 
 def populate_equipment_results(search_term: str = ""):
@@ -5501,11 +5554,15 @@ def populate_equipment_results(search_term: str = ""):
     
     equipment_list = EQUIPMENT_LIBRARY_STATE.get("equipment", [])
     console.log(f"PySheet: populate_equipment_results - equipment count: {len(equipment_list)}")
+    console.log(f"PySheet: search term: '{search_term}'")
     
     # Debug: show first few items
     if equipment_list:
         console.log(f"PySheet: first item: {equipment_list[0]}")
-        console.log(f"PySheet: search term: '{search_term}'")
+        console.log(f"PySheet: last item: {equipment_list[-1]}")
+        console.log(f"PySheet: all item names: {[item.get('name', '') for item in equipment_list[:10]]}")
+    else:
+        console.log("PySheet: equipment_list is empty!")
     
     # Filter from EQUIPMENT_LIBRARY_STATE and deduplicate by name
     for item in equipment_list:
@@ -6504,7 +6561,7 @@ def register_event_listeners():
     # Register equipment search
     equipment_search = get_element("equipment-search")
     if equipment_search is not None:
-        proxy_equip_search = create_proxy(lambda e: populate_equipment_results(e.target.value))
+        proxy_equip_search = create_proxy(lambda e: populate_equipment_results(e.target.value if hasattr(e, 'target') else ""))
         equipment_search.addEventListener("input", proxy_equip_search)
         _EVENT_PROXIES.append(proxy_equip_search)
 
