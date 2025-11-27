@@ -2245,6 +2245,104 @@ class SpellcastingManager:
         schedule_auto_export()
 
 
+class Item:
+    """Base class for all inventory items."""
+    
+    def __init__(self, name: str, cost: str = "", weight: str = "", qty: int = 1, category: str = "", notes: str = "", source: str = "custom"):
+        """Initialize an Item.
+        
+        Args:
+            name: Item name
+            cost: Cost in gold/silver/copper (e.g., "5 gp", "10 sp")
+            weight: Weight (e.g., "4 lb.", "0 lb.")
+            qty: Quantity
+            category: Item category (Armor, Weapons, etc.)
+            notes: JSON string of extra properties
+            source: Source of item (custom, open5e, phb, etc.)
+        """
+        self.name = name
+        self.cost = cost
+        self.weight = weight
+        self.qty = qty
+        self.category = category
+        self.notes = notes
+        self.source = source
+        self.id = str(len([]))  # Will be set by InventoryManager
+    
+    def to_dict(self) -> dict:
+        """Convert item to dictionary for storage."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "cost": self.cost,
+            "weight": self.weight,
+            "qty": self.qty,
+            "category": self.category,
+            "notes": self.notes,
+            "source": self.source,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> "Item":
+        """Create item from dictionary."""
+        return cls(
+            name=data.get("name", ""),
+            cost=data.get("cost", ""),
+            weight=data.get("weight", ""),
+            qty=data.get("qty", 1),
+            category=data.get("category", ""),
+            notes=data.get("notes", ""),
+            source=data.get("source", "custom"),
+        )
+
+
+class Weapon(Item):
+    """Weapon item with damage and properties."""
+    
+    def __init__(self, name: str, cost: str = "", weight: str = "", qty: int = 1, category: str = "Weapons", 
+                 notes: str = "", source: str = "custom", damage: str = "", damage_type: str = "", 
+                 damage_range: str = ""):
+        super().__init__(name, cost, weight, qty, category, notes, source)
+        self.damage = damage
+        self.damage_type = damage_type
+        self.damage_range = damage_range
+    
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        extra_props = {}
+        if self.damage:
+            extra_props["damage"] = self.damage
+        if self.damage_type:
+            extra_props["damage_type"] = self.damage_type
+        if self.damage_range:
+            extra_props["range"] = self.damage_range
+        if extra_props:
+            d["notes"] = json.dumps(extra_props) if not d["notes"] else d["notes"]
+        return d
+
+
+class Armor(Item):
+    """Armor item with AC value."""
+    
+    def __init__(self, name: str, cost: str = "", weight: str = "", qty: int = 1, 
+                 notes: str = "", source: str = "custom", armor_class: int = None):
+        super().__init__(name, cost, weight, qty, "Armor", notes, source)
+        self.armor_class = armor_class
+    
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.armor_class:
+            extra_props = {}
+            try:
+                if d.get("notes"):
+                    extra_props = json.loads(d["notes"])
+            except:
+                pass
+            extra_props["armor_class"] = self.armor_class
+            d["notes"] = json.dumps(extra_props)
+        return d
+
+
 class InventoryManager:
     """Manages character inventory with categories, sorting, and detailed item view."""
     
@@ -5479,41 +5577,40 @@ def fetch_equipment_from_open5e():
     # Use comprehensive fallback of common D&D 5e items
     console.log("PySheet: Using comprehensive fallback equipment list")
     EQUIPMENT_LIBRARY_STATE["equipment"] = [
-        # Melee Weapons
-        {"name": "Mace", "cost": "5 gp", "weight": "4 lb.", "damage": "1d6", "damage_type": "bludgeoning"},
-        {"name": "Longsword", "cost": "15 gp", "weight": "3 lb.", "damage": "1d8", "damage_type": "slashing"},
-        {"name": "Shortsword", "cost": "10 gp", "weight": "2 lb.", "damage": "1d6", "damage_type": "piercing"},
-        {"name": "Rapier", "cost": "25 gp", "weight": "2 lb.", "damage": "1d8", "damage_type": "piercing"},
-        {"name": "Dagger", "cost": "2 gp", "weight": "1 lb.", "damage": "1d4", "damage_type": "piercing"},
-        {"name": "Greataxe", "cost": "30 gp", "weight": "7 lb.", "damage": "1d12", "damage_type": "slashing"},
-        {"name": "Greatsword", "cost": "50 gp", "weight": "6 lb.", "damage": "2d6", "damage_type": "slashing"},
-        {"name": "Warhammer", "cost": "15 gp", "weight": "2 lb.", "damage": "1d8", "damage_type": "bludgeoning"},
-        {"name": "Morningstar", "cost": "15 gp", "weight": "4 lb.", "damage": "1d8", "damage_type": "piercing"},
-        {"name": "Pike", "cost": "5 gp", "weight": "18 lb.", "damage": "1d10", "damage_type": "piercing"},
-        {"name": "Spear", "cost": "1 gp", "weight": "3 lb.", "damage": "1d6", "damage_type": "piercing"},
-        {"name": "Club", "cost": "0.1 gp", "weight": "2 lb.", "damage": "1d4", "damage_type": "bludgeoning"},
-        {"name": "Quarterstaff", "cost": "0.2 gp", "weight": "4 lb.", "damage": "1d6", "damage_type": "bludgeoning"},
-        {"name": "Falchion", "cost": "20 gp", "weight": "4 lb.", "damage": "1d8", "damage_type": "slashing"},
+        # Melee Weapons - minimal fields (just name, cost, weight)
+        {"name": "Mace", "cost": "5 gp", "weight": "4 lb."},
+        {"name": "Longsword", "cost": "15 gp", "weight": "3 lb."},
+        {"name": "Shortsword", "cost": "10 gp", "weight": "2 lb."},
+        {"name": "Rapier", "cost": "25 gp", "weight": "2 lb."},
+        {"name": "Dagger", "cost": "2 gp", "weight": "1 lb."},
+        {"name": "Greataxe", "cost": "30 gp", "weight": "7 lb."},
+        {"name": "Greatsword", "cost": "50 gp", "weight": "6 lb."},
+        {"name": "Warhammer", "cost": "15 gp", "weight": "2 lb."},
+        {"name": "Morningstar", "cost": "15 gp", "weight": "4 lb."},
+        {"name": "Pike", "cost": "5 gp", "weight": "18 lb."},
+        {"name": "Spear", "cost": "1 gp", "weight": "3 lb."},
+        {"name": "Club", "cost": "0.1 gp", "weight": "2 lb."},
+        {"name": "Quarterstaff", "cost": "0.2 gp", "weight": "4 lb."},
         
         # Ranged Weapons
-        {"name": "Longbow", "cost": "50 gp", "weight": "3 lb.", "damage": "1d8", "damage_type": "piercing", "range": "150/600"},
-        {"name": "Shortbow", "cost": "25 gp", "weight": "2 lb.", "damage": "1d6", "damage_type": "piercing", "range": "80/320"},
-        {"name": "Crossbow, light", "cost": "25 gp", "weight": "5 lb.", "damage": "1d8", "damage_type": "piercing", "range": "80/320"},
-        {"name": "Crossbow, heavy", "cost": "50 gp", "weight": "18 lb.", "damage": "1d10", "damage_type": "piercing", "range": "100/400"},
-        {"name": "Sling", "cost": "0.1 gp", "weight": "0 lb.", "damage": "1d4", "damage_type": "bludgeoning", "range": "30/120"},
+        {"name": "Longbow", "cost": "50 gp", "weight": "3 lb."},
+        {"name": "Shortbow", "cost": "25 gp", "weight": "2 lb."},
+        {"name": "Crossbow, light", "cost": "25 gp", "weight": "5 lb."},
+        {"name": "Crossbow, heavy", "cost": "50 gp", "weight": "18 lb."},
+        {"name": "Sling", "cost": "0.1 gp", "weight": "0 lb."},
         
         # Armor
-        {"name": "Leather", "cost": "5 gp", "weight": "10 lb.", "armor_class": 11},
-        {"name": "Studded Leather", "cost": "45 gp", "weight": "13 lb.", "armor_class": 12},
-        {"name": "Hide", "cost": "10 gp", "weight": "12 lb.", "armor_class": 12},
-        {"name": "Chain Shirt", "cost": "50 gp", "weight": "20 lb.", "armor_class": 13},
-        {"name": "Scale Mail", "cost": "50 gp", "weight": "45 lb.", "armor_class": 14},
-        {"name": "Breastplate", "cost": "400 gp", "weight": "20 lb.", "armor_class": 14},
-        {"name": "Half Plate", "cost": "750 gp", "weight": "40 lb.", "armor_class": 15},
-        {"name": "Ring Mail", "cost": "30 gp", "weight": "40 lb.", "armor_class": 14},
-        {"name": "Chain Mail", "cost": "75 gp", "weight": "55 lb.", "armor_class": 16},
-        {"name": "Splint", "cost": "200 gp", "weight": "60 lb.", "armor_class": 17},
-        {"name": "Plate", "cost": "1500 gp", "weight": "65 lb.", "armor_class": 18},
+        {"name": "Leather", "cost": "5 gp", "weight": "10 lb."},
+        {"name": "Studded Leather", "cost": "45 gp", "weight": "13 lb."},
+        {"name": "Hide", "cost": "10 gp", "weight": "12 lb."},
+        {"name": "Chain Shirt", "cost": "50 gp", "weight": "20 lb."},
+        {"name": "Scale Mail", "cost": "50 gp", "weight": "45 lb."},
+        {"name": "Breastplate", "cost": "400 gp", "weight": "20 lb."},
+        {"name": "Half Plate", "cost": "750 gp", "weight": "40 lb."},
+        {"name": "Ring Mail", "cost": "30 gp", "weight": "40 lb."},
+        {"name": "Chain Mail", "cost": "75 gp", "weight": "55 lb."},
+        {"name": "Splint", "cost": "200 gp", "weight": "60 lb."},
+        {"name": "Plate", "cost": "1500 gp", "weight": "65 lb."},
         
         # Common Gear
         {"name": "Rope (50 feet)", "cost": "1 gp", "weight": "10 lb."},
