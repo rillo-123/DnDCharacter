@@ -4033,8 +4033,30 @@ def update_calculations(*_args):
     domain_bonus_slugs = set(get_domain_bonus_spells(domain, level)) if domain else set()
     prepared_count = SPELLCASTING_MANAGER.get_prepared_non_cantrip_count(domain_bonus_slugs)
     
+    # Build counter display with calculation tooltip
     counter_display = f"{prepared_count} / {max_prepared}"
-    set_text("spellbook-prepared-count", counter_display)
+    
+    # Create tooltip showing calculation
+    if class_name and class_name.lower() in ["cleric", "druid", "paladin", "ranger", "wizard", "bard", "sorcerer"]:
+        if class_name.lower() == "paladin" or class_name.lower() == "ranger":
+            calc_tooltip = f"Max: {max_prepared} = ⌊Level/2⌋ + {spell_ability.upper()} modifier ({level}÷2 + {spell_mod})"
+            calc_hint = f"Max prepared spells: ⌊{level}/2⌋ + {spell_mod} ({spell_ability}) = {max_prepared}"
+        else:
+            calc_tooltip = f"Max: {max_prepared} = Level + {spell_ability.upper()} modifier ({level} + {spell_mod})"
+            calc_hint = f"Max prepared spells: {level} + {spell_mod} ({spell_ability}) = {max_prepared}"
+    else:
+        calc_tooltip = f"Max: {max_prepared}"
+        calc_hint = f"Max prepared spells: {max_prepared}"
+    
+    counter_elem = get_element("spellbook-prepared-count")
+    if counter_elem:
+        counter_elem.textContent = counter_display
+        counter_elem.title = calc_tooltip
+    
+    # Update the hint text
+    hint_elem = get_element("prepared-calc-hint")
+    if hint_elem:
+        hint_elem.textContent = calc_hint
     
     # Debug logging
     console.log(f"DEBUG: update_calculations() spell counter update")
