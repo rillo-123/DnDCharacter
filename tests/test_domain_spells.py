@@ -27,6 +27,7 @@ LOCAL_SPELLS_FALLBACK = [
         "slug": "cure-wounds",
         "level": 1,
         "school": "evocation",
+        "source": "5e Core Rules",
         "desc": ["A creature you touch regains a number of hit points equal to 1d8 + your spellcasting ability modifier.", "This spell has no effect on undead or constructs."],
         "higher_level": "When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d8 for each slot level above 1st.",
     },
@@ -35,6 +36,7 @@ LOCAL_SPELLS_FALLBACK = [
         "slug": "bless",
         "level": 1,
         "school": "enchantment",
+        "source": "5e Core Rules",
         "desc": ["You bless up to three creatures of your choice within range. Whenever a target makes an attack roll or a saving throw before the spell ends, the target can roll a d4 and add the number rolled to the attack roll or saving throw."],
         "higher_level": "When you cast this spell using a spell slot of 2nd level or higher, you can target one additional creature for each slot level above 1st.",
     },
@@ -43,6 +45,7 @@ LOCAL_SPELLS_FALLBACK = [
         "slug": "lesser-restoration",
         "level": 2,
         "school": "abjuration",
+        "source": "5e Core Rules",
         "desc": ["You touch a creature and can end either one disease or one condition afflicting it."],
         "higher_level": "",
     },
@@ -51,6 +54,7 @@ LOCAL_SPELLS_FALLBACK = [
         "slug": "spiritual-weapon",
         "level": 2,
         "school": "evocation",
+        "source": "5e Core Rules",
         "desc": ["You create a floating, spectral weapon within range that lasts for the duration."],
         "higher_level": "When you cast this spell using a spell slot of 3rd level or higher, you can create one additional weapon for each slot level above 2nd.",
     },
@@ -59,6 +63,7 @@ LOCAL_SPELLS_FALLBACK = [
         "slug": "beacon-of-hope",
         "level": 3,
         "school": "abjuration",
+        "source": "5e Core Rules",
         "desc": ["This spell bestows hope and vitality."],
         "higher_level": "",
     },
@@ -67,6 +72,7 @@ LOCAL_SPELLS_FALLBACK = [
         "slug": "revivify",
         "level": 3,
         "school": "necromancy",
+        "source": "5e Core Rules",
         "desc": ["You touch a creature that has been dead for no more than 1 minute."],
         "higher_level": "",
     },
@@ -75,6 +81,7 @@ LOCAL_SPELLS_FALLBACK = [
         "slug": "guardian-of-faith",
         "level": 4,
         "school": "abjuration",
+        "source": "5e Core Rules",
         "desc": ["A Large spectral guardian appears and hovers for the duration in an unoccupied space of your choice that you can see within 30 feet of you."],
         "higher_level": "",
     },
@@ -83,6 +90,7 @@ LOCAL_SPELLS_FALLBACK = [
         "slug": "death-ward",
         "level": 4,
         "school": "abjuration",
+        "source": "5e Core Rules",
         "desc": ["You touch a creature and grant it a measure of protection from death."],
         "higher_level": "",
     },
@@ -177,3 +185,29 @@ class TestDomainSpellPopulation:
         assert len(domain_spells[9]) == 2, "Level 9 should have 2 domain spells"
         
         print(f"OK: Domain spell distribution is correct")
+
+    def test_level_1_domain_spells_can_be_found_by_slug(self):
+        """Test that level 1 domain spells (cure-wounds, bless) exist in fallback with proper data."""
+        # These are the two level 1 domain spells for Life domain
+        level_1_slugs = ["cure-wounds", "bless"]
+        
+        for slug in level_1_slugs:
+            spell = next((s for s in LOCAL_SPELLS_FALLBACK if s.get("slug") == slug), None)
+            assert spell is not None, f"Level 1 domain spell '{slug}' not found in fallback"
+            assert spell.get("level") == 1, f"'{slug}' should be level 1, got {spell.get('level')}"
+            assert spell.get("desc"), f"'{slug}' missing description"
+            
+        print(f"OK: Level 1 domain spells (cure-wounds, bless) found with full data")
+
+    def test_level_1_domain_spells_have_valid_sources(self):
+        """Test that level 1 domain spells have source field for validation."""
+        level_1_slugs = ["cure-wounds", "bless"]
+        
+        for slug in level_1_slugs:
+            spell = next((s for s in LOCAL_SPELLS_FALLBACK if s.get("slug") == slug), None)
+            assert spell is not None, f"Level 1 spell '{slug}' not found"
+            # The source field is critical for add_spell() to accept the spell
+            assert "source" in spell, f"'{slug}' missing 'source' field - this breaks add_spell() validation"
+            assert spell.get("source"), f"'{slug}' has empty source field"
+            
+        print(f"OK: Level 1 domain spells have valid source fields")
