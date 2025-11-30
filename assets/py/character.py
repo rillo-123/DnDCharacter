@@ -6942,6 +6942,13 @@ def handle_input_event(event=None):
         if target_id == "domain":
             value = getattr(event.target, "value", "")
             console.log(f"DEBUG: domain input event fired! New value: {value}")
+            # Auto-populate domain spells when domain is selected
+            if value and SPELL_LIBRARY_STATE.get("loaded"):
+                level = get_numeric_value("level", 1)
+                domain_spells = get_domain_bonus_spells(value, level)
+                for spell_slug in domain_spells:
+                    if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
+                        SPELLCASTING_MANAGER.add_spell(spell_slug)
         # Auto-check proficiency if expertise is checked
         elif target_id.endswith("-exp") and event.target.checked:
             skill_name = target_id[:-4]  # Remove "-exp" suffix
@@ -7140,8 +7147,20 @@ load_initial_state()
 update_calculations()
 render_equipped_weapons()
 
+# Auto-populate domain spells if domain is set and spell library is loaded
+def _populate_domain_spells_on_load():
+    domain = get_text_value("domain")
+    if domain and SPELL_LIBRARY_STATE.get("loaded"):
+        level = get_numeric_value("level", 1)
+        domain_spells = get_domain_bonus_spells(domain, level)
+        for spell_slug in domain_spells:
+            if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
+                SPELLCASTING_MANAGER.add_spell(spell_slug)
+        update_calculations()
+
 # Auto-load weapon library
 async def _auto_load_weapons():
     await load_weapon_library()
+    _populate_domain_spells_on_load()
 
 asyncio.create_task(_auto_load_weapons())
