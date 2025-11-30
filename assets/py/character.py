@@ -1368,6 +1368,7 @@ class SpellcastingManager:
             "description_html": description_html,
             "classes": classes,
             "classes_display": classes_display,
+            "is_domain_bonus": entry.get("is_domain_bonus", False) if entry else False,
         }
 
     def sort_prepared_spells(self):
@@ -1393,6 +1394,15 @@ class SpellcastingManager:
             if normalized:
                 prepared.append(normalized)
         self.prepared = prepared
+        
+        # Recalculate domain bonus flags based on current domain setting
+        domain = get_text_value("domain")
+        level = get_numeric_value("level", 1) if hasattr(self, 'get_numeric_value') else 1
+        if domain:
+            domain_bonus_slugs = set(get_domain_bonus_spells(domain, level))
+            for spell in self.prepared:
+                spell["is_domain_bonus"] = spell.get("slug") in domain_bonus_slugs
+        
         self.sort_prepared_spells()
 
         slots_used = state.get("slots_used", {})
