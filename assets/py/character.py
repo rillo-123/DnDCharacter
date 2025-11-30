@@ -64,6 +64,32 @@ except ModuleNotFoundError:
 
 
 # ===================================================================
+# Authoritative D&D 5e Sources
+# ===================================================================
+
+AUTHORITATIVE_SOURCES = {
+    "phb",  # Player's Handbook
+    "xgte",  # Xanathar's Guide to Everything
+    "tcoe",  # Tasha's Cauldron of Everything
+}
+
+def is_authoritative_source(source: str | None) -> bool:
+    """Check if spell/item source is from an authoritative D&D 5e book."""
+    if not source:
+        return False
+    # Normalize source name for comparison
+    normalized = source.lower().strip()
+    # Check exact matches
+    if normalized in AUTHORITATIVE_SOURCES:
+        return True
+    # Check if source contains any authoritative abbreviation
+    for auth_source in AUTHORITATIVE_SOURCES:
+        if auth_source in normalized:
+            return True
+    return False
+
+
+# ===================================================================
 # Logging System with Rolling 60-Day Window
 # ===================================================================
 
@@ -1073,8 +1099,7 @@ def apply_spell_corrections(spell: dict) -> dict:
 
 def is_spell_source_allowed(source: str) -> bool:
     """Check if a spell source is in our allowed list (PHB, TCE, XGE only)."""
-    # Temporarily allow all sources for debugging
-    return True
+    return is_authoritative_source(source)
 
 CLASS_CASTING_PROGRESSIONS = {
     "artificer": "half_up",
@@ -1685,6 +1710,12 @@ class SpellcastingManager:
                 slug = spell.get("slug", "")
                 name = spell.get("name", "Unknown Spell")
                 source = spell.get("source", "")
+                
+                # Filter out non-authoritative sources
+                if not is_authoritative_source(source):
+                    console.warn(f"PySheet: skipping spell '{name}' from non-authoritative source: {source}")
+                    continue
+                
                 # Use spell data from prepared list (which has all details saved), then fall back to library if needed
                 record = spell.copy()  # Start with the prepared spell data
                 if not record.get("level_label"):

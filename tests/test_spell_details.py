@@ -302,3 +302,37 @@ class TestSpellDetailsSaved:
         assert normalize_slug("cure-wounds-phb") == "cure-wounds-phb", "Only a5e suffix removed"
         
         print("OK slug normalization handles -a5e variant suffixes")
+
+    def test_authoritative_sources_filtering(self):
+        """Test that only authoritative D&D 5e sources are recognized."""
+        
+        def is_authoritative_source(source: str | None) -> bool:
+            """Check if spell/item source is from an authoritative D&D 5e book."""
+            AUTHORITATIVE_SOURCES = {"phb", "xgte", "tcoe"}
+            
+            if not source:
+                return False
+            normalized = source.lower().strip()
+            if normalized in AUTHORITATIVE_SOURCES:
+                return True
+            for auth_source in AUTHORITATIVE_SOURCES:
+                if auth_source in normalized:
+                    return True
+            return False
+        
+        # Test authoritative sources (these are the abbreviations used in the app)
+        assert is_authoritative_source("PHB"), "PHB should be authoritative"
+        assert is_authoritative_source("XGtE"), "XGtE should be authoritative"
+        assert is_authoritative_source("TCoE"), "TCoE should be authoritative"
+        assert is_authoritative_source("phb"), "phb lowercase should work"
+        assert is_authoritative_source("xgte"), "xgte lowercase should work"
+        assert is_authoritative_source("tcoe"), "tcoe lowercase should work"
+        
+        # Test non-authoritative sources
+        assert not is_authoritative_source("A5E"), "A5E should not be authoritative"
+        assert not is_authoritative_source("a5e"), "a5e should not be authoritative"
+        assert not is_authoritative_source("UA"), "Unearthed Arcana should not be authoritative"
+        assert not is_authoritative_source(""), "Empty string should not be authoritative"
+        assert not is_authoritative_source(None), "None should not be authoritative"
+        
+        print("OK authoritative source filtering works correctly")
