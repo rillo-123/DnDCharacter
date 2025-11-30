@@ -1601,6 +1601,14 @@ class SpellcastingManager:
                 console.warn(f"PySheet: cannot add spell – max {max_prepared} spells prepared")
                 return
 
+        # Check if this spell is a domain bonus spell
+        is_domain_bonus = False
+        domain = get_text_value("domain")
+        if domain:
+            level = get_numeric_value("level", 1)
+            domain_bonus_slugs = set(get_domain_bonus_spells(domain, level))
+            is_domain_bonus = slug in domain_bonus_slugs
+
         self.prepared.append(
             {
                 "slug": slug,
@@ -1621,6 +1629,7 @@ class SpellcastingManager:
                 "higher_level": record.get("higher_level", ""),
                 "classes": record.get("classes", []),
                 "classes_display": record.get("classes_display", []),
+                "is_domain_bonus": is_domain_bonus,
             }
         )
         self.sort_prepared_spells()
@@ -1686,6 +1695,9 @@ class SpellcastingManager:
         empty_state.style.display = "none"
         groups: dict[int, list[dict]] = {}
         for entry in self.prepared:
+            # Skip domain bonus spells
+            if entry.get("is_domain_bonus"):
+                continue
             level = entry.get("level", 0)
             groups.setdefault(level, []).append(entry)
 
