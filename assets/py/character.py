@@ -1559,8 +1559,13 @@ class SpellcastingManager:
             console.warn("PySheet: cannot add spell above available level")
             return
         allowed = profile.get("allowed_classes", [])
-        spell_classes = set(record.get("classes", []))
-        if allowed and not spell_classes.intersection(set(allowed)):
+        # Handle both "classes" and "dnd_class" field names
+        classes_field = record.get("classes") or record.get("dnd_class") or ""
+        if isinstance(classes_field, str):
+            spell_classes = {c.strip().lower() for c in classes_field.split(",") if c.strip()}
+        else:
+            spell_classes = set(record.get("classes", []))
+        if allowed and not spell_classes.intersection({c.lower() for c in allowed}):
             console.warn("PySheet: spell not available to current classes")
             return
 
@@ -3491,21 +3496,30 @@ def get_spell_by_slug(slug: str | None) -> dict | None:
         return None
     spell_map = SPELL_LIBRARY_STATE.get("spell_map") or {}
     if slug in spell_map:
-        return spell_map[slug]
-    for spell in SPELL_LIBRARY_STATE.get("spells", []):
-        if spell.get("slug") == slug:
-            return spell
+        spell = spell_map[slug]
+    else:
+        spell = None
+        for s in SPELL_LIBRARY_STATE.get("spells", []):
+            if s.get("slug") == slug:
+                spell = s
+                break
     
     # Try normalizing slug by removing source suffixes (e.g., "-a5e" for Level Up Advanced 5e)
-    if "-a5e" in slug:
+    if spell is None and "-a5e" in slug:
         normalized_slug = slug.replace("-a5e", "")
         if normalized_slug in spell_map:
-            return spell_map[normalized_slug]
-        for spell in SPELL_LIBRARY_STATE.get("spells", []):
-            if spell.get("slug") == normalized_slug:
-                return spell
+            spell = spell_map[normalized_slug]
+        else:
+            for s in SPELL_LIBRARY_STATE.get("spells", []):
+                if s.get("slug") == normalized_slug:
+                    spell = s
+                    break
     
-    return None
+    # Normalize spell record: ensure level_int is set from level field
+    if spell and "level_int" not in spell and "level" in spell:
+        spell["level_int"] = spell.get("level", 0)
+    
+    return spell
 
 
 def handle_add_spell_click(event, slug: str):
