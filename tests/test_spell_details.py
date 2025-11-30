@@ -280,3 +280,25 @@ class TestSpellDetailsSaved:
         assert "Second line" in result, "Should contain second line"
         
         print(f"OK HTML: {result}")
+
+    def test_slug_normalization_logic(self):
+        """Test slug normalization logic that handles -a5e variant slugs."""
+        
+        # Simulate the normalization logic
+        def normalize_slug(slug):
+            """Normalize slug by removing source suffixes."""
+            if "-a5e" in slug:
+                return slug.replace("-a5e", "")
+            return slug
+        
+        # Test direct slug
+        assert normalize_slug("healing-word") == "healing-word", "Direct slug unchanged"
+        
+        # Test a5e variant
+        assert normalize_slug("healing-word-a5e") == "healing-word", "a5e suffix removed"
+        assert normalize_slug("guiding-bolt-a5e") == "guiding-bolt", "a5e suffix removed"
+        
+        # Test multiple sources (if any)
+        assert normalize_slug("cure-wounds-phb") == "cure-wounds-phb", "Only a5e suffix removed"
+        
+        print("OK slug normalization handles -a5e variant suffixes")

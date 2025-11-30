@@ -3426,6 +3426,16 @@ def get_spell_by_slug(slug: str | None) -> dict | None:
     for spell in SPELL_LIBRARY_STATE.get("spells", []):
         if spell.get("slug") == slug:
             return spell
+    
+    # Try normalizing slug by removing source suffixes (e.g., "-a5e" for Level Up Advanced 5e)
+    if "-a5e" in slug:
+        normalized_slug = slug.replace("-a5e", "")
+        if normalized_slug in spell_map:
+            return spell_map[normalized_slug]
+        for spell in SPELL_LIBRARY_STATE.get("spells", []):
+            if spell.get("slug") == normalized_slug:
+                return spell
+    
     return None
 
 
