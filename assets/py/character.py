@@ -1013,6 +1013,10 @@ def set_spell_library_data(spells: list[dict] | None):
     }
 
 
+# Pre-populate with fallback spells so old saved spells can get their details at render time
+set_spell_library_data(LOCAL_SPELLS_FALLBACK)
+
+
 SPELL_CLASS_SYNONYMS = {
     "artificer": ["artificer"],
     "bard": ["bard"],
@@ -1585,6 +1589,8 @@ class SpellcastingManager:
                 "duration": record.get("duration", ""),
                 "description": record.get("description", ""),
                 "description_html": record.get("description_html", ""),
+                "desc": record.get("desc", ""),
+                "higher_level": record.get("higher_level", ""),
                 "classes": record.get("classes", []),
                 "classes_display": record.get("classes_display", []),
             }
@@ -1599,19 +1605,6 @@ class SpellcastingManager:
     def remove_spell(self, slug: str):
         if not slug:
             return
-        
-        # Prevent removing domain bonus spells
-        try:
-            domain = get_text_value("domain")
-            level = get_numeric_value("level", 1)
-            if domain:
-                bonus_spells = get_domain_bonus_spells(domain, level)
-                if slug in bonus_spells:
-                    LOGGER.warning(f"Attempted to remove domain bonus spell: {slug}")
-                    console.warn(f"PySheet: cannot remove domain bonus spell {slug}")
-                    return
-        except Exception as exc:
-            LOGGER.error(f"Error checking domain bonus spells in remove_spell: {exc}", exc)
         
         before = len(self.prepared)
         self.prepared = [
@@ -1703,12 +1696,10 @@ class SpellcastingManager:
                     for key in lib_record:
                         if key not in record or not record.get(key):
                             record[key] = lib_record[key]
-                    # Ensure description_html is always set
-                    if not record.get("description_html") and lib_record.get("description_html"):
-                        record["description_html"] = lib_record.get("description_html")
-                    # Also try description field as fallback
-                    if not record.get("description") and lib_record.get("description"):
-                        record["description"] = lib_record.get("description")
+                    # Ensure critical fields are set from library if missing
+                    for critical_key in ["desc", "higher_level", "description_html", "description"]:
+                        if not record.get(critical_key) and lib_record.get(critical_key):
+                            record[critical_key] = lib_record[critical_key]
                 
                 level_label = record.get("level_label")
                 if not level_label:
@@ -2567,6 +2558,14 @@ class InventoryManager:
                 if notes:
                     body_html += f'<div class="inventory-item-field"><label>Notes</label><div style="color: #bfdbfe;">{escape(notes)}</div></div>'
                 
+                # Special handling for Magic Items being imported
+                if name == "Unnamed Magic Item":
+                    body_html += f'<div class="inventory-item-field" style="background-color: #1e293b; padding: 12px; border-radius: 4px; border: 2px solid #3b82f6;">'
+                    body_html += f'<label style="color: #60a5fa;"><strong>📡 Import Magic Item from URL</strong></label>'
+                    body_html += f'<input id="magic-item-url-{item_id}" type="text" placeholder="https://roll20.net/compendium/..." style="width: 100%; padding: 8px; margin-top: 8px; font-family: monospace; font-size: 0.9em; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">'
+                    body_html += f'<button id="magic-item-fetch-{item_id}" type="button" style="width: 100%; padding: 8px; margin-top: 8px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">Fetch Data</button>'
+                    body_html += f'</div>'
+                
                 # Get modifier fields
                 custom_props = extra_props.get("custom_properties", "")
                 ac_mod = extra_props.get("ac_modifier", "")
@@ -2704,6 +2703,24 @@ class InventoryManager:
             item_id = ac_input.getAttribute("data-item-armor-ac")
             proxy = create_proxy(lambda event, iid=item_id: self._handle_armor_ac_change(event, iid))
             ac_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Magic Item fetch buttons
+        fetch_buttons = get_element("inventory-list").querySelectorAll("button[id^='magic-item-fetch-']")
+        for btn in fetch_buttons:
+            btn_id = btn.getAttribute("id")
+            item_id = btn_id.replace("magic-item-fetch-", "")
+            def make_fetch_handler(iid):
+                def handle_fetch(event):
+                    url_input = document.getElementById(f"magic-item-url-{iid}")
+                    if url_input:
+                        url = url_input.value.strip()
+                        if url:
+                            console.log(f"PySheet: Fetching magic item from {url}")
+                            self._fetch_magic_item(iid, url)
+                return handle_fetch
+            proxy = create_proxy(make_fetch_handler(item_id))
+            btn.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
     
     def _handle_item_toggle(self, event, item_id: str):
@@ -2884,6 +2901,96 @@ class InventoryManager:
             update_calculations()
             schedule_auto_export()
 
+    
+    def _fetch_magic_item(self, item_id: str, url: str):
+        """Fetch magic item data from URL and update the item"""
+        try:
+            def on_response(response):
+                if response.ok:
+                    def on_text(html):
+                        # Parse the HTML to extract item data
+                        self._parse_magic_item_data(item_id, html)
+                    response.text().then(on_text)
+                else:
+                    console.error(f"PySheet: Failed to fetch {url}: {response.status}")
+            
+            def on_error(err):
+                console.error(f"PySheet: Network error: {err}")
+            
+            window.fetch(url).then(on_response).catch(on_error)
+        except Exception as e:
+            console.error(f"PySheet: Error fetching magic item: {e}")
+    
+    
+    def _parse_magic_item_data(self, item_id: str, html: str):
+        """Parse magic item data from HTML"""
+        try:
+            import re
+            
+            # Extract item name - look for common patterns
+            name_patterns = [
+                r'<h1[^>]*>([^<]+)</h1>',
+                r'<h2[^>]*>([^<]+)</h2>',
+                r'<strong[^>]*>([^<]*(?:of|Disruption|Health|Protection|Ward)[^<]*)</strong>',
+            ]
+            name = "Magic Item"
+            for pattern in name_patterns:
+                match = re.search(pattern, html)
+                if match:
+                    name = match.group(1).strip()
+                    break
+            
+            # Extract damage (e.g., "1d6" or "2d6")
+            damage = ""
+            damage_match = re.search(r'[Dd]amage[:\s]*(\d+d\d+(?:\+\d+)?)', html)
+            if damage_match:
+                damage = damage_match.group(1)
+            
+            # Extract damage type
+            damage_type = ""
+            dtype_match = re.search(r'[Dd]amage\s+[Tt]ype[:\s]*([A-Za-z]+)', html)
+            if dtype_match:
+                damage_type = dtype_match.group(1)
+            
+            # Extract weight
+            weight = "0 lb."
+            weight_match = re.search(r'[Ww]eight[:\s]*([0-9.]+\s*(?:lb|lbs|kg)\.?)', html)
+            if weight_match:
+                weight = weight_match.group(1)
+            
+            # Extract rarity
+            rarity = ""
+            rarity_match = re.search(r'[Rr]arity[:\s]*([A-Za-z]+)', html)
+            if rarity_match:
+                rarity = rarity_match.group(1)
+            
+            # Build the updated item data
+            item = self.get_item(item_id)
+            if item:
+                # Update name if found
+                if name != "Magic Item":
+                    item["name"] = name
+                
+                # Build notes with extracted data
+                extra_props = {}
+                if damage:
+                    extra_props["damage"] = damage
+                if damage_type:
+                    extra_props["damage_type"] = damage_type
+                if rarity:
+                    extra_props["rarity"] = rarity
+                
+                item["weight"] = weight
+                item["notes"] = json.dumps(extra_props) if extra_props else ""
+                
+                self.update_item(item_id, item)
+                self.render_inventory()
+                update_calculations()
+                schedule_auto_export()
+                
+                console.log(f"PySheet: Updated magic item to '{name}'")
+        except Exception as e:
+            console.error(f"PySheet: Error parsing magic item: {e}")
 
 
 INVENTORY_MANAGER = InventoryManager()
@@ -5532,6 +5639,195 @@ def add_custom_item(_event=None):
             name_input.focus()
 
 
+def add_custom_item(_event=None):
+    """Show the custom item modal"""
+    modal = get_element("custom-item-modal")
+    if modal:
+        modal.style.display = "flex"
+        # Focus on name field
+        name_input = get_element("custom-item-name")
+        if name_input:
+            name_input.value = ""
+            name_input.focus()
+        # Clear URL field
+        url_input = get_element("custom-item-url")
+        if url_input:
+            url_input.value = ""
+        # Clear status
+        status = get_element("custom-item-fetch-status")
+        if status:
+            status.style.display = "none"
+
+
+def fetch_custom_item_from_url_handler(event=None):
+    """PyScript event handler for Get Data button"""
+    url_input = get_element("custom-item-url")
+    if not url_input:
+        return
+    
+    url = url_input.value.strip()
+    if not url:
+        return
+    
+    fetch_custom_item_from_url(url)
+
+
+def fetch_custom_item_from_url(url: str):
+    """Fetch and parse custom item data from URL"""
+    if not url or not url.strip():
+        return
+    
+    status = get_element("custom-item-fetch-status")
+    if status:
+        status.textContent = "⏳ Fetching..."
+        status.style.display = "block"
+    
+    try:
+        def on_response(response):
+            if response.ok:
+                def on_text(html):
+                    parse_custom_item_html(html)
+                response.text().then(on_text)
+            else:
+                if status:
+                    status.textContent = f"❌ Failed to fetch ({response.status})"
+                    status.style.display = "block"
+                console.error(f"PySheet: Failed to fetch {url}: {response.status}")
+        
+        def on_error(err):
+            if status:
+                status.textContent = "❌ Network error"
+                status.style.display = "block"
+            console.error(f"PySheet: Network error: {err}")
+        
+        window.fetch(url).then(on_response).catch(on_error)
+    except Exception as e:
+        if status:
+            status.textContent = f"❌ Error: {str(e)[:50]}"
+            status.style.display = "block"
+        console.error(f"PySheet: Error fetching custom item: {e}")
+
+
+def parse_custom_item_html(html: str):
+    """Parse custom item data from HTML and populate form fields"""
+    try:
+        import re
+        
+        # Extract item name - look for h1 first, but avoid generic titles
+        name = ""
+        
+        # Try h1 first (usually the main heading)
+        h1_match = re.search(r'<h1[^>]*>([^<]+)</h1>', html)
+        if h1_match:
+            potential_name = h1_match.group(1).strip()
+            # Skip if it's just "D&D 5th Edition" or similar generic text
+            if not re.match(r'^D&D.*Edition|^Compendium', potential_name, re.IGNORECASE):
+                name = potential_name
+        
+        # If no valid h1, try h2
+        if not name:
+            h2_match = re.search(r'<h2[^>]*>([^<]+)</h2>', html)
+            if h2_match:
+                name = h2_match.group(1).strip()
+        
+        # Clean up common patterns
+        name = re.sub(r'\s*(?:- D&D|D&D 5e|5e|compendium).*', '', name, flags=re.IGNORECASE).strip()
+        
+        # If still no name, try to extract from a meta tag or structured data
+        if not name:
+            meta_match = re.search(r'<meta\s+property=["\']og:title["\']\s+content=["\']([^"\']+)["\']', html)
+            if meta_match:
+                name = meta_match.group(1).strip()
+                name = re.sub(r'\s*(?:- D&D|D&D 5e|5e|compendium).*', '', name, flags=re.IGNORECASE).strip()
+        
+        # Extract damage
+        damage = ""
+        damage_match = re.search(r'[Dd]amage[:\s]*(\d+d\d+(?:\+\d+)?)', html)
+        if damage_match:
+            damage = damage_match.group(1)
+        
+        # Extract damage type
+        damage_type = ""
+        dtype_match = re.search(r'[Dd]amage\s+[Tt]ype[:\s]*([A-Za-z]+)', html)
+        if dtype_match:
+            damage_type = dtype_match.group(1)
+        
+        # Extract weight
+        weight = ""
+        weight_match = re.search(r'[Ww]eight[:\s]*([0-9.]+\s*(?:lb|lbs|kg)\.?)', html)
+        if weight_match:
+            weight = weight_match.group(1)
+        
+        # Extract cost
+        cost = ""
+        cost_match = re.search(r'[Cc]ost[:\s]*([0-9.]+\s*(?:gp|sp|cp|varies))', html)
+        if cost_match:
+            cost = cost_match.group(1)
+        
+        # Extract AC (for armor)
+        ac = ""
+        ac_match = re.search(r'(?:AC|armor\s+class)[:\s]*(\d+|1[0-9]|10\+[Dd]ex)', html)
+        if ac_match:
+            ac = ac_match.group(1)
+        
+        # Extract rarity/properties
+        properties = ""
+        rarity_match = re.search(r'[Rr]arity[:\s]*([A-Za-z]+)', html)
+        if rarity_match:
+            properties = rarity_match.group(1)
+        
+        # Update form fields
+        if name:
+            name_input = get_element("custom-item-name")
+            if name_input:
+                name_input.value = name
+        
+        if damage:
+            damage_input = get_element("custom-item-damage")
+            if damage_input:
+                damage_input.value = damage
+        
+        if damage_type:
+            dtype_input = get_element("custom-item-damage-type")
+            if dtype_input:
+                dtype_input.value = damage_type
+        
+        if weight:
+            weight_input = get_element("custom-item-weight")
+            if weight_input:
+                weight_input.value = weight
+        
+        if cost:
+            cost_input = get_element("custom-item-cost")
+            if cost_input:
+                cost_input.value = cost
+        
+        if ac:
+            ac_input = get_element("custom-item-ac")
+            if ac_input:
+                ac_input.value = ac
+        
+        if properties:
+            props_input = get_element("custom-item-properties")
+            if props_input:
+                props_input.value = properties
+        
+        # Show success message
+        status = get_element("custom-item-fetch-status")
+        if status:
+            status.textContent = f"✅ Loaded: {name}"
+            status.style.display = "block"
+        
+        console.log(f"PySheet: Populated custom item form from URL")
+        
+    except Exception as e:
+        status = get_element("custom-item-fetch-status")
+        if status:
+            status.textContent = f"⚠️ Partial data loaded (parsing issue)"
+            status.style.display = "block"
+        console.error(f"PySheet: Error parsing custom item HTML: {e}")
+
+
 def clear_equipment_list(_event=None):
     """Clear all equipment from the inventory"""
     if len(INVENTORY_MANAGER.items) == 0:
@@ -5636,6 +5932,7 @@ def fetch_equipment_from_open5e():
         # Magic Items
         {"name": "Ring of Protection +1", "cost": "varies", "weight": "0 lb."},
         {"name": "Amulet of Health", "cost": "varies", "weight": "0 lb."},
+        {"name": "Magic Item", "cost": "varies", "weight": "0 lb.", "is_magic_item_importer": True},
     ]
 
 
@@ -5774,8 +6071,30 @@ def _handle_equipment_click(event):
         ac_string = target.getAttribute("data-ac-string") or ""
         armor_class = target.getAttribute("data-armor-class") or ""
         console.log(f"Equipment clicked: {name}")
-        # Add directly to inventory with only non-empty properties
-        submit_open5e_item(name, cost, weight, damage, damage_type, range_text, properties, ac_string, armor_class)
+        
+        # Special handling for Magic Item importer
+        if name == "Magic Item":
+            show_magic_item_import_modal()
+        else:
+            # Add directly to inventory with only non-empty properties
+            submit_open5e_item(name, cost, weight, damage, damage_type, range_text, properties, ac_string, armor_class)
+
+
+
+
+def show_magic_item_import_modal():
+    """Show modal for importing a magic item from URL"""
+    # Add a temporary magic item to inventory
+    INVENTORY_MANAGER.add_item("Unnamed Magic Item", cost="", weight="", qty=1, category="Magic Items", notes="", source="custom")
+    INVENTORY_MANAGER.render_inventory()
+    
+    # Close the equipment chooser
+    chooser = get_element("equipment-chooser-modal")
+    if chooser:
+        chooser.style.display = "none"
+    
+    # Show the magic item import panel
+    console.log("PySheet: Magic item added, awaiting URL import")
 
 
 def show_equipment_details(name: str, cost: str, weight: str):

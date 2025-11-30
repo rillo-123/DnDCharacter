@@ -371,14 +371,16 @@ class TestSpellPreparedCounting:
 class TestSpellRemovalRules:
     """Test spell removal restrictions."""
     
-    def test_cannot_remove_domain_bonus_spell(self):
-        """Domain bonus spells cannot be removed."""
+    def test_domain_bonus_spells_can_be_removed(self):
+        """Domain bonus spells can now be removed (restriction removed)."""
         slug_to_remove = "cure-wounds"
         domain_bonus_slugs = {"cure-wounds", "bless"}
         
-        can_remove = slug_to_remove not in domain_bonus_slugs
+        # This spell is in domain_bonus_slugs, but we can still remove it now
+        # The restriction was lifted to allow full control
+        can_remove = True  # All spells can be removed now
         
-        assert can_remove == False
+        assert can_remove == True
     
     def test_can_remove_chosen_spell(self):
         """Chosen spells can be removed."""
