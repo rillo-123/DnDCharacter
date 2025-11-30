@@ -69,8 +69,11 @@ except ModuleNotFoundError:
 
 AUTHORITATIVE_SOURCES = {
     "phb",  # Player's Handbook
-    "xgte",  # Xanathar's Guide to Everything
+    "xge",  # Xanathar's Guide to Everything
+    "xgte",  # Xanathar's Guide to Everything (alternate abbreviation)
     "tcoe",  # Tasha's Cauldron of Everything
+    "tce",  # Tasha's Cauldron of Everything (alternate abbreviation)
+    "5e core rules",  # Official 5e core rules (equivalent to PHB)
 }
 
 def is_authoritative_source(source: str | None) -> bool:
@@ -82,7 +85,7 @@ def is_authoritative_source(source: str | None) -> bool:
     # Check exact matches
     if normalized in AUTHORITATIVE_SOURCES:
         return True
-    # Check if source contains any authoritative abbreviation
+    # Check if source contains any authoritative abbreviation or phrase
     for auth_source in AUTHORITATIVE_SOURCES:
         if auth_source in normalized:
             return True

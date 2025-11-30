@@ -308,7 +308,7 @@ class TestSpellDetailsSaved:
         
         def is_authoritative_source(source: str | None) -> bool:
             """Check if spell/item source is from an authoritative D&D 5e book."""
-            AUTHORITATIVE_SOURCES = {"phb", "xgte", "tcoe"}
+            AUTHORITATIVE_SOURCES = {"phb", "xge", "xgte", "tcoe", "tce", "5e core rules"}
             
             if not source:
                 return False
@@ -320,17 +320,17 @@ class TestSpellDetailsSaved:
                     return True
             return False
         
-        # Test authoritative sources (these are the abbreviations used in the app)
+        # Test authoritative sources
         assert is_authoritative_source("PHB"), "PHB should be authoritative"
+        assert is_authoritative_source("XGE"), "XGE should be authoritative"
         assert is_authoritative_source("XGtE"), "XGtE should be authoritative"
         assert is_authoritative_source("TCoE"), "TCoE should be authoritative"
-        assert is_authoritative_source("phb"), "phb lowercase should work"
-        assert is_authoritative_source("xgte"), "xgte lowercase should work"
-        assert is_authoritative_source("tcoe"), "tcoe lowercase should work"
+        assert is_authoritative_source("TCE"), "TCE should be authoritative"
+        assert is_authoritative_source("5e Core Rules"), "5e Core Rules should be authoritative"
         
         # Test non-authoritative sources
         assert not is_authoritative_source("A5E"), "A5E should not be authoritative"
-        assert not is_authoritative_source("a5e"), "a5e should not be authoritative"
+        assert not is_authoritative_source("Level Up Advanced 5e"), "A5E should not be authoritative"
         assert not is_authoritative_source("UA"), "Unearthed Arcana should not be authoritative"
         assert not is_authoritative_source(""), "Empty string should not be authoritative"
         assert not is_authoritative_source(None), "None should not be authoritative"
