@@ -763,6 +763,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Instantaneous",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "A creature you touch regains a number of hit points equal to 1d8 + your spellcasting ability modifier.",
             "This spell has no effect on undead or constructs.",
@@ -783,6 +784,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Instantaneous",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "A creature of your choice that you can see within range regains hit points equal to 1d4 + your spellcasting ability modifier.",
             "This spell has no effect on undead or constructs.",
@@ -803,6 +805,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "1 round",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "A flash of light streaks toward a creature of your choice within range. Make a ranged spell attack against the target.",
             "On a hit, the target takes 4d6 radiant damage, and the next attack roll made against this target before the end of your next turn has advantage.",
@@ -823,6 +826,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Concentration, up to 1 minute",
         "ritual": False,
         "concentration": True,
+        "source": "5e Core Rules",
         "desc": [
             "You bless up to three creatures of your choice within range. Whenever a target makes an attack roll or a saving throw before the spell ends, the target can roll a d4 and add the number rolled to the attack roll or saving throw.",
         ],
@@ -842,6 +846,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Concentration, up to 1 minute",
         "ritual": False,
         "concentration": True,
+        "source": "5e Core Rules",
         "desc": [
             "Each object in a 20-foot cube within range is outlined in blue, green, or violet light. Any creature in the area when the spell is cast is also outlined in light if it fails a Dexterity saving throw.",
             "For the duration, objects and affected creatures shed dim light in a 10-foot radius and attack rolls against affected creatures have advantage.",
@@ -862,6 +867,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Instantaneous",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "Flame-like radiance descends on a creature you can see within range. The target must succeed on a Dexterity saving throw or take 1d8 radiant damage.",
             "The target gains no benefit from cover for this saving throw.",
@@ -882,6 +888,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Concentration, up to 10 minutes",
         "ritual": True,
         "concentration": True,
+        "source": "5e Core Rules",
         "desc": [
             "For the duration, you sense the presence of magic within 30 feet of you.",
             "If you sense magic in this way, you can use your action to see a faint aura around any visible creature or object in the area that bears magic, and you learn its school of magic, if any.",
@@ -902,6 +909,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Instantaneous",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "Up to six creatures of your choice that you can see within range each regain hit points equal to 2d8 + your spellcasting ability modifier.",
             "This spell has no effect on undead or constructs.",
@@ -922,6 +930,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Instantaneous",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "A sudden loud ringing noise, painfully intense, erupts from a point of your choice within range.",
             "Each creature in a 10-foot-radius sphere centered on that point must make a Constitution saving throw, taking 3d8 thunder damage on a failed save, or half as much damage on a successful one.",
@@ -942,6 +951,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Concentration, up to 1 minute",
         "ritual": False,
         "concentration": True,
+        "source": "5e Core Rules",
         "desc": [
             "Choose a humanoid that you can see within range. The target must succeed on a Wisdom saving throw or be paralyzed for the duration.",
             "At the end of each of its turns, the target can make another Wisdom saving throw. On a success, the spell ends on the target.",
@@ -962,6 +972,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Instantaneous",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "You unleash a string of insults laced with subtle enchantments at a creature you can see within range. If the target can hear you, it must succeed on a Wisdom saving throw or take 1d4 psychic damage and have disadvantage on the next attack roll it makes before the end of its next turn.",
         ],
@@ -981,6 +992,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Instantaneous",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "You utter a divine word, and burning radiance erupts from you.",
             "Each creature of your choice that you can see within 5 feet of you must succeed on a Constitution saving throw or take 1d6 radiant damage.",
@@ -1001,6 +1013,7 @@ LOCAL_SPELLS_FALLBACK = [
         "duration": "Instantaneous",
         "ritual": False,
         "concentration": False,
+        "source": "5e Core Rules",
         "desc": [
             "You point at one creature you can see within range. The creature must make a Wisdom saving throw.",
             "On a failed save, it takes 1d8 necrotic damage if it is still below its hit point maximum when you cast the spell.",
