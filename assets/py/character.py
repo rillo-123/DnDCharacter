@@ -6202,9 +6202,9 @@ def fetch_equipment_from_open5e():
 
 def populate_equipment_results(search_term: str = ""):
     """Populate equipment search results from Open5e"""
-    results_div = get_element("equipment-results")
+    results_div = get_element("equipment-library-results")
     if not results_div:
-        console.error("PySheet: equipment-results element not found")
+        console.error("PySheet: equipment-library-results element not found")
         return
     
     # Ensure we have equipment data
@@ -6215,16 +6215,6 @@ def populate_equipment_results(search_term: str = ""):
     seen_names = set()
     
     equipment_list = EQUIPMENT_LIBRARY_STATE.get("equipment", [])
-    console.log(f"PySheet: populate_equipment_results - equipment count: {len(equipment_list)}")
-    console.log(f"PySheet: search term: '{search_term}'")
-    
-    # Debug: show first few items
-    if equipment_list:
-        console.log(f"PySheet: first item: {equipment_list[0]}")
-        console.log(f"PySheet: last item: {equipment_list[-1]}")
-        console.log(f"PySheet: all item names: {[item.get('name', '') for item in equipment_list[:10]]}")
-    else:
-        console.log("PySheet: equipment_list is empty!")
     
     # Filter from EQUIPMENT_LIBRARY_STATE and deduplicate by name
     for item in equipment_list:
@@ -6235,85 +6225,106 @@ def populate_equipment_results(search_term: str = ""):
                 filtered.append(item)
                 seen_names.add(name)
     
-    console.log(f"PySheet: filtered results: {len(filtered)}")
+    # Limit to 30 results
+    limited = filtered[:30]
     
-    # Limit to 20 results
-    filtered = filtered[:20]
-    
-    results_div.innerHTML = ""
-    
-    if not filtered:
-        empty = document.createElement("div")
-        empty.style.padding = "1rem"
-        empty.style.textAlign = "center"
-        empty.style.color = "#94a3b8"
-        empty.textContent = "No items found"
-        results_div.appendChild(empty)
+    if not limited:
+        results_div.innerHTML = '<div class="equipment-library-empty">No items found. Try searching for sword, armor, rope, potion, etc.</div>'
         return
     
-    # Create container for cards
-    container = document.createElement("div")
-    container.className = "equipment-results-container"
+    # Build HTML from cards
+    cards_html = "".join(build_equipment_card_html(item) for item in limited)
+    truncated = len(filtered) > 30
+    if truncated:
+        cards_html += f'<div class="equipment-library-empty">Showing first 30 items. Refine your search for more precise results.</div>'
     
-    for item in filtered:
-        name = item.get("name", "Unknown")
-        cost = item.get("cost", "Unknown")
-        weight = item.get("weight", "Unknown")
-        damage = item.get("damage", "")
-        damage_type = item.get("damage_type", "")
-        range_text = item.get("range", "")
-        properties = item.get("properties", "")
-        ac_string = item.get("ac", "")
-        armor_class = item.get("armor_class", "")
-        
-        # Create card
-        card = document.createElement("div")
-        card.className = "equipment-result-card"
-        card.setAttribute("data-name", name)
-        card.setAttribute("data-cost", cost)
-        card.setAttribute("data-weight", weight)
-        # Only set optional attributes if they have values
-        if damage:
-            card.setAttribute("data-damage", damage)
-        if damage_type:
-            card.setAttribute("data-damage-type", damage_type)
-        if range_text:
-            card.setAttribute("data-range", range_text)
-        if properties:
-            card.setAttribute("data-properties", properties)
-        if ac_string:
-            card.setAttribute("data-ac-string", ac_string)
-        if armor_class:
-            card.setAttribute("data-armor-class", armor_class)
-        card.style.cursor = "pointer"
-        
-        # Item name
-        nameEl = document.createElement("div")
-        nameEl.className = "equipment-result-name"
-        nameEl.textContent = name
-        card.appendChild(nameEl)
-        
-        # Details (cost + weight + damage if present)
-        detailsEl = document.createElement("div")
-        detailsEl.className = "equipment-result-details"
-        details_text = [cost, weight]
-        if damage:
-            details_text.append(damage)
-        detailsEl.innerHTML = "".join(f"<span>{d}</span>" for d in details_text)
-        card.appendChild(detailsEl)
-        
-        container.appendChild(card)
+    results_div.innerHTML = cards_html
+    attach_equipment_card_handlers(results_div)
+
+
+def build_equipment_card_html(item: dict) -> str:
+    """Build HTML for an equipment card similar to spell cards"""
+    name = item.get("name", "Unknown")
+    cost = item.get("cost", "Unknown")
+    weight = item.get("weight", "Unknown")
+    damage = item.get("damage", "")
+    damage_type = item.get("damage_type", "")
+    range_text = item.get("range", "")
+    properties = item.get("properties", "")
+    ac_string = item.get("ac", "")
+    armor_class = item.get("armor_class", "")
     
-    results_div.appendChild(container)
+    # Build details list
+    details = []
+    if cost and cost != "Unknown":
+        details.append(escape(str(cost)))
+    if weight and weight != "Unknown":
+        details.append(escape(str(weight)))
+    details_text = " · ".join(details)
     
-    # Remove old listener if it exists
-    global _EQUIPMENT_RESULT_PROXY
-    if _EQUIPMENT_RESULT_PROXY:
-        results_div.removeEventListener("click", _EQUIPMENT_RESULT_PROXY)
+    # Build specs (damage, AC, range, etc)
+    specs = []
+    if damage:
+        specs.append(escape(str(damage)))
+    if damage_type:
+        specs.append(f"({escape(str(damage_type))})")
+    if armor_class:
+        specs.append(f"AC {escape(str(armor_class))}")
+    if range_text:
+        specs.append(escape(str(range_text)))
+    specs_text = " · ".join(specs) if specs else ""
     
-    # Add single new listener
-    _EQUIPMENT_RESULT_PROXY = create_proxy(_handle_equipment_click)
-    results_div.addEventListener("click", _EQUIPMENT_RESULT_PROXY)
+    # Add button
+    button_html = (
+        f'<button type="button" class="equipment-action" '
+        f'data-equipment-name="{escape(name)}" '
+        f'data-equipment-cost="{escape(cost)}" '
+        f'data-equipment-weight="{escape(weight)}" '
+        f'data-equipment-damage="{escape(damage)}" '
+        f'data-equipment-damage-type="{escape(damage_type)}" '
+        f'data-equipment-range="{escape(range_text)}" '
+        f'data-equipment-properties="{escape(properties)}" '
+        f'data-equipment-ac="{escape(ac_string)}" '
+        f'data-equipment-armor-class="{escape(armor_class)}">Add</button>'
+    )
+    
+    return (
+        f'<div class="equipment-card" data-equipment-name="{escape(name)}">'
+        f'  <div class="equipment-summary">'
+        f'    <div class="equipment-header">'
+        f'      <span class="equipment-name">{escape(name)}</span>'
+        f'      {button_html}'
+        f'    </div>'
+        f'    <div class="equipment-details">{details_text}</div>'
+        + (f'    <div class="equipment-specs">{specs_text}</div>' if specs_text else '')
+        + f'  </div>'
+        f'</div>'
+    )
+
+
+def attach_equipment_card_handlers(container):
+    """Attach click handlers to equipment add buttons"""
+    if container is None:
+        return
+    
+    buttons = container.querySelectorAll("button.equipment-action")
+    for button in buttons:
+        name = button.getAttribute("data-equipment-name") or ""
+        cost = button.getAttribute("data-equipment-cost") or ""
+        weight = button.getAttribute("data-equipment-weight") or ""
+        damage = button.getAttribute("data-equipment-damage") or ""
+        damage_type = button.getAttribute("data-equipment-damage-type") or ""
+        range_text = button.getAttribute("data-equipment-range") or ""
+        properties = button.getAttribute("data-equipment-properties") or ""
+        ac_string = button.getAttribute("data-equipment-ac") or ""
+        armor_class = button.getAttribute("data-equipment-armor-class") or ""
+        
+        proxy = create_proxy(
+            lambda event, n=name, c=cost, w=weight, d=damage, dt=damage_type, r=range_text, p=properties, ac=ac_string, acv=armor_class: 
+                submit_open5e_item(n, c, w, d, dt, r, p, ac, acv)
+        )
+        button.addEventListener("click", proxy)
+        _EVENT_PROXIES.append(proxy)
 
 
 def _handle_equipment_click(event):
@@ -7265,10 +7276,11 @@ def register_event_listeners():
         _EVENT_PROXIES.append(proxy_reset)
 
     # Register equipment search
-    equipment_search = get_element("equipment-search")
+    equipment_search = get_element("equipment-search-input")
     if equipment_search is not None:
         proxy_equip_search = create_proxy(lambda e: populate_equipment_results(e.target.value if hasattr(e, 'target') else ""))
         equipment_search.addEventListener("input", proxy_equip_search)
+        _EVENT_PROXIES.append(proxy_equip_search)
         _EVENT_PROXIES.append(proxy_equip_search)
 
     # Register equipment chooser close button

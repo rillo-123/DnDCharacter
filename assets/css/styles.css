@@ -1789,6 +1789,91 @@ body {
     gap: 0.85rem;
 }
 
+/* Equipment card styling - mirror of spell cards */
+.equipment-card {
+    background: rgba(15, 23, 42, 0.75);
+    border-radius: 0.9rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    overflow: hidden;
+}
+
+.equipment-summary {
+    padding: 0.9rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: rgba(30, 41, 59, 0.65);
+}
+
+.equipment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.equipment-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #e0f2fe;
+    flex: 1;
+    min-width: 0;
+}
+
+.equipment-details {
+    font-size: 0.9rem;
+    color: #a5b4fc;
+    letter-spacing: 0.05em;
+}
+
+.equipment-specs {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    letter-spacing: 0.04em;
+}
+
+.equipment-action {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(96, 165, 250, 0.5);
+    color: #bfdbfe;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.equipment-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(59, 130, 246, 0.35);
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(129, 140, 248, 0.7);
+}
+
+.equipment-action:active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.65), rgba(99, 102, 241, 0.65));
+    border-color: rgba(129, 140, 248, 0.7);
+    color: #f8fafc;
+}
+
+.equipment-library-empty {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.spell-card .spell-body {
+    padding: 1.1rem;
+    display: grid;
+    gap: 0.85rem;
+}
+
 .spell-properties {
     display: grid;
     gap: 0.5rem 1rem;
