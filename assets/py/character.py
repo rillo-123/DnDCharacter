@@ -5877,15 +5877,8 @@ def get_equipment_items_from_data(data: dict) -> list:
 
 
 def add_equipment_item(_event=None):
-    """Show the equipment chooser modal"""
-    modal = get_element("equipment-chooser-modal")
-    if modal:
-        modal.style.display = "flex"
-        search_input = get_element("equipment-search")
-        if search_input:
-            search_input.value = ""
-            search_input.focus()
-        populate_equipment_results("")
+    """Equipment items are added through inline cards in the equipment library"""
+    pass
 
 
 def add_custom_item(_event=None):
@@ -6358,40 +6351,15 @@ def _handle_equipment_click(event):
 
 
 def show_magic_item_import_modal():
-    """Show modal for importing a magic item from URL"""
-    # Add a temporary magic item to inventory
+    """Handle magic item import"""
     INVENTORY_MANAGER.add_item("Unnamed Magic Item", cost="", weight="", qty=1, category="Magic Items", notes="", source="custom")
     INVENTORY_MANAGER.render_inventory()
-    
-    # Close the equipment chooser
-    chooser = get_element("equipment-chooser-modal")
-    if chooser:
-        chooser.style.display = "none"
-    
-    # Show the magic item import panel
-    console.log("PySheet: Magic item added, awaiting URL import")
+    schedule_auto_export()
 
 
 def show_equipment_details(name: str, cost: str, weight: str):
-    """Show equipment details modal"""
-    set_text("equipment-details-name", name)
-    set_text("equipment-details-cost", cost)
-    set_text("equipment-details-weight", weight)
-    
-    # Store current item data as data attributes on the button itself
-    add_button = get_element("equipment-details-add")
-    if add_button:
-        add_button.setAttribute("data-item-name", name)
-        add_button.setAttribute("data-item-cost", cost)
-        add_button.setAttribute("data-item-weight", weight)
-    
-    modal = get_element("equipment-details-modal")
-    if modal:
-        modal.style.display = "block"
-        # Close the chooser modal
-        chooser = get_element("equipment-chooser-modal")
-        if chooser:
-            chooser.style.display = "none"
+    """Equipment details deprecated - use inline cards"""
+    pass
 
 
 def select_equipment_item(name: str, cost: str, weight: str):
@@ -6442,11 +6410,7 @@ def select_equipment_item(name: str, cost: str, weight: str):
     schedule_auto_export()
     console.log("Export scheduled")
     
-    # Close the chooser modal
-    modal = get_element("equipment-chooser-modal")
-    if modal:
-        modal.style.display = "none"
-        console.log("Chooser modal closed")
+    schedule_auto_export()
 
 
 def update_equipment_totals():
@@ -6590,12 +6554,6 @@ def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str 
     
     INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category="", notes=notes, source="open5e")
     INVENTORY_MANAGER.render_inventory()
-    
-    # Close modal
-    modal = get_element("equipment-chooser-modal")
-    if modal:
-        modal.style.display = "none"
-    
     schedule_auto_export()
 
 
@@ -7281,48 +7239,6 @@ def register_event_listeners():
         proxy_equip_search = create_proxy(lambda e: populate_equipment_results(e.target.value if hasattr(e, 'target') else ""))
         equipment_search.addEventListener("input", proxy_equip_search)
         _EVENT_PROXIES.append(proxy_equip_search)
-        _EVENT_PROXIES.append(proxy_equip_search)
-
-    # Register equipment chooser close button
-    equipment_close = get_element("equipment-chooser-close")
-    if equipment_close is not None:
-        proxy_equip_close = create_proxy(lambda e: get_element("equipment-chooser-modal").style.display == "none" or setattr(get_element("equipment-chooser-modal"), "style.display", "none"))
-        equipment_close.addEventListener("click", proxy_equip_close)
-        _EVENT_PROXIES.append(proxy_equip_close)
-
-    # Register equipment details modal handlers
-    equipment_details_close = get_element("equipment-details-close")
-    if equipment_details_close is not None:
-        proxy_details_close = create_proxy(lambda e: get_element("equipment-details-modal").style.display == "none" or setattr(get_element("equipment-details-modal"), "style.display", "none"))
-        equipment_details_close.addEventListener("click", proxy_details_close)
-        _EVENT_PROXIES.append(proxy_details_close)
-
-    equipment_details_cancel = get_element("equipment-details-cancel")
-    if equipment_details_cancel is not None:
-        proxy_details_cancel = create_proxy(lambda e: get_element("equipment-details-modal").style.display == "none" or setattr(get_element("equipment-details-modal"), "style.display", "none"))
-        equipment_details_cancel.addEventListener("click", proxy_details_cancel)
-        _EVENT_PROXIES.append(proxy_details_cancel)
-
-    equipment_details_add = get_element("equipment-details-add")
-    if equipment_details_add is not None:
-        def handle_details_add(e):
-            button = e.target
-            name = button.getAttribute("data-item-name") or ""
-            cost = button.getAttribute("data-item-cost") or ""
-            weight = button.getAttribute("data-item-weight") or ""
-            
-            console.log(f"Adding from details: {name}, {cost}, {weight}")
-            
-            if name:
-                select_equipment_item(name, cost, weight)
-                # Close details modal
-                details_modal = get_element("equipment-details-modal")
-                if details_modal:
-                    details_modal.style.display = "none"
-        
-        proxy_details_add = create_proxy(handle_details_add)
-        equipment_details_add.addEventListener("click", proxy_details_add)
-        _EVENT_PROXIES.append(proxy_details_add)
 
 
 def load_initial_state():

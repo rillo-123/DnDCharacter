@@ -782,45 +782,6 @@
         </div>
     </div>
 
-    <!-- Equipment Chooser Modal -->
-    <div id="equipment-chooser-modal" class="spell-cast-modal">
-        <div class="spell-cast-modal-content">
-            <div class="spell-cast-modal-header">
-                <h3>Add Equipment</h3>
-                <button id="equipment-chooser-close" class="spell-cast-modal-close">&times;</button>
-            </div>
-            <div class="spell-cast-modal-body">
-                <input id="equipment-search" type="text" placeholder="Search items... (e.g., sword, armor, rope, Magic Item)" style="width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px;">
-                <div id="equipment-results" style="max-height: 300px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="equipment-details-modal" class="spell-cast-modal" style="display: none;">
-        <div class="spell-cast-modal-content">
-            <div class="spell-cast-modal-header">
-                <h3 id="equipment-details-name">Equipment Details</h3>
-                <button id="equipment-details-close" class="spell-cast-modal-close">&times;</button>
-            </div>
-            <div class="spell-cast-modal-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                    <div>
-                        <strong>Cost:</strong>
-                        <p id="equipment-details-cost" style="margin: 4px 0;">-</p>
-                    </div>
-                    <div>
-                        <strong>Weight:</strong>
-                        <p id="equipment-details-weight" style="margin: 4px 0;">-</p>
-                    </div>
-                </div>
-            </div>
-            <div class="spell-cast-modal-footer">
-                <button id="equipment-details-add" class="spell-cast-modal-btn spell-cast-modal-btn-confirm">Add to Inventory</button>
-                <button id="equipment-details-cancel" class="spell-cast-modal-btn spell-cast-modal-btn-cancel">Close</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Custom Item Modal -->
     <div id="custom-item-modal" class="spell-cast-modal" style="display: none;">
         <div class="spell-cast-modal-content">
@@ -971,42 +932,7 @@
             }
 
 
-
-            // Equipment chooser modal close handlers
-            const equipmentChooserModal = document.getElementById('equipment-chooser-modal');
-            const equipmentCloseBtn = document.getElementById('equipment-chooser-close');
-            const equipmentSearchInput = document.getElementById('equipment-search');
-
-            if (equipmentCloseBtn) {
-                equipmentCloseBtn.addEventListener('click', () => {
-                    if (equipmentChooserModal) {
-                        equipmentChooserModal.style.display = 'none';
-                    }
-                });
-            }
-
-            if (equipmentSearchInput) {
-                let searchTimeout;
-                // Wait for PyScript to be ready before setting up handler
-                function setupEquipmentSearch() {
-                    if (typeof PyScript !== 'undefined' && PyScript.interpreter && PyScript.interpreter.interface) {
-                        equipmentSearchInput.addEventListener('input', (e) => {
-                            clearTimeout(searchTimeout);
-                            searchTimeout = setTimeout(() => {
-                                try {
-                                    PyScript.interpreter.interface.populate_equipment_results(e.target.value);
-                                } catch (ex) {
-                                    console.error("Failed to populate equipment results:", ex);
-                                }
-                            }, 300);
-                        });
-                    } else {
-                        // PyScript not ready yet, retry in 100ms
-                        setTimeout(setupEquipmentSearch, 100);
-                    }
-                }
-                setupEquipmentSearch();
-            }
+            // Equipment search is handled in Python with populate_equipment_results
         });
     </script>
 
