@@ -6288,6 +6288,10 @@ def build_equipment_card_html(item: dict) -> str:
     ac_string = item.get("ac", "")
     armor_class = item.get("armor_class", "")
     
+    # Convert to strings to handle numeric values
+    if armor_class and not isinstance(armor_class, str):
+        armor_class = str(armor_class)
+    
     # Build details list
     details = []
     if cost and cost != "Unknown":
@@ -6304,6 +6308,8 @@ def build_equipment_card_html(item: dict) -> str:
         specs.append(f"({escape(str(damage_type))})")
     if armor_class:
         specs.append(f"AC {escape(str(armor_class))}")
+    if ac_string:
+        specs.append(f"AC {escape(str(ac_string))}")
     if range_text:
         specs.append(escape(str(range_text)))
     specs_text = " · ".join(specs) if specs else ""
@@ -6311,22 +6317,22 @@ def build_equipment_card_html(item: dict) -> str:
     # Add button
     button_html = (
         f'<button type="button" class="equipment-action" '
-        f'data-equipment-name="{escape(name)}" '
-        f'data-equipment-cost="{escape(cost)}" '
-        f'data-equipment-weight="{escape(weight)}" '
-        f'data-equipment-damage="{escape(damage)}" '
-        f'data-equipment-damage-type="{escape(damage_type)}" '
-        f'data-equipment-range="{escape(range_text)}" '
-        f'data-equipment-properties="{escape(properties)}" '
-        f'data-equipment-ac="{escape(ac_string)}" '
-        f'data-equipment-armor-class="{escape(armor_class)}">Add</button>'
+        f'data-equipment-name="{escape(str(name))}" '
+        f'data-equipment-cost="{escape(str(cost))}" '
+        f'data-equipment-weight="{escape(str(weight))}" '
+        f'data-equipment-damage="{escape(str(damage))}" '
+        f'data-equipment-damage-type="{escape(str(damage_type))}" '
+        f'data-equipment-range="{escape(str(range_text))}" '
+        f'data-equipment-properties="{escape(str(properties))}" '
+        f'data-equipment-ac="{escape(str(ac_string))}" '
+        f'data-equipment-armor-class="{escape(str(armor_class))}">Add</button>'
     )
     
     return (
-        f'<div class="equipment-card" data-equipment-name="{escape(name)}">'
+        f'<div class="equipment-card" data-equipment-name="{escape(str(name))}">'
         f'  <div class="equipment-summary">'
         f'    <div class="equipment-header">'
-        f'      <span class="equipment-name">{escape(name)}</span>'
+        f'      <span class="equipment-name">{escape(str(name))}</span>'
         f'      {button_html}'
         f'    </div>'
         f'    <div class="equipment-details">{details_text}</div>'
