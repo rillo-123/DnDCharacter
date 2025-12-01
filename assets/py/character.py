@@ -310,6 +310,7 @@ WEAPON_LIBRARY_STATE = {
 # Equipment library state - will be fetched from Open5e
 EQUIPMENT_LIBRARY_STATE = {
     "loading": False,
+    "loaded": False,
     "equipment": [],
     "equipment_map": {},
 }
@@ -6191,6 +6192,46 @@ def fetch_equipment_from_open5e():
         {"name": "Amulet of Health", "cost": "varies", "weight": "0 lb."},
         {"name": "Magic Item", "cost": "varies", "weight": "0 lb.", "is_magic_item_importer": True},
     ]
+
+
+def load_equipment_library(_event=None):
+    """Load equipment library from cached data or Open5e API"""
+    if EQUIPMENT_LIBRARY_STATE.get("loading"):
+        return
+
+    button = get_element("equipment-load-btn")
+    if button is not None:
+        button.disabled = True
+    
+    EQUIPMENT_LIBRARY_STATE["loading"] = True
+    update_equipment_library_status("Loading equipment...")
+
+    try:
+        # Fetch and cache equipment data
+        fetch_equipment_from_open5e()
+        
+        equipment_list = EQUIPMENT_LIBRARY_STATE.get("equipment", [])
+        if equipment_list:
+            EQUIPMENT_LIBRARY_STATE["loaded"] = True
+            update_equipment_library_status(f"Loaded {len(equipment_list)} items. Search to filter results.")
+            console.log(f"PySheet: Equipment library loaded with {len(equipment_list)} items")
+        else:
+            update_equipment_library_status("No equipment items loaded. Try again.")
+            console.warn("PySheet: Equipment library is empty")
+    except Exception as exc:
+        console.error(f"PySheet: Error loading equipment: {exc}")
+        update_equipment_library_status("Error loading equipment. Please try again.")
+    finally:
+        EQUIPMENT_LIBRARY_STATE["loading"] = False
+        if button is not None:
+            button.disabled = False
+
+
+def update_equipment_library_status(message: str):
+    """Update the equipment library status message"""
+    status_div = get_element("equipment-library-status")
+    if status_div:
+        status_div.textContent = message
 
 
 def populate_equipment_results(search_term: str = ""):
