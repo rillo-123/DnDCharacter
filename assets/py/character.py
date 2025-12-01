@@ -6113,7 +6113,7 @@ def fetch_equipment_from_open5e():
     
     # Check localStorage cache first
     try:
-        cache_key = "dnd_equipment_cache_v7"
+        cache_key = "dnd_equipment_cache_v8"
         cached = window.localStorage.getItem(cache_key)
         if cached:
             cache_data = json.loads(cached)
@@ -6241,14 +6241,17 @@ def populate_equipment_results(search_term: str = ""):
         console.error("PySheet: equipment-library-results element not found")
         return
     
-    # Ensure we have equipment data
-    fetch_equipment_from_open5e()
+    # Ensure we have equipment data - only fetch if not already loaded
+    if not EQUIPMENT_LIBRARY_STATE.get("equipment"):
+        console.log("PySheet: No equipment data, calling fetch_equipment_from_open5e")
+        fetch_equipment_from_open5e()
     
     search_term = search_term.lower().strip()
     filtered = []
     seen_names = set()
     
     equipment_list = EQUIPMENT_LIBRARY_STATE.get("equipment", [])
+    console.log(f"PySheet: Searching in {len(equipment_list)} equipment items for '{search_term}'")
     
     # Filter from EQUIPMENT_LIBRARY_STATE and deduplicate by name
     for item in equipment_list:
