@@ -1069,6 +1069,30 @@ LOCAL_SPELLS_FALLBACK = [
         "dnd_class": "Bard, Cleric",
         "document__title": "SRD",
     },
+    {
+        "name": "Insect Plague",
+        "slug": "insect-plague",
+        "level": 5,
+        "school": "conjuration",
+        "casting_time": "1 action",
+        "range": "300 feet",
+        "components": "V, S, M",
+        "material": "A few grains of sugar, some kernel of grain, and a smear of fat",
+        "duration": "Concentration, up to 10 minutes",
+        "ritual": False,
+        "concentration": True,
+        "source": "5e Core Rules",
+        "desc": [
+            "A swarm of insects fills a 20-foot-radius sphere centered on a point of your choice within range. The swarm remains for the spell's duration, and the swarm's movement doesn't provoke opportunity attacks.",
+            "The swarm can move up to 30 feet each round in any direction, but can't move more than 30 feet away from the point where it was summoned. The swarm has the following statistics:",
+            "AC 15, HP equal to four times your spellcaster level, immune to poison and psychic damage.",
+            "At the start of each of your turns, the swarm deals 1d6 piercing damage to each creature in its space, or half damage if the creature makes a Constitution saving throw.",
+            "You can move the swarm up to 30 feet as part of your action. If you use an action for any other purpose, the swarm doesn't move.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 6th level or higher, the damage increases by 1d6 for each slot level above 5th.",
+        "dnd_class": "Cleric, Druid",
+        "document__title": "SRD",
+    },
 ]
 
 
