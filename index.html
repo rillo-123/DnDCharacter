@@ -258,46 +258,59 @@
 
         <section id="tab-inventory" class="tab-panel">
             <div class="panel-grid">
-                <section class="card">
-                    <h2>Equipment &amp; Wealth</h2>
-                    <div class="equipment-toolbar">
-                        <div class="equipment-actions">
+                <section class="card equipment-left-column">
+                    <div class="equipment-chooser-section">
+                        <h2>Equipment Library</h2>
+                        <p class="hint">Search and select equipment to add to your inventory, or add custom items.</p>
+                        <div class="equipment-library-controls">
+                            <input type="search" id="equipment-search-input" placeholder="Search equipment (e.g., sword, armor, rope)">
                             <button id="equipment-add-btn" type="button" py-click="add_equipment_item">Add Item</button>
                             <button id="equipment-custom-btn" type="button" py-click="add_custom_item">Custom Item</button>
-                            <button id="equipment-clear-btn" type="button" py-click="clear_equipment_list">Clear List</button>
+                        </div>
+                        <div class="equipment-library-status" id="equipment-library-status">Search for items or add custom items.</div>
+                        <div class="equipment-library-results" id="equipment-library-results"></div>
+                    </div>
+                </section>
+                <section class="card equipment-right-column" style="grid-column: 2 / -1;">
+                    <div class="inventory-section">
+                        <div class="inventory-title-bar">
+                            <h2>Your Inventory</h2>
+                            <div class="inventory-counter-wrapper">
+                                <button id="equipment-clear-btn" type="button" py-click="clear_equipment_list" class="outline">Clear</button>
+                            </div>
                         </div>
                         <div class="equipment-totals">
-                            <span>Total Weight: <strong id="equipment-total-weight">0</strong></span>
-                            <span>Total Cost: <strong id="equipment-total-cost">0</strong></span>
+                            <span>Total Weight: <strong id="equipment-total-weight">0</strong> lb</span>
+                            <span>Total Cost: <strong id="equipment-total-cost">0</strong> gp</span>
                         </div>
-                    </div>
-                    <div class="inventory-container">
-                        <ul id="inventory-list" class="inventory-list"></ul>
-                        <div class="inventory-empty" id="inventory-empty-state">No items yet. Click <strong>Add Item</strong> or <strong>Custom Item</strong> to build your inventory.</div>
-                    </div>
-                    <div class="currency-card">
-                        <h3>Coin Pouch</h3>
-                        <div class="currency-grid">
-                            <label class="currency-field">
-                                <span>PP</span>
-                                <input data-character-input data-currency-field="pp" type="number" min="0" id="currency-pp" value="0">
-                            </label>
-                            <label class="currency-field">
-                                <span>GP</span>
-                                <input data-character-input data-currency-field="gp" type="number" min="0" id="currency-gp" value="0">
-                            </label>
-                            <label class="currency-field">
-                                <span>EP</span>
-                                <input data-character-input data-currency-field="ep" type="number" min="0" id="currency-ep" value="0">
-                            </label>
-                            <label class="currency-field">
-                                <span>SP</span>
-                                <input data-character-input data-currency-field="sp" type="number" min="0" id="currency-sp" value="0">
-                            </label>
-                            <label class="currency-field">
-                                <span>CP</span>
-                                <input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0">
-                            </label>
+                        <div class="inventory-container">
+                            <ul id="inventory-list" class="inventory-list"></ul>
+                            <div class="inventory-empty" id="inventory-empty-state">No items yet. Use the Equipment Library to add items to your inventory.</div>
+                        </div>
+                        <div class="currency-card">
+                            <h3>Coin Pouch</h3>
+                            <div class="currency-grid">
+                                <label class="currency-field">
+                                    <span>PP</span>
+                                    <input data-character-input data-currency-field="pp" type="number" min="0" id="currency-pp" value="0">
+                                </label>
+                                <label class="currency-field">
+                                    <span>GP</span>
+                                    <input data-character-input data-currency-field="gp" type="number" min="0" id="currency-gp" value="0">
+                                </label>
+                                <label class="currency-field">
+                                    <span>EP</span>
+                                    <input data-character-input data-currency-field="ep" type="number" min="0" id="currency-ep" value="0">
+                                </label>
+                                <label class="currency-field">
+                                    <span>SP</span>
+                                    <input data-character-input data-currency-field="sp" type="number" min="0" id="currency-sp" value="0">
+                                </label>
+                                <label class="currency-field">
+                                    <span>CP</span>
+                                    <input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0">
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </section>
