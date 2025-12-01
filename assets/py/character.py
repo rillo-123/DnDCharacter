@@ -1595,28 +1595,32 @@ class SpellcastingManager:
         console.log(f"DEBUG add_spell: Found spell record for {slug}")
         # Check if spell source is allowed
         source = record.get("source", "")
+        console.log(f"DEBUG add_spell: Checking source for {slug}: source='{source}'")
         if not is_spell_source_allowed(source):
-            console.warn(f"PySheet: spell '{slug}' is not from an allowed source (must be PHB, TCE, or XGE)")
+            console.warn(f"PySheet: spell '{slug}' is not from an allowed source (must be PHB, TCE, or XGE). Got: '{source}'")
             return
         
         profile = compute_spellcasting_profile()
         max_level = profile.get("max_spell_level")
+        console.log(f"DEBUG add_spell: max_spell_level={max_level}, spell level={record.get('level_int', 0)}")
         if (
             max_level is not None
             and max_level >= 0
             and record.get("level_int", 0) > max_level
         ):
-            console.warn("PySheet: cannot add spell above available level")
+            console.warn(f"PySheet: cannot add spell above available level (spell level {record.get('level_int', 0)} > max {max_level})")
             return
         allowed = profile.get("allowed_classes", [])
         # Handle both "classes" and "dnd_class" field names
         classes_field = record.get("classes") or record.get("dnd_class") or ""
+        console.log(f"DEBUG add_spell: classes_field='{classes_field}', allowed_classes={allowed}")
         if isinstance(classes_field, str):
             spell_classes = {c.strip().lower() for c in classes_field.split(",") if c.strip()}
         else:
             spell_classes = set(record.get("classes", []))
+        console.log(f"DEBUG add_spell: spell_classes={spell_classes}, intersection={spell_classes.intersection({c.lower() for c in allowed})}")
         if allowed and not spell_classes.intersection({c.lower() for c in allowed}):
-            console.warn("PySheet: spell not available to current classes")
+            console.warn(f"PySheet: spell '{slug}' not available to current classes. Spell classes: {spell_classes}, allowed: {[c.lower() for c in allowed]}")
             return
 
         # Check max prepared spells limit
