@@ -6113,7 +6113,7 @@ def fetch_equipment_from_open5e():
     
     # Check localStorage cache first
     try:
-        cache_key = "dnd_equipment_cache_v8"
+        cache_key = "dnd_equipment_cache_v9"
         cached = window.localStorage.getItem(cache_key)
         if cached:
             cache_data = json.loads(cached)
