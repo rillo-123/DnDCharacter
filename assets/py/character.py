@@ -1536,13 +1536,17 @@ class SpellcastingManager:
     # spellbook manipulation
     # ------------------------------------------------------------------
     def add_spell(self, slug: str):
+        console.log(f"DEBUG add_spell: slug={slug}, already_prepared={self.is_spell_prepared(slug)}")
         if not slug or self.is_spell_prepared(slug):
+            if slug:
+                console.log(f"DEBUG add_spell: Skipping {slug} - already prepared")
             return
         record = get_spell_by_slug(slug)
         if record is None:
             console.warn(f"PySheet: unable to add spell '{slug}' – not in library")
             return
         
+        console.log(f"DEBUG add_spell: Found spell record for {slug}")
         # Check if spell source is allowed
         source = record.get("source", "")
         if not is_spell_source_allowed(source):
@@ -1660,6 +1664,7 @@ class SpellcastingManager:
                 "is_domain_bonus": is_domain_bonus,
             }
         )
+        console.log(f"DEBUG add_spell: Successfully added {slug} (domain_bonus={is_domain_bonus}). Total prepared: {len(self.prepared)}")
         self.sort_prepared_spells()
         self.render_spellbook()
         self.render_spell_slots(self.compute_slot_summary(profile))
@@ -6977,9 +6982,16 @@ def handle_input_event(event=None):
             if value and SPELL_LIBRARY_STATE.get("loaded"):
                 level = get_numeric_value("level", 1)
                 domain_spells = get_domain_bonus_spells(value, level)
+                console.log(f"DEBUG: handle_input_event - Adding {len(domain_spells)} domain spells: {domain_spells}")
+                added_count = 0
                 for spell_slug in domain_spells:
                     if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
+                        console.log(f"DEBUG: Adding domain spell from input event: {spell_slug}")
                         SPELLCASTING_MANAGER.add_spell(spell_slug)
+                        added_count += 1
+                console.log(f"DEBUG: Added {added_count} domain spells from input event")
+            else:
+                console.log(f"DEBUG: Skipped domain spell add - value={value}, loaded={SPELL_LIBRARY_STATE.get('loaded')}")
         # Auto-check proficiency if expertise is checked
         elif target_id.endswith("-exp") and event.target.checked:
             skill_name = target_id[:-4]  # Remove "-exp" suffix
@@ -7184,10 +7196,16 @@ def _populate_domain_spells_on_load():
     if domain and SPELL_LIBRARY_STATE.get("loaded"):
         level = get_numeric_value("level", 1)
         domain_spells = get_domain_bonus_spells(domain, level)
+        console.log(f"DEBUG: _populate_domain_spells_on_load - domain={domain}, level={level}, spells={domain_spells}")
         for spell_slug in domain_spells:
             if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
+                console.log(f"DEBUG: Adding domain spell {spell_slug}")
                 SPELLCASTING_MANAGER.add_spell(spell_slug)
+            else:
+                console.log(f"DEBUG: Domain spell {spell_slug} already prepared")
         update_calculations()
+    else:
+        console.log(f"DEBUG: _populate_domain_spells_on_load - skipped (domain={domain}, loaded={SPELL_LIBRARY_STATE.get('loaded')})")
 
 # Auto-load weapon library
 async def _auto_load_weapons():
