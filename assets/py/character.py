@@ -1093,6 +1093,32 @@ LOCAL_SPELLS_FALLBACK = [
         "dnd_class": "Cleric, Druid",
         "document__title": "SRD",
     },
+    {
+        "name": "Confusion",
+        "slug": "confusion",
+        "level": 4,
+        "school": "enchantment",
+        "casting_time": "1 action",
+        "range": "90 feet",
+        "components": "V, S, M",
+        "material": "A pinch of powdered iron",
+        "duration": "Concentration, up to 1 minute",
+        "ritual": False,
+        "concentration": True,
+        "source": "5e Core Rules",
+        "desc": [
+            "Each creature in a 10-foot radius sphere centered on a point of your choice within range must make a Wisdom saving throw.",
+            "On a failed save, a creature can't take reactions until the save ends, and the creature rolls a d10 at the end of each of its turns during this Duration to determine its behavior for that turn.",
+            "d10 1-3: The creature uses all its movement, if possible, to move in a random direction. To determine the direction, roll a d8 and assign directions. The creature doesn't take an action this turn.",
+            "d10 4-6: The creature doesn't move or take actions this turn.",
+            "d10 7-8: The creature uses its action this turn to make one melee attack against a randomly determined creature within its reach. If there is no creature within its reach, the creature does nothing this turn.",
+            "d10 9-10: The creature can act and move normally.",
+            "At the end of each of the affected creature's turns, it can make another Wisdom saving throw. If it succeeds, the effect ends for that creature.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 5th level or higher, the radius of the sphere increases by 5 feet for each slot level above 4th.",
+        "dnd_class": "Bard, Druid, Sorcerer, Wizard",
+        "document__title": "SRD",
+    },
 ]
 
 
