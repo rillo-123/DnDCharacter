@@ -94,6 +94,24 @@ LOCAL_SPELLS_FALLBACK = [
         "desc": ["You touch a creature and grant it a measure of protection from death."],
         "higher_level": "",
     },
+    {
+        "name": "Mass Cure Wounds",
+        "slug": "mass-cure-wounds",
+        "level": 5,
+        "school": "evocation",
+        "source": "5e Core Rules",
+        "desc": ["A wave of healing energy washes out from a point of your choice within range. Choose up to six creatures in a 30-foot-radius sphere centered on that point."],
+        "higher_level": "When you cast this spell using a spell slot of 6th level or higher, the healing increases by 1d8 for each slot level above 5th.",
+    },
+    {
+        "name": "Raise Dead",
+        "slug": "raise-dead",
+        "level": 5,
+        "school": "necromancy",
+        "source": "5e Core Rules",
+        "desc": ["You return a dead creature you touch to life, provided that it has been dead no longer than 10 days."],
+        "higher_level": "",
+    },
 ]
 
 
