@@ -1943,7 +1943,29 @@ class SpellcastingManager:
                 bonus_spell_slugs = get_domain_bonus_spells(domain, get_numeric_value("level", 1)) if domain else []
                 is_bonus_spell = slug in bonus_spell_slugs
                 
-                # Build mnemonics for spellbook view (concentration, ritual, range, domain bonus)
+                # Calculate spell save DC for mnemonic
+                character_level = get_numeric_value("level", 1)
+                class_name = get_text_value("class").lower() if get_text_value("class") else ""
+                class_spell_ability_map = {
+                    "artificer": "int",
+                    "bard": "cha",
+                    "cleric": "wis",
+                    "druid": "wis",
+                    "paladin": "cha",
+                    "ranger": "wis",
+                    "sorcerer": "cha",
+                    "warlock": "cha",
+                    "wizard": "int",
+                }
+                spell_ability = class_spell_ability_map.get(class_name, "int")
+                scores = gather_scores()
+                race_bonuses = get_race_ability_bonuses(get_text_value("race"))
+                spell_score = scores.get(spell_ability, 10) + race_bonuses.get(spell_ability, 0)
+                spell_mod = ability_modifier(spell_score)
+                proficiency = compute_proficiency(character_level)
+                spell_save_dc = 8 + proficiency + spell_mod
+                
+                # Build mnemonics for spellbook view (concentration, ritual, range, domain bonus, save DC)
                 mnemonics_html = ""
                 mnemonics_list = []
                 if record.get("concentration"):
@@ -1975,6 +1997,11 @@ class SpellcastingManager:
                     
                     if range_label:
                         mnemonics_list.append(f"<span class=\"spell-mnemonic range\" title=\"Range: {escape(record.get('range', ''))}\">{escape(range_label)}</span>")
+                
+                # Add save DC mnemonic if spell requires a saving throw
+                desc_text = _coerce_spell_text(record.get("desc", ""))
+                if desc_text and "saving throw" in desc_text.lower():
+                    mnemonics_list.append(f"<span class=\"spell-mnemonic save\" title=\"Spell Save DC\">Save DC {spell_save_dc}</span>")
                 
                 if mnemonics_list:
                     mnemonics_html = f"<span class=\"spell-mnemonics\">{''.join(mnemonics_list)}</span>"
