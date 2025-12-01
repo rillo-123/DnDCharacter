@@ -1998,18 +1998,20 @@ class SpellcastingManager:
                     if range_label:
                         mnemonics_list.append(f"<span class=\"spell-mnemonic range\" title=\"Range: {escape(record.get('range', ''))}\">{escape(range_label)}</span>")
                 
-                # Add save DC mnemonic if spell requires a saving throw
+                # Add save type mnemonic if spell requires a saving throw
                 desc_text = _coerce_spell_text(record.get("desc", ""))
                 if desc_text and "saving throw" in desc_text.lower():
-                    # Extract the ability type from the description
-                    save_ability = "?"
+                    # Extract the ability type that the target must save against
+                    save_ability = None
                     abilities = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"]
                     abilities_short = {"Strength": "STR", "Dexterity": "DEX", "Constitution": "CON", "Intelligence": "INT", "Wisdom": "WIS", "Charisma": "CHA"}
                     for ability in abilities:
                         if ability.lower() in desc_text.lower():
                             save_ability = abilities_short[ability]
                             break
-                    mnemonics_list.append(f"<span class=\"spell-mnemonic save\" title=\"Spell Save DC ({save_ability})\">Save DC {spell_save_dc} ({save_ability})</span>")
+                    
+                    if save_ability:
+                        mnemonics_list.append(f"<span class=\"spell-mnemonic save\" title=\"Target Save: {save_ability}\">vs {save_ability}</span>")
                 
                 if mnemonics_list:
                     mnemonics_html = f"<span class=\"spell-mnemonics\">{''.join(mnemonics_list)}</span>"
