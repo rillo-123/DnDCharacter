@@ -1728,9 +1728,7 @@ class SpellcastingManager:
         empty_state.style.display = "none"
         groups: dict[int, list[dict]] = {}
         for entry in self.prepared:
-            # Skip domain bonus spells
-            if entry.get("is_domain_bonus"):
-                continue
+            # Include all spells - domain bonus spells will be shown but marked as non-removable
             level = entry.get("level", 0)
             groups.setdefault(level, []).append(entry)
 
