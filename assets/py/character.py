@@ -4987,6 +4987,8 @@ async def load_spell_library(_event=None):
             populate_spell_class_filter(cached_spells)
             sync_prepared_spells_with_library()
             apply_spell_filters(auto_select=True)
+            # Auto-populate domain spells now that spell library is loaded from cache
+            _populate_domain_spells_on_load()
             update_spell_library_status("Loaded spells from cache. Filters apply to your current class and level.")
             return
 
@@ -5046,6 +5048,8 @@ async def load_spell_library(_event=None):
         if raw_spells is not LOCAL_SPELLS_FALLBACK:
             save_spell_cache(sanitized)
         apply_spell_filters(auto_select=True)
+        # Auto-populate domain spells now that spell library is loaded
+        _populate_domain_spells_on_load()
         update_spell_library_status(status_message)
     except Exception as exc:
         console.error(f"PySheet: failed to load spell library - {exc}")
