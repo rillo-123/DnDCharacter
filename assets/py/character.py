@@ -1655,6 +1655,14 @@ class SpellcastingManager:
         
         max_prepared = max(0, max_prepared)
         
+        # Check if this spell is a domain bonus spell (before limit checks since domain spells bypass limits)
+        is_domain_bonus = False
+        domain = get_text_value("domain")
+        if domain:
+            level = get_numeric_value("level", 1)
+            domain_bonus_slugs = set(get_domain_bonus_spells(domain, level))
+            is_domain_bonus = slug in domain_bonus_slugs
+        
         # Check cantrip limit first
         spell_level = record.get("level_int", 0)
         if spell_level == 0:  # This is a cantrip
@@ -1668,9 +1676,9 @@ class SpellcastingManager:
             if current_cantrips >= max_cantrips:
                 console.warn(f"PySheet: cannot add cantrip – max {max_cantrips} cantrips known")
                 return
-        else:
-            # Check prepared spell limit for non-cantrips
-            # Count domain bonus spells (they don't count toward the limit)
+        elif not is_domain_bonus:
+            # Check prepared spell limit for non-cantrips (domain bonus spells bypass this check)
+            # Count non-domain spells only
             domain = get_text_value("domain")
             bonus_spell_slugs = set(get_domain_bonus_spells(domain, level)) if domain else set()
             current_prepared = len([s for s in self.prepared if s.get("level", 0) > 0 and s.get("slug") not in bonus_spell_slugs])
@@ -1678,14 +1686,6 @@ class SpellcastingManager:
             if current_prepared >= max_prepared:
                 console.warn(f"PySheet: cannot add spell – max {max_prepared} spells prepared")
                 return
-
-        # Check if this spell is a domain bonus spell
-        is_domain_bonus = False
-        domain = get_text_value("domain")
-        if domain:
-            level = get_numeric_value("level", 1)
-            domain_bonus_slugs = set(get_domain_bonus_spells(domain, level))
-            is_domain_bonus = slug in domain_bonus_slugs
 
         self.prepared.append(
             {
