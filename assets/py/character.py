@@ -6168,7 +6168,7 @@ def fetch_equipment_from_open5e():
         {"name": "Plate", "cost": "1500 gp", "weight": "65 lb."},
         
         # Shields
-        {"name": "Shield", "cost": "10 gp", "weight": "6 lb."},
+        {"name": "Shield", "cost": "10 gp", "weight": "6 lb.", "ac": "+2"},
         
         # Common Gear
         {"name": "Rope (50 feet)", "cost": "1 gp", "weight": "10 lb."},
