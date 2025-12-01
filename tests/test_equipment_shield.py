@@ -1,9 +1,30 @@
 """
 Unit tests to verify Shield equipment is available in the equipment library.
+Tests both the Python equipment fallback and the card generation system.
 """
 
 import unittest
+import subprocess
+from pathlib import Path
 from html import escape
+
+
+def check_shield_in_file(filepath):
+    """Check if Shield is in the file using direct file reading"""
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+            # Look for Shield definition in the equipment list
+            if '"Shield"' in content and '"10 gp"' in content:
+                # Find the actual line
+                lines = content.split('\n')
+                for i, line in enumerate(lines):
+                    if '"Shield"' in line and ('gp' in line or 'ac' in line):
+                        return f"Line {i+1}: {line.strip()}"
+        return None
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return None
 
 
 def build_equipment_card_html(item: dict) -> str:
@@ -68,6 +89,26 @@ def build_equipment_card_html(item: dict) -> str:
 
 class TestShieldEquipment(unittest.TestCase):
     """Test that Shield equipment is properly defined and searchable"""
+
+    @classmethod
+    def setUpClass(cls):
+        """Load the equipment fallback from character.py source"""
+        char_file = Path(__file__).parent.parent / "assets" / "py" / "character.py"
+        cls.shield_line = check_shield_in_file(char_file)
+        cls.char_file = char_file
+    
+    def test_shield_exists_in_source_code(self):
+        """Test that Shield is defined in character.py fallback"""
+        self.assertIsNotNone(self.shield_line, 
+                           f"Shield not found in {self.char_file}. Shield must be in equipment fallback list.")
+        self.assertIn('"Shield"', self.shield_line, "Shield name should be in source")
+        self.assertIn('"10 gp"', self.shield_line, "Shield cost should be 10 gp in source")
+
+    def test_shield_has_ac_bonus_in_source(self):
+        """Test that Shield has AC bonus in source code"""
+        self.assertIsNotNone(self.shield_line, "Shield line should exist")
+        self.assertIn('"+2"', self.shield_line, "Shield should have +2 AC bonus in source")
+        self.assertIn('"ac"', self.shield_line, "Shield should have ac field in source")
 
     def test_shield_basic_properties(self):
         """Test Shield has correct basic properties"""
