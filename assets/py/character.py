@@ -1103,6 +1103,8 @@ def set_spell_library_data(spells: list[dict] | None):
 
 # Pre-populate with fallback spells so old saved spells can get their details at render time
 set_spell_library_data(LOCAL_SPELLS_FALLBACK)
+# Mark spell library as loaded so domain spells can auto-populate on page load
+SPELL_LIBRARY_STATE["loaded"] = True
 
 
 SPELL_CLASS_SYNONYMS = {
