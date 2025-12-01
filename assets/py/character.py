@@ -2011,7 +2011,7 @@ class SpellcastingManager:
                             break
                     
                     if save_ability:
-                        mnemonics_list.append(f"<span class=\"spell-mnemonic save\" title=\"Target Save: {save_ability}\">vs {save_ability}</span>")
+                        mnemonics_list.append(f"<span class=\"spell-mnemonic save\" title=\"Target Save: {save_ability}\">vs {save_ability} {spell_save_dc}</span>")
                 
                 if mnemonics_list:
                     mnemonics_html = f"<span class=\"spell-mnemonics\">{''.join(mnemonics_list)}</span>"
