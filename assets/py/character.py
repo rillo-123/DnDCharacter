@@ -6113,7 +6113,7 @@ def fetch_equipment_from_open5e():
     
     # Check localStorage cache first
     try:
-        cache_key = "dnd_equipment_cache_v9"
+        cache_key = "dnd_equipment_cache_v10"
         cached = window.localStorage.getItem(cache_key)
         if cached:
             cache_data = json.loads(cached)
@@ -6244,6 +6244,7 @@ def fetch_equipment_from_open5e():
         {"name": "Vial", "cost": "1 gp", "weight": "0 lb."},
         {"name": "Potion of Healing", "cost": "50 gp", "weight": "0.5 lb."},
         {"name": "Potion of Greater Healing", "cost": "100 gp", "weight": "0.5 lb."},
+        {"name": "Everburning Lantern", "cost": "varies", "weight": "2 lb."},
         {"name": "Antitoxin (vial)", "cost": "50 gp", "weight": "0 lb."},
         {"name": "Oil (1-pint bottle)", "cost": "0.1 gp", "weight": "1 lb."},
         {"name": "Perfume (vial)", "cost": "5 gp", "weight": "0 lb."},

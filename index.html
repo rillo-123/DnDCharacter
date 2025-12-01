@@ -940,7 +940,7 @@
     <script>
         // Fetch equipment from Open5e API and Roll20 and cache it
         async function fetchEquipmentFromOpen5e() {
-            const cacheKey = "dnd_equipment_cache_v9";  // Bumped version to force cache rebuild
+            const cacheKey = "dnd_equipment_cache_v10";  // Bumped version to force cache rebuild
             
             // Check if we have cached data
             try {
@@ -1205,6 +1205,7 @@
                     { name: "Thieves' Tools", cost: "25 gp", weight: "1 lb.", source: "phb" },
                     { name: "Healer's Kit", cost: "5 gp", weight: "3 lb.", source: "phb" },
                     { name: "Potion of Healing", cost: "50 gp", weight: "0.5 lb.", source: "phb" },
+                    { name: "Everburning Lantern", cost: "varies", weight: "2 lb.", source: "fgg" },
                     
                     // Magical Items (common)
                     { name: "Ring of Protection +1", cost: "varies", weight: "0 lb.", source: "phb" },
