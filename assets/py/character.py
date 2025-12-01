@@ -2001,7 +2001,15 @@ class SpellcastingManager:
                 # Add save DC mnemonic if spell requires a saving throw
                 desc_text = _coerce_spell_text(record.get("desc", ""))
                 if desc_text and "saving throw" in desc_text.lower():
-                    mnemonics_list.append(f"<span class=\"spell-mnemonic save\" title=\"Spell Save DC\">Save DC {spell_save_dc}</span>")
+                    # Extract the ability type from the description
+                    save_ability = "?"
+                    abilities = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"]
+                    abilities_short = {"Strength": "STR", "Dexterity": "DEX", "Constitution": "CON", "Intelligence": "INT", "Wisdom": "WIS", "Charisma": "CHA"}
+                    for ability in abilities:
+                        if ability.lower() in desc_text.lower():
+                            save_ability = abilities_short[ability]
+                            break
+                    mnemonics_list.append(f"<span class=\"spell-mnemonic save\" title=\"Spell Save DC ({save_ability})\">Save DC {spell_save_dc} ({save_ability})</span>")
                 
                 if mnemonics_list:
                     mnemonics_html = f"<span class=\"spell-mnemonics\">{''.join(mnemonics_list)}</span>"
