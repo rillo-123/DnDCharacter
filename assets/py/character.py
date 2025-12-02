@@ -438,6 +438,76 @@ class Entity:
         return f"Entity(name='{self.name}', type='{self.entity_type}', props={len(self.properties)})"
 
 
+class Spell(Entity):
+    """
+    Spell entity - represents a D&D 5e spell with all its properties.
+    Inherits from Entity for unified property handling and serialization.
+    """
+    def __init__(self, name: str, level: int = 0, school: str = "", 
+                 casting_time: str = "", duration: str = "", ritual: bool = False,
+                 concentration: bool = False, components: str = "", 
+                 slug: str = "", classes: list = None, source: str = "", **kwargs):
+        super().__init__(name, entity_type="spell", **kwargs)
+        self.level = level
+        self.school = school
+        self.casting_time = casting_time
+        self.duration = duration
+        self.ritual = ritual
+        self.concentration = concentration
+        self.components = components
+        self.slug = slug
+        self.classes = classes or []
+        self.source = source
+    
+    def to_dict(self) -> dict:
+        """Convert spell to dictionary"""
+        d = super().to_dict()
+        d.update({
+            "level": self.level,
+            "school": self.school,
+            "casting_time": self.casting_time,
+            "duration": self.duration,
+            "ritual": self.ritual,
+            "concentration": self.concentration,
+            "components": self.components,
+            "slug": self.slug,
+            "classes": self.classes,
+            "source": self.source,
+        })
+        return d
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Spell':
+        """Create Spell from dictionary"""
+        if not isinstance(data, dict):
+            return data
+        
+        spell = Spell(
+            name=data.get("name", "Unknown"),
+            level=data.get("level", 0),
+            school=data.get("school", ""),
+            casting_time=data.get("casting_time", ""),
+            duration=data.get("duration", ""),
+            ritual=data.get("ritual", False),
+            concentration=data.get("concentration", False),
+            components=data.get("components", ""),
+            slug=data.get("slug", ""),
+            classes=data.get("classes", []),
+            source=data.get("source", ""),
+            description=data.get("description", "")
+        )
+        
+        # Restore dynamic properties
+        for key, value in data.get("properties", {}).items():
+            spell.add_property(key, value)
+        
+        return spell
+    
+    def __repr__(self) -> str:
+        level_label = f"L{self.level}" if self.level > 0 else "Cantrip"
+        return f"Spell(name='{self.name}', {level_label}, school='{self.school}')"
+
+
 ABILITY_ORDER = list(DEFAULT_ABILITY_KEYS)
 
 SKILLS = {
