@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from html import escape
 from math import ceil, floor
 from pathlib import Path
+from typing import Union, Optional
 
 from js import Blob, URL, console, document, window
 try:
@@ -89,7 +90,7 @@ AUTHORITATIVE_SOURCES = {
     "5e core rules",  # Official 5e core rules (equivalent to PHB)
 }
 
-def is_authoritative_source(source: str | None) -> bool:
+def is_authoritative_source(source: Optional[str]) -> bool:
     """Check if spell/item source is from an authoritative D&D 5e book."""
     if not source:
         return False
@@ -592,7 +593,7 @@ class Weapon(Equipment):
 
 class Armor(Equipment):
     """Armor equipment with AC value"""
-    def __init__(self, name: str, armor_class: int | str = "", **kwargs):
+    def __init__(self, name: str, armor_class: Union[int, str] = "", **kwargs):
         super().__init__(name, **kwargs)
         self.armor_class = armor_class
     
@@ -724,7 +725,7 @@ _EQUIPMENT_RESULT_PROXY = None  # Track the current equipment results listener t
 
 AUTO_EXPORT_DELAY_MS = 2000
 AUTO_EXPORT_MAX_EVENTS = 15
-_AUTO_EXPORT_TIMER_ID: int | None = None
+_AUTO_EXPORT_TIMER_ID: Optional[int] = None
 _AUTO_EXPORT_PROXY = None
 _AUTO_EXPORT_SUPPRESS = False
 _LAST_AUTO_EXPORT_SNAPSHOT = ""
@@ -738,7 +739,7 @@ _AUTO_EXPORT_LAST_FILENAME = ""
 _AUTO_EXPORT_SETUP_PROMPTED = False
 
 
-def _normalize_export_basename(candidate: str | None) -> str:
+def _normalize_export_basename(candidate: Optional[str]) -> str:
     if not candidate:
         candidate = "character"
     cleaned = re.sub(r"[^A-Za-z0-9]+", "_", candidate.strip())
@@ -748,7 +749,7 @@ def _normalize_export_basename(candidate: str | None) -> str:
     return cleaned
 
 
-def _build_export_filename(data: dict, *, now: datetime | None = None) -> str:
+def _build_export_filename(data: dict, *, now: Optional[datetime] = None) -> str:
     if now is None:
         now = datetime.now()
     raw_name = (data.get("identity", {}).get("name") or "character").strip()
@@ -1827,7 +1828,7 @@ class SpellcastingManager:
             "pact_used": self.pact_used,
         }
 
-    def _normalize_prepared_entry(self, entry: dict) -> dict | None:
+    def _normalize_prepared_entry(self, entry: dict) -> Optional[dict]:
         slug = (entry or {}).get("slug")
         if not slug:
             return None
@@ -1895,7 +1896,7 @@ class SpellcastingManager:
 
         self.prepared.sort(key=_sort_key)
 
-    def load_state(self, state: dict | None):
+    def load_state(self, state: Optional[dict]):
         self.reset_state()
         if not state:
             self.sort_prepared_spells()
@@ -2029,7 +2030,7 @@ class SpellcastingManager:
         else:
             return 0  # Other classes don't have cantrips
 
-    def is_spell_prepared(self, slug: str | None) -> bool:
+    def is_spell_prepared(self, slug: Optional[str]) -> bool:
         if not slug:
             return False
         return slug in self.get_prepared_slug_set()
@@ -2203,7 +2204,7 @@ class SpellcastingManager:
         
         return used_slots < max_slots
     
-    def compute_max_slots_for_level(self, level: int, profile: dict | None = None) -> int:
+    def compute_max_slots_for_level(self, level: int, profile: Optional[dict] = None) -> int:
         """Get max spell slots available for a given level."""
         if level == 0:
             return 999  # Cantrips unlimited
@@ -2563,7 +2564,7 @@ class SpellcastingManager:
         # Show modal confirmation
         self.show_spell_cast_modal(spell_name, level_label, remaining, slug, level, spell_boost_text)
 
-    def show_spell_cast_modal(self, spell_name: str, level_label: str, remaining: int, slug: str, level: int, boost_text: str | None = None):
+    def show_spell_cast_modal(self, spell_name: str, level_label: str, remaining: int, slug: str, level: int, boost_text: Optional[str] = None):
         """Display the spell cast confirmation modal."""
         modal = get_element("spell-cast-modal")
         title = get_element("spell-cast-modal-title")
@@ -2647,7 +2648,7 @@ class SpellcastingManager:
         modal.classList.add("active")
         console.log(f"PySheet: modal shown for {spell_name}")
 
-    def compute_slot_summary(self, profile: dict | None = None) -> dict:
+    def compute_slot_summary(self, profile: Optional[dict] = None) -> dict:
         if profile is None:
             profile = compute_spellcasting_profile()
 
@@ -2744,7 +2745,7 @@ class SpellcastingManager:
             container.innerHTML = ""
             container.style.display = "none"
 
-    def render_spell_slots(self, slot_summary: dict | None = None):
+    def render_spell_slots(self, slot_summary: Optional[dict] = None):
         slots_container = get_element("spell-slots")
         pact_container = get_element("pact-slots")
         if slots_container is None:
@@ -2973,7 +2974,7 @@ class InventoryManager:
     def __init__(self):
         self.items: list[dict] = []
     
-    def load_state(self, state: dict | None):
+    def load_state(self, state: Optional[dict]):
         """Load inventory from character state."""
         if not state:
             self.items = []
@@ -3045,7 +3046,7 @@ class InventoryManager:
         """Remove an item by ID."""
         self.items = [item for item in self.items if item.get("id") != item_id]
     
-    def get_item(self, item_id: str) -> dict | None:
+    def get_item(self, item_id: str) -> Optional[dict]:
         """Get an item by ID."""
         for item in self.items:
             if item.get("id") == item_id:
@@ -3625,7 +3626,7 @@ def sort_prepared_spells():
     SPELLCASTING_MANAGER.sort_prepared_spells()
 
 
-def load_spellcasting_state(state: dict | None):
+def load_spellcasting_state(state: Optional[dict]):
     SPELLCASTING_MANAGER.load_state(state)
 
 
@@ -3637,7 +3638,7 @@ def get_prepared_slug_set() -> set[str]:
     return SPELLCASTING_MANAGER.get_prepared_slug_set()
 
 
-def is_spell_prepared(slug: str | None) -> bool:
+def is_spell_prepared(slug: Optional[str]) -> bool:
     return SPELLCASTING_MANAGER.is_spell_prepared(slug)
 
 
@@ -3653,11 +3654,11 @@ def render_spellbook():
     SPELLCASTING_MANAGER.render_spellbook()
 
 
-def compute_spell_slot_summary(profile: dict | None = None) -> dict:
+def compute_spell_slot_summary(profile: Optional[dict] = None) -> dict:
     return SPELLCASTING_MANAGER.compute_slot_summary(profile)
 
 
-def render_spell_slots(slot_summary: dict | None = None):
+def render_spell_slots(slot_summary: Optional[dict] = None):
     SPELLCASTING_MANAGER.render_spell_slots(slot_summary)
 
 
@@ -3674,7 +3675,7 @@ def reset_spell_slots(_event=None):
     reset_channel_divinity()
 
 
-def load_inventory_state(state: dict | None):
+def load_inventory_state(state: Optional[dict]):
     """Load inventory from character state."""
     INVENTORY_MANAGER.load_state(state)
 
@@ -3886,7 +3887,7 @@ def generate_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
-def clamp(value: int, minimum: int | None = None, maximum: int | None = None) -> int:
+def clamp(value: int, minimum: Optional[int] = None, maximum: Optional[int] = None) -> int:
     if minimum is not None and value < minimum:
         value = minimum
     if maximum is not None and value > maximum:
@@ -3919,7 +3920,7 @@ def is_truthy(value) -> bool:
     return False
 
 
-def normalize_class_token(token: str | None) -> str | None:
+def normalize_class_token(token: Optional[str]) -> str | None:
     if not token:
         return None
     cleaned = token.replace("’", "'")
@@ -3945,7 +3946,7 @@ def normalize_class_token(token: str | None) -> str | None:
     return None
 
 
-def extract_character_classes(raw_text: str | None = None) -> list[dict]:
+def extract_character_classes(raw_text: Optional[str] = None) -> list[dict]:
     if raw_text is None:
         raw_text = get_text_value("class")
     if not raw_text:
@@ -3999,8 +4000,8 @@ def get_progression_table(progression_key: str) -> list[int]:
 
 
 def compute_spellcasting_profile(
-    raw_text: str | None = None,
-    fallback_level: int | None = None,
+    raw_text: Optional[str] = None,
+    fallback_level: Optional[int] = None,
 ) -> dict:
     entries = extract_character_classes(raw_text)
     if fallback_level is None:
@@ -4037,7 +4038,7 @@ def compute_spellcasting_profile(
         "max_spell_level": max_spell_level,
     }
 
-def get_spell_by_slug(slug: str | None) -> dict | None:
+def get_spell_by_slug(slug: Optional[str]) -> dict | None:
     if not slug:
         return None
     spell_map = SPELL_LIBRARY_STATE.get("spell_map") or {}

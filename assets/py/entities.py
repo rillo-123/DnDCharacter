@@ -1,6 +1,8 @@
 """Entity system - universal game object representation."""
 
+from typing import Union, Optional
 from html import escape
+
 
 
 class Entity:
@@ -338,7 +340,7 @@ class Weapon(Equipment):
 
 class Armor(Equipment):
     """Armor equipment with AC value"""
-    def __init__(self, name: str, armor_class: int | str = "", **kwargs):
+    def __init__(self, name: str, armor_class: Union[int, str] = "", **kwargs):
         super().__init__(name, **kwargs)
         self.armor_class = armor_class
     
