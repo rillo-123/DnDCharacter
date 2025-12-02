@@ -62,6 +62,19 @@ except ModuleNotFoundError:
     if not loaded:
         raise
 
+# Import modular components
+try:
+    from entities import Entity, Spell, Ability, Resource, Equipment, Weapon, Armor, Shield
+except ImportError:
+    # Fallback for non-modular environments
+    Entity = Spell = Ability = Resource = Equipment = Weapon = Armor = Shield = None
+
+try:
+    from browser_logger import BrowserLogger
+except ImportError:
+    # Fallback - BrowserLogger will be defined inline if needed
+    BrowserLogger = None
+
 
 # ===================================================================
 # Authoritative D&D 5e Sources
@@ -236,142 +249,6 @@ class BrowserLogger:
 
 LOGGER = BrowserLogger()
 LOCAL_STORAGE_KEY = "pysheet.character.v1"
-
-# ===================================================================
-# Equipment Classes
-# ===================================================================
-
-class Equipment(Entity):
-    """Equipment entity - base class for all equipment items"""
-    def __init__(self, name: str, cost: str = "", weight: str = "", source: str = "", **kwargs):
-        super().__init__(name, entity_type="equipment", **kwargs)
-        self.cost = cost
-        self.weight = weight
-        self.source = source
-    
-    def to_dict(self) -> dict:
-        """Convert to dictionary for JSON serialization"""
-        d = super().to_dict()
-        d.update({
-            "cost": self.cost,
-            "weight": self.weight,
-            "source": self.source
-        })
-        return d
-    
-    @staticmethod
-    def from_dict(data: dict) -> 'Equipment':
-        """Create Equipment object from dictionary"""
-        if not isinstance(data, dict):
-            return data  # Already an object or invalid
-        
-        name = data.get("name", "Unknown")
-        
-        # Detect type and create appropriate subclass
-        if data.get("damage"):
-            return Weapon.from_dict(data)
-        elif data.get("armor_class") and "shield" not in name.lower():
-            return Armor.from_dict(data)
-        elif data.get("ac"):
-            return Shield.from_dict(data)
-        else:
-            # Default Equipment
-            return Equipment(
-                name=name,
-                cost=data.get("cost", ""),
-                weight=data.get("weight", ""),
-                source=data.get("source", ""),
-                description=data.get("description", "")
-            )
-
-
-class Weapon(Equipment):
-    """Weapon equipment with damage properties"""
-    def __init__(self, name: str, damage: str = "", damage_type: str = "", 
-                 range_text: str = "", properties: str = "", **kwargs):
-        super().__init__(name, **kwargs)
-        self.damage = damage
-        self.damage_type = damage_type
-        self.range = range_text
-        self.properties = properties
-    
-    def to_dict(self) -> dict:
-        d = super().to_dict()
-        if self.damage:
-            d["damage"] = self.damage
-        if self.damage_type:
-            d["damage_type"] = self.damage_type
-        if self.range:
-            d["range"] = self.range
-        if self.properties:
-            d["properties"] = self.properties
-        return d
-    
-    @staticmethod
-    def from_dict(data: dict) -> 'Weapon':
-        """Create Weapon from dictionary"""
-        return Weapon(
-            name=data.get("name", "Unknown"),
-            cost=data.get("cost", ""),
-            weight=data.get("weight", ""),
-            source=data.get("source", ""),
-            damage=data.get("damage", ""),
-            damage_type=data.get("damage_type", ""),
-            range_text=data.get("range", ""),
-            properties=data.get("properties", ""),
-            description=data.get("description", "")
-        )
-
-
-class Armor(Equipment):
-    """Armor equipment with AC value"""
-    def __init__(self, name: str, armor_class: int | str = "", **kwargs):
-        super().__init__(name, **kwargs)
-        self.armor_class = armor_class
-    
-    def to_dict(self) -> dict:
-        d = super().to_dict()
-        if self.armor_class:
-            d["armor_class"] = self.armor_class
-        return d
-    
-    @staticmethod
-    def from_dict(data: dict) -> 'Armor':
-        """Create Armor from dictionary"""
-        return Armor(
-            name=data.get("name", "Unknown"),
-            cost=data.get("cost", ""),
-            weight=data.get("weight", ""),
-            source=data.get("source", ""),
-            armor_class=data.get("armor_class", ""),
-            description=data.get("description", "")
-        )
-
-
-class Shield(Equipment):
-    """Shield equipment with AC bonus"""
-    def __init__(self, name: str, ac_bonus: str = "", **kwargs):
-        super().__init__(name, **kwargs)
-        self.ac_bonus = ac_bonus
-    
-    def to_dict(self) -> dict:
-        d = super().to_dict()
-        if self.ac_bonus:
-            d["ac"] = self.ac_bonus
-        return d
-    
-    @staticmethod
-    def from_dict(data: dict) -> 'Shield':
-        """Create Shield from dictionary"""
-        return Shield(
-            name=data.get("name", "Unknown"),
-            cost=data.get("cost", ""),
-            weight=data.get("weight", ""),
-            source=data.get("source", ""),
-            ac_bonus=data.get("ac", ""),
-            description=data.get("description", "")
-        )
-
 
 # ===================================================================
 # Universal Entity System
@@ -627,205 +504,139 @@ class Resource(Entity):
     def __repr__(self) -> str:
         return f"Resource(name='{self.name}', {self.current_value}/{self.max_value})"
 
-
 # ===================================================================
-# Universal Entity Renderer
+# Equipment Classes
 # ===================================================================
 
-def render_entity(entity: Entity, compact: bool = False) -> str:
-    """
-    Universal entity renderer - renders any Entity type as HTML.
-    Detects entity_type and applies appropriate rendering.
+class Equipment(Entity):
+    """Equipment entity - base class for all equipment items"""
+    def __init__(self, name: str, cost: str = "", weight: str = "", source: str = "", **kwargs):
+        super().__init__(name, entity_type="equipment", **kwargs)
+        self.cost = cost
+        self.weight = weight
+        self.source = source
     
-    Args:
-        entity: Entity object to render (Spell, Equipment, Ability, Resource, etc.)
-        compact: If True, render compact version (useful for lists)
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization"""
+        d = super().to_dict()
+        d.update({
+            "cost": self.cost,
+            "weight": self.weight,
+            "source": self.source
+        })
+        return d
     
-    Returns:
-        HTML string representation of the entity
-    """
-    if not isinstance(entity, Entity):
-        return ""
+    @staticmethod
+    def from_dict(data: dict) -> 'Equipment':
+        """Create Equipment object from dictionary"""
+        if not isinstance(data, dict):
+            return data  # Already an object or invalid
+        
+        name = data.get("name", "Unknown")
+        
+        # Detect type and create appropriate subclass
+        if data.get("damage"):
+            return Weapon.from_dict(data)
+        elif data.get("armor_class") and "shield" not in name.lower():
+            return Armor.from_dict(data)
+        elif data.get("ac"):
+            return Shield.from_dict(data)
+        else:
+            # Default Equipment
+            return Equipment(
+                name=name,
+                cost=data.get("cost", ""),
+                weight=data.get("weight", ""),
+                source=data.get("source", ""),
+                description=data.get("description", "")
+            )
+
+
+class Weapon(Equipment):
+    """Weapon equipment with damage properties"""
+    def __init__(self, name: str, damage: str = "", damage_type: str = "", 
+                 range_text: str = "", properties: str = "", **kwargs):
+        super().__init__(name, **kwargs)
+        self.damage = damage
+        self.damage_type = damage_type
+        self.range = range_text
+        self.properties = properties
     
-    entity_type = entity.entity_type or "unknown"
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.damage:
+            d["damage"] = self.damage
+        if self.damage_type:
+            d["damage_type"] = self.damage_type
+        if self.range:
+            d["range"] = self.range
+        if self.properties:
+            d["properties"] = self.properties
+        return d
     
-    # Route to appropriate renderer
-    if entity_type == "spell":
-        return render_spell_entity(entity, compact)
-    elif entity_type == "equipment":
-        return render_equipment_entity(entity, compact)
-    elif entity_type == "ability":
-        return render_ability_entity(entity, compact)
-    elif entity_type == "resource":
-        return render_resource_entity(entity, compact)
-    else:
-        # Generic entity renderer
-        return render_generic_entity(entity, compact)
-
-
-def render_spell_entity(spell: 'Spell', compact: bool = False) -> str:
-    """Render a Spell entity as HTML card"""
-    if compact:
-        # Compact spell display for lists
-        level_label = f"L{spell.level}" if spell.level > 0 else "Cantrip"
-        return (
-            f'<div class="entity-compact entity-spell">'
-            f'  <span class="entity-name">{escape(spell.name)}</span>'
-            f'  <span class="entity-meta">{level_label} {escape(spell.school)}</span>'
-            f'</div>'
-        )
-    else:
-        # Full spell card
-        level_label = format_spell_level_label(spell.level) if hasattr(spell, 'level') else "Unknown"
-        details = []
-        if spell.casting_time:
-            details.append(f"<strong>Casting Time:</strong> {escape(spell.casting_time)}")
-        if spell.duration:
-            details.append(f"<strong>Duration:</strong> {escape(spell.duration)}")
-        if spell.concentration:
-            details.append("<strong>Concentration Required</strong>")
-        if spell.ritual:
-            details.append("<strong>Can be cast as ritual</strong>")
-        
-        details_html = "<br>".join(details) if details else ""
-        
-        return (
-            f'<div class="entity-card entity-spell">'
-            f'  <div class="entity-header">'
-            f'    <h3 class="entity-name">{escape(spell.name)}</h3>'
-            f'    <span class="entity-type">{level_label} {escape(spell.school or "")}</span>'
-            f'  </div>'
-            f'  {f"<div class=\"entity-details\">{details_html}</div>" if details_html else ""}'
-            f'  {f"<div class=\"entity-description\">{escape(spell.description)}</div>" if spell.description else ""}'
-            f'</div>'
+    @staticmethod
+    def from_dict(data: dict) -> 'Weapon':
+        """Create Weapon from dictionary"""
+        return Weapon(
+            name=data.get("name", "Unknown"),
+            cost=data.get("cost", ""),
+            weight=data.get("weight", ""),
+            source=data.get("source", ""),
+            damage=data.get("damage", ""),
+            damage_type=data.get("damage_type", ""),
+            range_text=data.get("range", ""),
+            properties=data.get("properties", ""),
+            description=data.get("description", "")
         )
 
 
-def render_equipment_entity(equipment: 'Equipment', compact: bool = False) -> str:
-    """Render an Equipment entity as HTML card"""
-    if compact:
-        # Compact equipment display
-        ac_info = ""
-        if hasattr(equipment, 'armor_class') and equipment.armor_class:
-            ac_info = f" (AC {escape(str(equipment.armor_class))})"
-        elif hasattr(equipment, 'ac_bonus') and equipment.ac_bonus:
-            ac_info = f" (AC {escape(str(equipment.ac_bonus))})"
-        
-        return (
-            f'<div class="entity-compact entity-equipment">'
-            f'  <span class="entity-name">{escape(equipment.name)}{ac_info}</span>'
-            f'  <span class="entity-meta">{escape(equipment.cost or "")}</span>'
-            f'</div>'
-        )
-    else:
-        # Full equipment card
-        details = []
-        if equipment.cost:
-            details.append(f"<strong>Cost:</strong> {escape(equipment.cost)}")
-        if equipment.weight:
-            details.append(f"<strong>Weight:</strong> {escape(equipment.weight)}")
-        
-        damage_info = ""
-        if hasattr(equipment, 'damage') and equipment.damage:
-            damage_info = f"<div class=\"entity-damage\">Damage: {escape(equipment.damage)} ({escape(equipment.damage_type or '')})</div>"
-        
-        ac_info = ""
-        if hasattr(equipment, 'armor_class') and equipment.armor_class:
-            ac_info = f"<div class=\"entity-ac\">AC: {escape(str(equipment.armor_class))}</div>"
-        elif hasattr(equipment, 'ac_bonus') and equipment.ac_bonus:
-            ac_info = f"<div class=\"entity-ac\">AC Bonus: {escape(str(equipment.ac_bonus))}</div>"
-        
-        details_html = "<br>".join(details) if details else ""
-        
-        return (
-            f'<div class="entity-card entity-equipment">'
-            f'  <div class="entity-header">'
-            f'    <h3 class="entity-name">{escape(equipment.name)}</h3>'
-            f'  </div>'
-            f'  {f"<div class=\"entity-details\">{details_html}</div>" if details_html else ""}'
-            f'  {damage_info}'
-            f'  {ac_info}'
-            f'  {f"<div class=\"entity-description\">{escape(equipment.description)}</div>" if equipment.description else ""}'
-            f'</div>'
-        )
-
-
-def render_ability_entity(ability: 'Ability', compact: bool = False) -> str:
-    """Render an Ability entity as HTML card"""
-    if compact:
-        return (
-            f'<div class="entity-compact entity-ability">'
-            f'  <span class="entity-name">{escape(ability.name)}</span>'
-            f'  <span class="entity-meta">L{ability.level_gained} {escape(ability.ability_type)}</span>'
-            f'</div>'
-        )
-    else:
-        return (
-            f'<div class="entity-card entity-ability">'
-            f'  <div class="entity-header">'
-            f'    <h3 class="entity-name">{escape(ability.name)}</h3>'
-            f'    <span class="entity-type">Level {ability.level_gained} {escape(ability.ability_type)}</span>'
-            f'  </div>'
-            f'  {f"<div class=\"entity-description\">{escape(ability.description)}</div>" if ability.description else ""}'
-            f'</div>'
-        )
-
-
-def render_resource_entity(resource: 'Resource', compact: bool = False) -> str:
-    """Render a Resource entity as HTML card with usage bar"""
-    percent = resource.get_percent()
-    bar_color = "#4ade80" if percent > 50 else "#fbbf24" if percent > 25 else "#ef4444"
+class Armor(Equipment):
+    """Armor equipment with AC value"""
+    def __init__(self, name: str, armor_class: int | str = "", **kwargs):
+        super().__init__(name, **kwargs)
+        self.armor_class = armor_class
     
-    if compact:
-        return (
-            f'<div class="entity-compact entity-resource">'
-            f'  <span class="entity-name">{escape(resource.name)}</span>'
-            f'  <span class="entity-meta">{resource.current_value}/{resource.max_value}</span>'
-            f'</div>'
-        )
-    else:
-        bar_html = (
-            f'<div class="entity-resource-bar" style="background: #e5e7eb; border-radius: 4px; height: 20px; margin: 8px 0; overflow: hidden;">'
-            f'  <div style="background: {bar_color}; height: 100%; width: {percent}%; transition: width 0.2s ease;"></div>'
-            f'</div>'
-        )
-        
-        return (
-            f'<div class="entity-card entity-resource">'
-            f'  <div class="entity-header">'
-            f'    <h3 class="entity-name">{escape(resource.name)}</h3>'
-            f'    <span class="entity-type">{resource.current_value}/{resource.max_value} ({percent}%)</span>'
-            f'  </div>'
-            f'  {bar_html}'
-            f'  {f"<div class=\"entity-description\">{escape(resource.description)}</div>" if resource.description else ""}'
-            f'</div>'
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.armor_class:
+            d["armor_class"] = self.armor_class
+        return d
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Armor':
+        """Create Armor from dictionary"""
+        return Armor(
+            name=data.get("name", "Unknown"),
+            cost=data.get("cost", ""),
+            weight=data.get("weight", ""),
+            source=data.get("source", ""),
+            armor_class=data.get("armor_class", ""),
+            description=data.get("description", "")
         )
 
 
-def render_generic_entity(entity: Entity, compact: bool = False) -> str:
-    """Render a generic Entity as HTML card"""
-    if compact:
-        return (
-            f'<div class="entity-compact">'
-            f'  <span class="entity-name">{escape(entity.name)}</span>'
-            f'  <span class="entity-meta">{escape(entity.entity_type)}</span>'
-            f'</div>'
-        )
-    else:
-        props_html = ""
-        if entity.properties:
-            props_list = [f"<li>{escape(str(k))}: {escape(str(v))}</li>" for k, v in entity.properties.items()]
-            props_html = f'<div class="entity-properties"><ul>{"".join(props_list)}</ul></div>'
-        
-        return (
-            f'<div class="entity-card entity-generic">'
-            f'  <div class="entity-header">'
-            f'    <h3 class="entity-name">{escape(entity.name)}</h3>'
-            f'    <span class="entity-type">{escape(entity.entity_type)}</span>'
-            f'  </div>'
-            f'  {f"<div class=\"entity-description\">{escape(entity.description)}</div>" if entity.description else ""}'
-            f'  {props_html}'
-            f'</div>'
+class Shield(Equipment):
+    """Shield equipment with AC bonus"""
+    def __init__(self, name: str, ac_bonus: str = "", **kwargs):
+        super().__init__(name, **kwargs)
+        self.ac_bonus = ac_bonus
+    
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.ac_bonus:
+            d["ac"] = self.ac_bonus
+        return d
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Shield':
+        """Create Shield from dictionary"""
+        return Shield(
+            name=data.get("name", "Unknown"),
+            cost=data.get("cost", ""),
+            weight=data.get("weight", ""),
+            source=data.get("source", ""),
+            ac_bonus=data.get("ac", ""),
+            description=data.get("description", "")
         )
 
 
