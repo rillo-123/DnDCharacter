@@ -13,13 +13,51 @@ from math import ceil, floor
 from pathlib import Path
 from typing import Union, Optional
 
-from js import Blob, URL, console, document, window
+try:
+    from js import Blob, URL, console, document, window
+except ImportError:
+    # Mock for testing environments
+    class _MockConsole:
+        @staticmethod
+        def log(*args): pass
+        @staticmethod
+        def warn(*args): pass
+        @staticmethod
+        def error(*args): pass
+    
+    Blob = None
+    URL = None
+    console = _MockConsole()
+    document = None
+    window = None
+
 try:
     from pyodide import JsException
 except ImportError:  # Pyodide >=0.23 exposes JsException under pyodide.ffi
-    from pyodide.ffi import JsException  # type: ignore
-from pyodide.ffi import create_proxy
-from pyodide.http import open_url, pyfetch
+    try:
+        from pyodide.ffi import JsException  # type: ignore
+    except ImportError:
+        # For testing environments without pyodide
+        class JsException(Exception):
+            pass
+
+try:
+    from pyodide.ffi import create_proxy
+except ImportError:
+    # Mock for testing
+    def create_proxy(func):
+        return func
+
+try:
+    from pyodide.http import open_url, pyfetch
+except ImportError:
+    # Mocks for testing
+    async def pyfetch(url, *args, **kwargs):
+        raise ImportError("pyfetch not available in test environment")
+    
+    def open_url(url):
+        raise ImportError("open_url not available in test environment")
+
 from types import ModuleType
 
 MODULE_DIR = (
@@ -75,6 +113,32 @@ try:
 except ImportError:
     # Fallback - BrowserLogger will be defined inline if needed
     BrowserLogger = None
+
+try:
+    from spell_data import (
+        LOCAL_SPELLS_FALLBACK,
+        SPELL_CLASS_SYNONYMS,
+        SPELL_CLASS_DISPLAY_NAMES,
+        SPELL_CORRECTIONS,
+        apply_spell_corrections,
+        is_spell_source_allowed,
+        CLASS_CASTING_PROGRESSIONS,
+        SPELLCASTING_PROGRESSION_TABLES,
+        STANDARD_SLOT_TABLE,
+        PACT_MAGIC_TABLE,
+    )
+except ImportError:
+    # Fallback - spell data constants will be defined inline if needed
+    LOCAL_SPELLS_FALLBACK = []
+    SPELL_CLASS_SYNONYMS = {}
+    SPELL_CLASS_DISPLAY_NAMES = {}
+    SPELL_CORRECTIONS = {}
+    apply_spell_corrections = lambda spell: spell
+    is_spell_source_allowed = lambda source: True
+    CLASS_CASTING_PROGRESSIONS = {}
+    SPELLCASTING_PROGRESSION_TABLES = {}
+    STANDARD_SLOT_TABLE = {}
+    PACT_MAGIC_TABLE = {}
 
 
 # ===================================================================
@@ -1155,379 +1219,8 @@ async def _attempt_persistent_export(
     return False
 
 
-LOCAL_SPELLS_FALLBACK = [
-    {
-        "name": "Cure Wounds",
-        "slug": "cure-wounds",
-        "level": 1,
-        "school": "evocation",
-        "casting_time": "1 action",
-        "range": "Touch",
-        "components": "V, S",
-        "material": "",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "A creature you touch regains a number of hit points equal to 1d8 + your spellcasting ability modifier.",
-            "This spell has no effect on undead or constructs.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d8 for each slot level above 1st.",
-        "dnd_class": "Bard, Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Healing Word",
-        "slug": "healing-word",
-        "level": 1,
-        "school": "evocation",
-        "casting_time": "1 bonus action",
-        "range": "60 feet",
-        "components": "V",
-        "material": "",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "A creature of your choice that you can see within range regains hit points equal to 1d4 + your spellcasting ability modifier.",
-            "This spell has no effect on undead or constructs.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d4 for each slot level above 1st.",
-        "dnd_class": "Bard, Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Guiding Bolt",
-        "slug": "guiding-bolt",
-        "level": 1,
-        "school": "evocation",
-        "casting_time": "1 action",
-        "range": "120 feet",
-        "components": "V, S",
-        "material": "",
-        "duration": "1 round",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "A flash of light streaks toward a creature of your choice within range. Make a ranged spell attack against the target.",
-            "On a hit, the target takes 4d6 radiant damage, and the next attack roll made against this target before the end of your next turn has advantage.",
-        ],
-        "higher_level": "The damage increases by 1d6 for each slot level above 1st.",
-        "dnd_class": "Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Bless",
-        "slug": "bless",
-        "level": 1,
-        "school": "enchantment",
-        "casting_time": "1 action",
-        "range": "30 feet",
-        "components": "V, S, M",
-        "material": "A sprinkling of holy water",
-        "duration": "Concentration, up to 1 minute",
-        "ritual": False,
-        "concentration": True,
-        "source": "5e Core Rules",
-        "desc": [
-            "You bless up to three creatures of your choice within range. Whenever a target makes an attack roll or a saving throw before the spell ends, the target can roll a d4 and add the number rolled to the attack roll or saving throw.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 2nd level or higher, you can target one additional creature for each slot level above 1st.",
-        "dnd_class": "Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Faerie Fire",
-        "slug": "faerie-fire",
-        "level": 1,
-        "school": "evocation",
-        "casting_time": "1 action",
-        "range": "60 feet",
-        "components": "V",
-        "material": "",
-        "duration": "Concentration, up to 1 minute",
-        "ritual": False,
-        "concentration": True,
-        "source": "5e Core Rules",
-        "desc": [
-            "Each object in a 20-foot cube within range is outlined in blue, green, or violet light. Any creature in the area when the spell is cast is also outlined in light if it fails a Dexterity saving throw.",
-            "For the duration, objects and affected creatures shed dim light in a 10-foot radius and attack rolls against affected creatures have advantage.",
-        ],
-        "higher_level": "",
-        "dnd_class": "Bard",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Sacred Flame",
-        "slug": "sacred-flame",
-        "level": 0,
-        "school": "evocation",
-        "casting_time": "1 action",
-        "range": "60 feet",
-        "components": "V, S",
-        "material": "",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "Flame-like radiance descends on a creature you can see within range. The target must succeed on a Dexterity saving throw or take 1d8 radiant damage.",
-            "The target gains no benefit from cover for this saving throw.",
-        ],
-        "higher_level": "The spell's damage increases by 1d8 when you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).",
-        "dnd_class": "Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Detect Magic",
-        "slug": "detect-magic",
-        "level": 1,
-        "school": "divination",
-        "casting_time": "1 action",
-        "range": "Self",
-        "components": "V, S",
-        "material": "",
-        "duration": "Concentration, up to 10 minutes",
-        "ritual": True,
-        "concentration": True,
-        "source": "5e Core Rules",
-        "desc": [
-            "For the duration, you sense the presence of magic within 30 feet of you.",
-            "If you sense magic in this way, you can use your action to see a faint aura around any visible creature or object in the area that bears magic, and you learn its school of magic, if any.",
-        ],
-        "higher_level": "",
-        "dnd_class": "Bard, Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Prayer of Healing",
-        "slug": "prayer-of-healing",
-        "level": 2,
-        "school": "evocation",
-        "casting_time": "10 minutes",
-        "range": "30 feet",
-        "components": "V",
-        "material": "",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "Up to six creatures of your choice that you can see within range each regain hit points equal to 2d8 + your spellcasting ability modifier.",
-            "This spell has no effect on undead or constructs.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 3rd level or higher, the healing increases by 1d8 for each slot level above 2nd.",
-        "dnd_class": "Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Shatter",
-        "slug": "shatter",
-        "level": 2,
-        "school": "evocation",
-        "casting_time": "1 action",
-        "range": "60 feet",
-        "components": "V, S, M",
-        "material": "A chip of mica",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "A sudden loud ringing noise, painfully intense, erupts from a point of your choice within range.",
-            "Each creature in a 10-foot-radius sphere centered on that point must make a Constitution saving throw, taking 3d8 thunder damage on a failed save, or half as much damage on a successful one.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 3rd level or higher, the damage increases by 1d8 for each slot level above 2nd.",
-        "dnd_class": "Bard",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Hold Person",
-        "slug": "hold-person",
-        "level": 2,
-        "school": "enchantment",
-        "casting_time": "1 action",
-        "range": "60 feet",
-        "components": "V, S, M",
-        "material": "A small, straight piece of iron",
-        "duration": "Concentration, up to 1 minute",
-        "ritual": False,
-        "concentration": True,
-        "source": "5e Core Rules",
-        "desc": [
-            "Choose a humanoid that you can see within range. The target must succeed on a Wisdom saving throw or be paralyzed for the duration.",
-            "At the end of each of its turns, the target can make another Wisdom saving throw. On a success, the spell ends on the target.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 3rd level or higher, you can target one additional humanoid for each slot level above 2nd.",
-        "dnd_class": "Bard, Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Vicious Mockery",
-        "slug": "vicious-mockery",
-        "level": 0,
-        "school": "enchantment",
-        "casting_time": "1 action",
-        "range": "60 feet",
-        "components": "V",
-        "material": "",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "You unleash a string of insults laced with subtle enchantments at a creature you can see within range. If the target can hear you, it must succeed on a Wisdom saving throw or take 1d4 psychic damage and have disadvantage on the next attack roll it makes before the end of its next turn.",
-        ],
-        "higher_level": "The damage increases by 1d4 when you reach 5th level (2d4), 11th level (3d4), and 17th level (4d4).",
-        "dnd_class": "Bard",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Word of Radiance",
-        "slug": "word-of-radiance",
-        "level": 0,
-        "school": "evocation",
-        "casting_time": "1 reaction",
-        "range": "5 feet",
-        "components": "V",
-        "material": "",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "You utter a divine word, and burning radiance erupts from you.",
-            "Each creature of your choice that you can see within 5 feet of you must succeed on a Constitution saving throw or take 1d6 radiant damage.",
-        ],
-        "higher_level": "The damage increases by 1d6 when you reach 5th level (2d6), 11th level (3d6), and 17th level (4d6).",
-        "dnd_class": "Cleric",
-        "document__title": "XGE",
-    },
-    {
-        "name": "Toll the Dead",
-        "slug": "toll-the-dead",
-        "level": 0,
-        "school": "necromancy",
-        "casting_time": "1 action",
-        "range": "60 feet",
-        "components": "V, S",
-        "material": "",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "You point at one creature you can see within range. The creature must make a Wisdom saving throw.",
-            "On a failed save, it takes 1d8 necrotic damage if it is still below its hit point maximum when you cast the spell.",
-            "If the creature is missing any of its hit points when you cast this spell, it takes 1d12 necrotic damage instead.",
-        ],
-        "higher_level": "When you reach 5th level, the damage increases to 2d8 or 2d12, at 11th level to 3d8 or 3d12, and at 17th level to 4d8 or 4d12.",
-        "dnd_class": "Cleric, Wizard",
-        "document__title": "XGE",
-    },
-    {
-        "name": "Mass Cure Wounds",
-        "slug": "mass-cure-wounds",
-        "level": 5,
-        "school": "evocation",
-        "casting_time": "1 action",
-        "range": "60 feet",
-        "components": "V, S",
-        "material": "",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "A wave of healing energy washes out from a point of your choice within range. Choose up to six creatures in a 30-foot-radius sphere centered on that point, and each creature regains hit points equal to 3d8 + your spellcasting ability modifier.",
-            "This spell has no effect on undead or constructs.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 6th level or higher, the healing increases by 1d8 for each slot level above 5th.",
-        "dnd_class": "Bard, Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Raise Dead",
-        "slug": "raise-dead",
-        "level": 5,
-        "school": "necromancy",
-        "casting_time": "1 hour",
-        "range": "Touch",
-        "components": "V, S, M",
-        "material": "A diamond worth at least 500 gp",
-        "duration": "Instantaneous",
-        "ritual": False,
-        "concentration": False,
-        "source": "5e Core Rules",
-        "desc": [
-            "You return a dead creature you touch to life, provided that it has been dead no longer than 10 days.",
-            "If the creature's soul is both willing and at peace with being returned to life, the creature returns to life with all its hit points.",
-            "This spell also neutralizes any poisons and cures nonmagical diseases that affected the creature at the time it died. This spell does not, however, remove magical diseases, curses, or similar effects; if these aren't first removed prior to casting the spell, they take effect when the creature returns to life.",
-            "The spell can't return an undead creature to life.",
-            "The spell closes all mortal wounds, but it doesn't restore missing body parts. If the creature is lacking body parts or organs integral to its survival—such as lacking a head—the spell automatically fails.",
-            "Coming back from the dead is an ordeal. The target takes a −4 penalty to all attack rolls, saving throws, and ability checks. Every time the target finishes a long rest, the penalty is reduced by 1 until it disappears.",
-        ],
-        "higher_level": "",
-        "dnd_class": "Bard, Cleric",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Insect Plague",
-        "slug": "insect-plague",
-        "level": 5,
-        "school": "conjuration",
-        "casting_time": "1 action",
-        "range": "300 feet",
-        "components": "V, S, M",
-        "material": "A few grains of sugar, some kernel of grain, and a smear of fat",
-        "duration": "Concentration, up to 10 minutes",
-        "ritual": False,
-        "concentration": True,
-        "source": "5e Core Rules",
-        "desc": [
-            "A swarm of insects fills a 20-foot-radius sphere centered on a point of your choice within range. The swarm remains for the spell's duration, and the swarm's movement doesn't provoke opportunity attacks.",
-            "The swarm can move up to 30 feet each round in any direction, but can't move more than 30 feet away from the point where it was summoned. The swarm has the following statistics:",
-            "AC 15, HP equal to four times your spellcaster level, immune to poison and psychic damage.",
-            "At the start of each of your turns, the swarm deals 1d6 piercing damage to each creature in its space, or half damage if the creature makes a Constitution saving throw.",
-            "You can move the swarm up to 30 feet as part of your action. If you use an action for any other purpose, the swarm doesn't move.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 6th level or higher, the damage increases by 1d6 for each slot level above 5th.",
-        "dnd_class": "Cleric, Druid",
-        "document__title": "SRD",
-    },
-    {
-        "name": "Confusion",
-        "slug": "confusion",
-        "level": 4,
-        "school": "enchantment",
-        "casting_time": "1 action",
-        "range": "90 feet",
-        "components": "V, S, M",
-        "material": "A pinch of powdered iron",
-        "duration": "Concentration, up to 1 minute",
-        "ritual": False,
-        "concentration": True,
-        "source": "5e Core Rules",
-        "desc": [
-            "Each creature in a 10-foot radius sphere centered on a point of your choice within range must make a Wisdom saving throw.",
-            "On a failed save, a creature can't take reactions until the save ends, and the creature rolls a d10 at the end of each of its turns during this Duration to determine its behavior for that turn.",
-            "d10 1-3: The creature uses all its movement, if possible, to move in a random direction. To determine the direction, roll a d8 and assign directions. The creature doesn't take an action this turn.",
-            "d10 4-6: The creature doesn't move or take actions this turn.",
-            "d10 7-8: The creature uses its action this turn to make one melee attack against a randomly determined creature within its reach. If there is no creature within its reach, the creature does nothing this turn.",
-            "d10 9-10: The creature can act and move normally.",
-            "At the end of each of the affected creature's turns, it can make another Wisdom saving throw. If it succeeds, the effect ends for that creature.",
-        ],
-        "higher_level": "When you cast this spell using a spell slot of 5th level or higher, the radius of the sphere increases by 5 feet for each slot level above 4th.",
-        "dnd_class": "Bard, Druid, Sorcerer, Wizard",
-        "document__title": "SRD",
-    },
-]
-
-
-def set_spell_library_data(spells: list[dict] | None):
+def set_spell_library_data(spells: Optional[list[dict]]) -> None:
+    """Set spell library data and build lookup map with deduplication."""
     spell_list = spells or []
     
     # Deduplicate by slug to prevent duplicates in spell chooser
@@ -1556,254 +1249,11 @@ def set_spell_library_data(spells: list[dict] | None):
     }
 
 
+# Spell data extracted to spell_data.py
 # Pre-populate with fallback spells so old saved spells can get their details at render time
 set_spell_library_data(LOCAL_SPELLS_FALLBACK)
 # Mark spell library as loaded so domain spells can auto-populate on page load
 SPELL_LIBRARY_STATE["loaded"] = True
-
-
-SPELL_CLASS_SYNONYMS = {
-    "artificer": ["artificer"],
-    "bard": ["bard"],
-    "cleric": ["cleric"],
-    "druid": ["druid"],
-    "paladin": ["paladin"],
-    "ranger": ["ranger"],
-    "sorcerer": ["sorcerer"],
-    "warlock": ["warlock"],
-    "wizard": ["wizard"],
-    "fighter": ["fighter", "eldritch knight", "arcane archer"],
-    "rogue": ["rogue", "arcane trickster"],
-    "monk": ["monk"],
-    "barbarian": ["barbarian"],
-    "blood hunter": ["blood hunter", "bloodhunter"],
-}
-
-SPELL_CLASS_DISPLAY_NAMES = {
-    "artificer": "Artificer",
-    "bard": "Bard",
-    "cleric": "Cleric",
-    "druid": "Druid",
-    "paladin": "Paladin",
-    "ranger": "Ranger",
-    "sorcerer": "Sorcerer",
-    "warlock": "Warlock",
-    "wizard": "Wizard",
-    "fighter": "Fighter (Eldritch Knight)",
-    "rogue": "Rogue (Arcane Trickster)",
-    "monk": "Monk",
-    "barbarian": "Barbarian",
-    "blood hunter": "Blood Hunter",
-}
-
-# Known spell data corrections for Open5e inconsistencies
-# Format: "slug": {"classes": ["correct", "class", "list"]}
-SPELL_CORRECTIONS = {
-    "burning-hands": {"classes": ["sorcerer", "wizard"]},  # Not a cleric spell
-}
-
-def apply_spell_corrections(spell: dict) -> dict:
-    """Apply known corrections to spell data."""
-    slug = spell.get("slug", "")
-    if slug in SPELL_CORRECTIONS:
-        correction = SPELL_CORRECTIONS[slug]
-        if "classes" in correction:
-            spell["classes"] = correction["classes"]
-            # Update classes_display to match
-            spell["classes_display"] = [
-                SPELL_CLASS_DISPLAY_NAMES.get(c, c.title()) for c in correction["classes"]
-            ]
-    return spell
-
-
-def is_spell_source_allowed(source: str) -> bool:
-    """Check if a spell source is in our allowed list (PHB, TCE, XGE only)."""
-    return is_authoritative_source(source)
-
-CLASS_CASTING_PROGRESSIONS = {
-    "artificer": "half_up",
-    "bard": "full",
-    "cleric": "full",
-    "druid": "full",
-    "paladin": "half",
-    "ranger": "half",
-    "sorcerer": "full",
-    "warlock": "pact",
-    "wizard": "full",
-    "fighter": "third",
-    "rogue": "third",
-    "monk": "none",
-    "barbarian": "none",
-    "blood hunter": "half",
-}
-
-SPELLCASTING_PROGRESSION_TABLES = {
-    "none": [0] * 21,
-    "full": [
-        0,
-        1,
-        1,
-        2,
-        2,
-        3,
-        3,
-        4,
-        4,
-        5,
-        5,
-        6,
-        6,
-        7,
-        7,
-        8,
-        8,
-        9,
-        9,
-        9,
-        9,
-    ],
-    "half": [
-        0,
-        0,
-        1,
-        1,
-        1,
-        2,
-        2,
-        2,
-        2,
-        3,
-        3,
-        3,
-        3,
-        4,
-        4,
-        4,
-        4,
-        5,
-        5,
-        5,
-        5,
-    ],
-    "half_up": [
-        0,
-        1,
-        1,
-        1,
-        1,
-        2,
-        2,
-        2,
-        2,
-        3,
-        3,
-        3,
-        3,
-        4,
-        4,
-        4,
-        4,
-        5,
-        5,
-        5,
-        5,
-    ],
-    "third": [
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        4,
-        4,
-    ],
-    "pact": [
-        0,
-        1,
-        1,
-        2,
-        2,
-        3,
-        3,
-        4,
-        4,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-        5,
-    ],
-}
-
-# Standard slot counts for full casters by caster level (PHB p. 201)
-STANDARD_SLOT_TABLE = {
-    0: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    1: [2, 0, 0, 0, 0, 0, 0, 0, 0],
-    2: [3, 0, 0, 0, 0, 0, 0, 0, 0],
-    3: [4, 2, 0, 0, 0, 0, 0, 0, 0],
-    4: [4, 3, 0, 0, 0, 0, 0, 0, 0],
-    5: [4, 3, 2, 0, 0, 0, 0, 0, 0],
-    6: [4, 3, 3, 0, 0, 0, 0, 0, 0],
-    7: [4, 3, 3, 1, 0, 0, 0, 0, 0],
-    8: [4, 3, 3, 2, 0, 0, 0, 0, 0],
-    9: [4, 3, 3, 3, 1, 0, 0, 0, 0],
-    10: [4, 3, 3, 3, 2, 0, 0, 0, 0],
-    11: [4, 3, 3, 3, 2, 1, 0, 0, 0],
-    12: [4, 3, 3, 3, 2, 1, 0, 0, 0],
-    13: [4, 3, 3, 3, 2, 1, 1, 0, 0],
-    14: [4, 3, 3, 3, 2, 1, 1, 0, 0],
-    15: [4, 3, 3, 3, 2, 1, 1, 1, 0],
-    16: [4, 3, 3, 3, 2, 1, 1, 1, 0],
-    17: [4, 3, 3, 3, 2, 1, 1, 1, 1],
-    18: [4, 3, 3, 3, 3, 1, 1, 1, 1],
-    19: [4, 3, 3, 3, 3, 2, 1, 1, 1],
-    20: [4, 3, 3, 3, 3, 2, 2, 1, 1],
-}
-
-PACT_MAGIC_TABLE = {
-    0: {"slots": 0, "level": 0},
-    1: {"slots": 1, "level": 1},
-    2: {"slots": 2, "level": 1},
-    3: {"slots": 2, "level": 2},
-    4: {"slots": 2, "level": 2},
-    5: {"slots": 2, "level": 3},
-    6: {"slots": 2, "level": 3},
-    7: {"slots": 2, "level": 4},
-    8: {"slots": 2, "level": 4},
-    9: {"slots": 2, "level": 5},
-    10: {"slots": 2, "level": 5},
-    11: {"slots": 3, "level": 5},
-    12: {"slots": 3, "level": 5},
-    13: {"slots": 3, "level": 5},
-    14: {"slots": 3, "level": 5},
-    15: {"slots": 3, "level": 5},
-    16: {"slots": 3, "level": 5},
-    17: {"slots": 4, "level": 5},
-    18: {"slots": 4, "level": 5},
-    19: {"slots": 4, "level": 5},
-    20: {"slots": 4, "level": 5},
-}
 
 class SpellcastingManager:
     """Encapsulates spellbook selections, slot tracking, and related rendering."""
@@ -7787,10 +7237,12 @@ def load_initial_state():
     populate_form(clone_default_state())
 
 
-register_event_listeners()
-load_initial_state()
-update_calculations()
-render_equipped_weapons()
+# Only run module initialization if we're in a PyScript environment (document is not None)
+if document is not None:
+    register_event_listeners()
+    load_initial_state()
+    update_calculations()
+    render_equipped_weapons()
 
 # Auto-populate domain spells if domain is set and spell library is loaded
 def _populate_domain_spells_on_load():
@@ -7814,4 +7266,10 @@ async def _auto_load_weapons():
     await load_weapon_library()
     _populate_domain_spells_on_load()
 
-asyncio.create_task(_auto_load_weapons())
+# Only start async tasks if we're in a PyScript environment
+if document is not None:
+    try:
+        asyncio.create_task(_auto_load_weapons())
+    except RuntimeError:
+        # No event loop available (e.g., in test environment)
+        pass

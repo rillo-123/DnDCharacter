@@ -27,11 +27,8 @@ sys.modules['js'].window = MockWindow()
 
 # Now we can import
 from character_models import CharacterFactory
-from character import (
-    LOCAL_SPELLS_FALLBACK, 
-    sanitize_spell_list,
-    SPELL_CLASS_DISPLAY_NAMES
-)
+from spell_data import LOCAL_SPELLS_FALLBACK, SPELL_CLASS_DISPLAY_NAMES
+from character import sanitize_spell_list
 
 
 def test_fallback_spells_have_required_fields():
