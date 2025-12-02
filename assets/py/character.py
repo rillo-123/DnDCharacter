@@ -237,6 +237,136 @@ class BrowserLogger:
 LOGGER = BrowserLogger()
 LOCAL_STORAGE_KEY = "pysheet.character.v1"
 
+# ===================================================================
+# Equipment Classes
+# ===================================================================
+
+class Equipment:
+    """Base equipment class for all equipment items"""
+    def __init__(self, name: str, cost: str = "", weight: str = "", source: str = ""):
+        self.name = name
+        self.cost = cost
+        self.weight = weight
+        self.source = source
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization"""
+        return {
+            "name": self.name,
+            "cost": self.cost,
+            "weight": self.weight,
+            "source": self.source
+        }
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Equipment':
+        """Create Equipment object from dictionary"""
+        if not isinstance(data, dict):
+            return data  # Already an object or invalid
+        
+        name = data.get("name", "Unknown")
+        
+        # Detect type and create appropriate subclass
+        if data.get("damage"):
+            return Weapon.from_dict(data)
+        elif data.get("armor_class") and "shield" not in name.lower():
+            return Armor.from_dict(data)
+        elif data.get("ac"):
+            return Shield.from_dict(data)
+        else:
+            # Default Equipment
+            return Equipment(
+                name=name,
+                cost=data.get("cost", ""),
+                weight=data.get("weight", ""),
+                source=data.get("source", "")
+            )
+
+
+class Weapon(Equipment):
+    """Weapon equipment with damage properties"""
+    def __init__(self, name: str, damage: str = "", damage_type: str = "", 
+                 range_text: str = "", properties: str = "", **kwargs):
+        super().__init__(name, **kwargs)
+        self.damage = damage
+        self.damage_type = damage_type
+        self.range = range_text
+        self.properties = properties
+    
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.damage:
+            d["damage"] = self.damage
+        if self.damage_type:
+            d["damage_type"] = self.damage_type
+        if self.range:
+            d["range"] = self.range
+        if self.properties:
+            d["properties"] = self.properties
+        return d
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Weapon':
+        """Create Weapon from dictionary"""
+        return Weapon(
+            name=data.get("name", "Unknown"),
+            cost=data.get("cost", ""),
+            weight=data.get("weight", ""),
+            source=data.get("source", ""),
+            damage=data.get("damage", ""),
+            damage_type=data.get("damage_type", ""),
+            range_text=data.get("range", ""),
+            properties=data.get("properties", "")
+        )
+
+
+class Armor(Equipment):
+    """Armor equipment with AC value"""
+    def __init__(self, name: str, armor_class: int | str = "", **kwargs):
+        super().__init__(name, **kwargs)
+        self.armor_class = armor_class
+    
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.armor_class:
+            d["armor_class"] = self.armor_class
+        return d
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Armor':
+        """Create Armor from dictionary"""
+        return Armor(
+            name=data.get("name", "Unknown"),
+            cost=data.get("cost", ""),
+            weight=data.get("weight", ""),
+            source=data.get("source", ""),
+            armor_class=data.get("armor_class", "")
+        )
+
+
+class Shield(Equipment):
+    """Shield equipment with AC bonus"""
+    def __init__(self, name: str, ac_bonus: str = "", **kwargs):
+        super().__init__(name, **kwargs)
+        self.ac_bonus = ac_bonus
+    
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if self.ac_bonus:
+            d["ac"] = self.ac_bonus
+        return d
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Shield':
+        """Create Shield from dictionary"""
+        return Shield(
+            name=data.get("name", "Unknown"),
+            cost=data.get("cost", ""),
+            weight=data.get("weight", ""),
+            source=data.get("source", ""),
+            ac_bonus=data.get("ac", "")
+        )
+
 ABILITY_ORDER = list(DEFAULT_ABILITY_KEYS)
 
 SKILLS = {
@@ -6131,149 +6261,139 @@ def fetch_equipment_from_open5e():
     
     # Use comprehensive fallback of common D&D 5e items
     console.log("PySheet: Using comprehensive fallback equipment list")
-    EQUIPMENT_LIBRARY_STATE["equipment"] = [
+    EQUIPMENT_LIBRARY_STATE["equipment"] = [item.to_dict() if hasattr(item, 'to_dict') else item for item in [
         # Melee Weapons (common PHB weapons)
-        {"name": "Mace", "cost": "5 gp", "weight": "4 lb.", "damage": "1d6", "damage_type": "bludgeoning"},
-        {"name": "Longsword", "cost": "15 gp", "weight": "3 lb.", "damage": "1d8", "damage_type": "slashing"},
-        {"name": "Shortsword", "cost": "10 gp", "weight": "2 lb.", "damage": "1d6", "damage_type": "piercing"},
-        {"name": "Rapier", "cost": "25 gp", "weight": "2 lb.", "damage": "1d8", "damage_type": "piercing"},
-        {"name": "Dagger", "cost": "2 gp", "weight": "1 lb.", "damage": "1d4", "damage_type": "piercing"},
-        {"name": "Greataxe", "cost": "30 gp", "weight": "7 lb.", "damage": "1d12", "damage_type": "slashing"},
-        {"name": "Greatsword", "cost": "50 gp", "weight": "6 lb.", "damage": "2d6", "damage_type": "slashing"},
-        {"name": "Warhammer", "cost": "15 gp", "weight": "2 lb.", "damage": "1d8", "damage_type": "bludgeoning"},
-        {"name": "Morningstar", "cost": "15 gp", "weight": "4 lb.", "damage": "1d8", "damage_type": "piercing"},
-        {"name": "Pike", "cost": "5 gp", "weight": "18 lb.", "damage": "1d10", "damage_type": "piercing"},
-        {"name": "Spear", "cost": "1 gp", "weight": "3 lb.", "damage": "1d6", "damage_type": "piercing"},
-        {"name": "Club", "cost": "0.1 gp", "weight": "2 lb.", "damage": "1d4", "damage_type": "bludgeoning"},
-        {"name": "Quarterstaff", "cost": "0.2 gp", "weight": "4 lb.", "damage": "1d6", "damage_type": "bludgeoning"},
-        {"name": "Falchion", "cost": "20 gp", "weight": "4 lb.", "damage": "1d8", "damage_type": "slashing"},
+        Weapon("Mace", damage="1d6", damage_type="bludgeoning", cost="5 gp", weight="4 lb."),
+        Weapon("Longsword", damage="1d8", damage_type="slashing", cost="15 gp", weight="3 lb."),
+        Weapon("Shortsword", damage="1d6", damage_type="piercing", cost="10 gp", weight="2 lb."),
+        Weapon("Rapier", damage="1d8", damage_type="piercing", cost="25 gp", weight="2 lb."),
+        Weapon("Dagger", damage="1d4", damage_type="piercing", cost="2 gp", weight="1 lb."),
+        Weapon("Greataxe", damage="1d12", damage_type="slashing", cost="30 gp", weight="7 lb."),
+        Weapon("Greatsword", damage="2d6", damage_type="slashing", cost="50 gp", weight="6 lb."),
+        Weapon("Warhammer", damage="1d8", damage_type="bludgeoning", cost="15 gp", weight="2 lb."),
+        Weapon("Morningstar", damage="1d8", damage_type="piercing", cost="15 gp", weight="4 lb."),
+        Weapon("Pike", damage="1d10", damage_type="piercing", cost="5 gp", weight="18 lb."),
+        Weapon("Spear", damage="1d6", damage_type="piercing", cost="1 gp", weight="3 lb."),
+        Weapon("Club", damage="1d4", damage_type="bludgeoning", cost="0.1 gp", weight="2 lb."),
+        Weapon("Quarterstaff", damage="1d6", damage_type="bludgeoning", cost="0.2 gp", weight="4 lb."),
+        Weapon("Falchion", damage="1d8", damage_type="slashing", cost="20 gp", weight="4 lb."),
         
         # Ranged Weapons
-        {"name": "Longbow", "cost": "50 gp", "weight": "3 lb.", "damage": "1d8", "damage_type": "piercing", "range": "150/600"},
-        {"name": "Shortbow", "cost": "25 gp", "weight": "2 lb.", "damage": "1d6", "damage_type": "piercing", "range": "80/320"},
-        {"name": "Crossbow, light", "cost": "25 gp", "weight": "5 lb.", "damage": "1d8", "damage_type": "piercing", "range": "80/320"},
-        {"name": "Crossbow, heavy", "cost": "50 gp", "weight": "18 lb.", "damage": "1d10", "damage_type": "piercing", "range": "100/400"},
-        {"name": "Sling", "cost": "0.1 gp", "weight": "0 lb.", "damage": "1d4", "damage_type": "bludgeoning", "range": "30/120"},
+        Weapon("Longbow", damage="1d8", damage_type="piercing", range_text="150/600", cost="50 gp", weight="3 lb."),
+        Weapon("Shortbow", damage="1d6", damage_type="piercing", range_text="80/320", cost="25 gp", weight="2 lb."),
+        Weapon("Crossbow, light", damage="1d8", damage_type="piercing", range_text="80/320", cost="25 gp", weight="5 lb."),
+        Weapon("Crossbow, heavy", damage="1d10", damage_type="piercing", range_text="100/400", cost="50 gp", weight="18 lb."),
+        Weapon("Sling", damage="1d4", damage_type="bludgeoning", range_text="30/120", cost="0.1 gp", weight="0 lb."),
         
         # Armor
-        {"name": "Leather", "cost": "5 gp", "weight": "10 lb.", "armor_class": 11},
-        {"name": "Studded Leather", "cost": "45 gp", "weight": "13 lb.", "armor_class": 12},
-        {"name": "Hide", "cost": "10 gp", "weight": "12 lb.", "armor_class": 12},
-        {"name": "Chain Shirt", "cost": "50 gp", "weight": "20 lb.", "armor_class": 13},
-        {"name": "Scale Mail", "cost": "50 gp", "weight": "45 lb.", "armor_class": 14},
-        {"name": "Breastplate", "cost": "400 gp", "weight": "20 lb.", "armor_class": 14},
-        {"name": "Half Plate", "cost": "750 gp", "weight": "40 lb.", "armor_class": 15},
-        {"name": "Ring Mail", "cost": "30 gp", "weight": "40 lb.", "armor_class": 14},
-        {"name": "Chain Mail", "cost": "75 gp", "weight": "55 lb.", "armor_class": 16},
-        {"name": "Splint", "cost": "200 gp", "weight": "60 lb.", "armor_class": 17},
-        {"name": "Plate", "cost": "1500 gp", "weight": "65 lb.", "armor_class": 18},
+        Armor("Leather", armor_class=11, cost="5 gp", weight="10 lb."),
+        Armor("Studded Leather", armor_class=12, cost="45 gp", weight="13 lb."),
+        Armor("Hide", armor_class=12, cost="10 gp", weight="12 lb."),
+        Armor("Chain Shirt", armor_class=13, cost="50 gp", weight="20 lb."),
+        Armor("Scale Mail", armor_class=14, cost="50 gp", weight="45 lb."),
+        Armor("Breastplate", armor_class=14, cost="400 gp", weight="20 lb."),
+        Armor("Half Plate", armor_class=15, cost="750 gp", weight="40 lb."),
+        Armor("Ring Mail", armor_class=14, cost="30 gp", weight="40 lb."),
+        Armor("Chain Mail", armor_class=16, cost="75 gp", weight="55 lb."),
+        Armor("Splint", armor_class=17, cost="200 gp", weight="60 lb."),
+        Armor("Plate", armor_class=18, cost="1500 gp", weight="65 lb."),
         
         # Shields
-        {"name": "Shield", "cost": "10 gp", "weight": "6 lb.", "ac": "+2"},
+        Shield("Shield", ac_bonus="+2", cost="10 gp", weight="6 lb."),
         
         # Starter Packs
-        {"name": "Explorer's Pack", "cost": "10 gp", "weight": "59 lb."},
-        {"name": "Adventurer's Pack", "cost": "5 gp", "weight": "54 lb."},
-        {"name": "Burglar's Pack", "cost": "16 gp", "weight": "44 lb."},
-        {"name": "Diplomat's Pack", "cost": "39 gp", "weight": "46 lb."},
-        {"name": "Dungeoneer's Pack", "cost": "12 gp", "weight": "61 lb."},
-        {"name": "Entertainer's Pack", "cost": "40 gp", "weight": "38 lb."},
-        {"name": "Priest's Pack", "cost": "19 gp", "weight": "24 lb."},
-        {"name": "Scholar's Pack", "cost": "40 gp", "weight": "10 lb."},
+        Equipment("Explorer's Pack", cost="10 gp", weight="59 lb."),
+        Equipment("Adventurer's Pack", cost="5 gp", weight="54 lb."),
+        Equipment("Burglar's Pack", cost="16 gp", weight="44 lb."),
+        Equipment("Diplomat's Pack", cost="39 gp", weight="46 lb."),
+        Equipment("Dungeoneer's Pack", cost="12 gp", weight="61 lb."),
+        Equipment("Entertainer's Pack", cost="40 gp", weight="38 lb."),
+        Equipment("Priest's Pack", cost="19 gp", weight="24 lb."),
+        Equipment("Scholar's Pack", cost="40 gp", weight="10 lb."),
         
         # Adventuring Gear
-        {"name": "Rope (50 feet)", "cost": "1 gp", "weight": "10 lb."},
-        {"name": "Torch", "cost": "0.01 gp", "weight": "1 lb."},
-        {"name": "Lantern (Bullseye)", "cost": "12 gp", "weight": "2 lb."},
-        {"name": "Lantern (Hooded)", "cost": "5 gp", "weight": "2 lb."},
-        {"name": "Backpack", "cost": "2 gp", "weight": "5 lb."},
-        {"name": "Bedroll", "cost": "0.1 gp", "weight": "10 lb."},
-        {"name": "Tent", "cost": "2 gp", "weight": "20 lb."},
-        {"name": "Grappling Hook", "cost": "2 gp", "weight": "4 lb."},
-        {"name": "Caltrops (20)", "cost": "1 gp", "weight": "2 lb."},
-        {"name": "Chalk (1 piece)", "cost": "0.01 gp", "weight": "0.01 lb."},
-        {"name": "Waterskin", "cost": "0.5 gp", "weight": "1 lb."},
-        {"name": "Hempen Rope (50 feet)", "cost": "1 gp", "weight": "10 lb."},
-        {"name": "Silk Rope (50 feet)", "cost": "10 gp", "weight": "5 lb."},
-        {"name": "Crowbar", "cost": "2 gp", "weight": "5 lb."},
-        {"name": "Hammer", "cost": "1 gp", "weight": "3 lb."},
-        {"name": "Piton", "cost": "0.05 gp", "weight": "0.25 lb."},
-        {"name": "Tinderbox", "cost": "0.5 gp", "weight": "1 lb."},
-        {"name": "Candle", "cost": "0.01 gp", "weight": "0.1 lb."},
-        {"name": "Mess Kit", "cost": "0.2 gp", "weight": "1 lb."},
-        {"name": "Component Pouch", "cost": "25 gp", "weight": "2 lb."},
-        {"name": "Spellcasting Focus", "cost": "5-15 gp", "weight": "varies"},
-        {"name": "Holy Water (Flask)", "cost": "25 gp", "weight": "1 lb."},
-        {"name": "Mirror (steel)", "cost": "5 gp", "weight": "0.5 lb."},
-        {"name": "Piton", "cost": "0.05 gp", "weight": "0.25 lb."},
-        {"name": "Tinderbox", "cost": "0.5 gp", "weight": "1 lb."},
-        {"name": "Candle", "cost": "0.01 gp", "weight": "0.1 lb."},
-        {"name": "Mess Kit", "cost": "0.2 gp", "weight": "1 lb."},
-        {"name": "Rope (50 feet, silk)", "cost": "10 gp", "weight": "5 lb."},
-        {"name": "Component Pouch", "cost": "25 gp", "weight": "2 lb."},
-        {"name": "Spellcasting Focus", "cost": "5-15 gp", "weight": "varies"},
-        {"name": "Holy Water (Flask)", "cost": "25 gp", "weight": "1 lb."},
-        {"name": "Mirror (steel)", "cost": "5 gp", "weight": "0.5 lb."},
-        {"name": "Rations (1 day)", "cost": "0.5 gp", "weight": "2 lb."},
-        {"name": "Trail Rations (1 day)", "cost": "0.5 gp", "weight": "2 lb."},
-        {"name": "Pouch", "cost": "0.5 gp", "weight": "1 lb."},
-        {"name": "Money Pouch", "cost": "5 gp", "weight": "1 lb."},
-        {"name": "Map or Scroll Case", "cost": "1 gp", "weight": "0.5 lb."},
-        {"name": "Magnifying Glass", "cost": "100 gp", "weight": "0 lb."},
-        {"name": "Playing Cards", "cost": "0.5 gp", "weight": "0 lb."},
-        {"name": "Dice Set", "cost": "0.1 gp", "weight": "0 lb."},
-        {"name": "Dominoes", "cost": "0.5 gp", "weight": "1 lb."},
-        {"name": "Ink (1 oz bottle)", "cost": "10 gp", "weight": "0 lb."},
-        {"name": "Ink Pen", "cost": "0.02 gp", "weight": "0 lb."},
-        {"name": "Parchment", "cost": "0.1 gp", "weight": "0 lb."},
-        {"name": "Paper", "cost": "0.2 gp", "weight": "0 lb."},
-        {"name": "Spyglass", "cost": "1000 gp", "weight": "1 lb."},
-        {"name": "Thieves' Tools", "cost": "25 gp", "weight": "1 lb."},
-        {"name": "Healer's Kit", "cost": "5 gp", "weight": "3 lb."},
-        {"name": "Herbalism Kit", "cost": "5 gp", "weight": "3 lb."},
-        {"name": "Disguise Kit", "cost": "25 gp", "weight": "3 lb."},
-        {"name": "Forgery Kit", "cost": "15 gp", "weight": "5 lb."},
-        {"name": "Climber's Kit", "cost": "25 gp", "weight": "12 lb."},
-        {"name": "Artisan's Tools", "cost": "5 gp", "weight": "5 lb."},
-        {"name": "Instrument (String)", "cost": "25 gp", "weight": "1 lb."},
-        {"name": "Lute", "cost": "35 gp", "weight": "2 lb."},
-        {"name": "Flute", "cost": "2 gp", "weight": "1 lb."},
-        {"name": "Drum", "cost": "6 gp", "weight": "3 lb."},
-        {"name": "Tambourine", "cost": "2 gp", "weight": "1 lb."},
-        {"name": "Pan Pipes", "cost": "12 gp", "weight": "2 lb."},
-        {"name": "Vial", "cost": "1 gp", "weight": "0 lb."},
-        {"name": "Potion of Healing", "cost": "50 gp", "weight": "0.5 lb."},
-        {"name": "Potion of Greater Healing", "cost": "100 gp", "weight": "0.5 lb."},
-        {"name": "Everburning Lantern", "cost": "varies", "weight": "2 lb."},
-        {"name": "Antitoxin (vial)", "cost": "50 gp", "weight": "0 lb."},
-        {"name": "Oil (1-pint bottle)", "cost": "0.1 gp", "weight": "1 lb."},
-        {"name": "Perfume (vial)", "cost": "5 gp", "weight": "0 lb."},
-        {"name": "Soap", "cost": "0.02 gp", "weight": "0 lb."},
-        {"name": "Sack", "cost": "0.01 gp", "weight": "0.5 lb."},
-        {"name": "Barrel", "cost": "0.2 gp", "weight": "70 lb."},
-        {"name": "Basket", "cost": "0.04 gp", "weight": "1 lb."},
-        {"name": "Bottle", "cost": "0.02 gp", "weight": "1 lb."},
-        {"name": "Box", "cost": "0.1 gp", "weight": "2 lb."},
-        {"name": "Candle", "cost": "0.01 gp", "weight": "0.1 lb."},
-        {"name": "Carpet (6 sq ft)", "cost": "2 gp", "weight": "100 lb."},
-        {"name": "Chest", "cost": "5 gp", "weight": "25 lb."},
-        {"name": "Clothes, Common", "cost": "0.5 gp", "weight": "3 lb."},
-        {"name": "Clothes, Costume", "cost": "5 gp", "weight": "4 lb."},
-        {"name": "Clothes, Fine", "cost": "15 gp", "weight": "6 lb."},
-        {"name": "Clothes, Traveler's", "cost": "2 gp", "weight": "4 lb."},
-        {"name": "Dragonchess Set", "cost": "1 gp", "weight": "0.5 lb."},
-        {"name": "Lock", "cost": "10 gp", "weight": "1 lb."},
-        {"name": "Manacles", "cost": "2 gp", "weight": "6 lb."},
-        {"name": "Mirror, Pocket", "cost": "5 gp", "weight": "0.5 lb."},
+        Equipment("Rope (50 feet)", cost="1 gp", weight="10 lb."),
+        Equipment("Torch", cost="0.01 gp", weight="1 lb."),
+        Equipment("Lantern (Bullseye)", cost="12 gp", weight="2 lb."),
+        Equipment("Lantern (Hooded)", cost="5 gp", weight="2 lb."),
+        Equipment("Backpack", cost="2 gp", weight="5 lb."),
+        Equipment("Bedroll", cost="0.1 gp", weight="10 lb."),
+        Equipment("Tent", cost="2 gp", weight="20 lb."),
+        Equipment("Grappling Hook", cost="2 gp", weight="4 lb."),
+        Equipment("Caltrops (20)", cost="1 gp", weight="2 lb."),
+        Equipment("Chalk (1 piece)", cost="0.01 gp", weight="0.01 lb."),
+        Equipment("Waterskin", cost="0.5 gp", weight="1 lb."),
+        Equipment("Hempen Rope (50 feet)", cost="1 gp", weight="10 lb."),
+        Equipment("Silk Rope (50 feet)", cost="10 gp", weight="5 lb."),
+        Equipment("Crowbar", cost="2 gp", weight="5 lb."),
+        Equipment("Hammer", cost="1 gp", weight="3 lb."),
+        Equipment("Piton", cost="0.05 gp", weight="0.25 lb."),
+        Equipment("Tinderbox", cost="0.5 gp", weight="1 lb."),
+        Equipment("Candle", cost="0.01 gp", weight="0.1 lb."),
+        Equipment("Mess Kit", cost="0.2 gp", weight="1 lb."),
+        Equipment("Component Pouch", cost="25 gp", weight="2 lb."),
+        Equipment("Spellcasting Focus", cost="5-15 gp", weight="varies"),
+        Equipment("Holy Water (Flask)", cost="25 gp", weight="1 lb."),
+        Equipment("Mirror (steel)", cost="5 gp", weight="0.5 lb."),
+        Equipment("Rations (1 day)", cost="0.5 gp", weight="2 lb."),
+        Equipment("Trail Rations (1 day)", cost="0.5 gp", weight="2 lb."),
+        Equipment("Pouch", cost="0.5 gp", weight="1 lb."),
+        Equipment("Money Pouch", cost="5 gp", weight="1 lb."),
+        Equipment("Map or Scroll Case", cost="1 gp", weight="0.5 lb."),
+        Equipment("Magnifying Glass", cost="100 gp", weight="0 lb."),
+        Equipment("Playing Cards", cost="0.5 gp", weight="0 lb."),
+        Equipment("Dice Set", cost="0.1 gp", weight="0 lb."),
+        Equipment("Dominoes", cost="0.5 gp", weight="1 lb."),
+        Equipment("Ink (1 oz bottle)", cost="10 gp", weight="0 lb."),
+        Equipment("Ink Pen", cost="0.02 gp", weight="0 lb."),
+        Equipment("Parchment", cost="0.1 gp", weight="0 lb."),
+        Equipment("Paper", cost="0.2 gp", weight="0 lb."),
+        Equipment("Spyglass", cost="1000 gp", weight="1 lb."),
+        Equipment("Thieves' Tools", cost="25 gp", weight="1 lb."),
+        Equipment("Healer's Kit", cost="5 gp", weight="3 lb."),
+        Equipment("Herbalism Kit", cost="5 gp", weight="3 lb."),
+        Equipment("Disguise Kit", cost="25 gp", weight="3 lb."),
+        Equipment("Forgery Kit", cost="15 gp", weight="5 lb."),
+        Equipment("Climber's Kit", cost="25 gp", weight="12 lb."),
+        Equipment("Artisan's Tools", cost="5 gp", weight="5 lb."),
+        Equipment("Instrument (String)", cost="25 gp", weight="1 lb."),
+        Equipment("Lute", cost="35 gp", weight="2 lb."),
+        Equipment("Flute", cost="2 gp", weight="1 lb."),
+        Equipment("Drum", cost="6 gp", weight="3 lb."),
+        Equipment("Tambourine", cost="2 gp", weight="1 lb."),
+        Equipment("Pan Pipes", cost="12 gp", weight="2 lb."),
+        Equipment("Vial", cost="1 gp", weight="0 lb."),
+        Equipment("Potion of Healing", cost="50 gp", weight="0.5 lb."),
+        Equipment("Potion of Greater Healing", cost="100 gp", weight="0.5 lb."),
+        Equipment("Everburning Lantern", cost="varies", weight="2 lb."),
+        Equipment("Antitoxin (vial)", cost="50 gp", weight="0 lb."),
+        Equipment("Oil (1-pint bottle)", cost="0.1 gp", weight="1 lb."),
+        Equipment("Perfume (vial)", cost="5 gp", weight="0 lb."),
+        Equipment("Soap", cost="0.02 gp", weight="0 lb."),
+        Equipment("Sack", cost="0.01 gp", weight="0.5 lb."),
+        Equipment("Barrel", cost="0.2 gp", weight="70 lb."),
+        Equipment("Basket", cost="0.04 gp", weight="1 lb."),
+        Equipment("Bottle", cost="0.02 gp", weight="1 lb."),
+        Equipment("Box", cost="0.1 gp", weight="2 lb."),
+        Equipment("Carpet (6 sq ft)", cost="2 gp", weight="100 lb."),
+        Equipment("Chest", cost="5 gp", weight="25 lb."),
+        Equipment("Clothes, Common", cost="0.5 gp", weight="3 lb."),
+        Equipment("Clothes, Costume", cost="5 gp", weight="4 lb."),
+        Equipment("Clothes, Fine", cost="15 gp", weight="6 lb."),
+        Equipment("Clothes, Traveler's", cost="2 gp", weight="4 lb."),
+        Equipment("Dragonchess Set", cost="1 gp", weight="0.5 lb."),
+        Equipment("Lock", cost="10 gp", weight="1 lb."),
+        Equipment("Manacles", cost="2 gp", weight="6 lb."),
+        Equipment("Mirror, Pocket", cost="5 gp", weight="0.5 lb."),
         
         # Magical Items (common)
-        {"name": "Ring of Protection +1", "cost": "varies", "weight": "0 lb."},
-        {"name": "Amulet of Health", "cost": "varies", "weight": "0 lb."},
-        {"name": "Cloak of Protection", "cost": "varies", "weight": "1 lb."},
-        {"name": "Wand of Magic Missiles", "cost": "varies", "weight": "1 lb."},
-        {"name": "Staff of Fire", "cost": "varies", "weight": "4 lb."},
-        {"name": "Magic Item", "cost": "varies", "weight": "0 lb."},
-    ]
+        Equipment("Ring of Protection +1", cost="varies", weight="0 lb."),
+        Equipment("Amulet of Health", cost="varies", weight="0 lb."),
+        Equipment("Cloak of Protection", cost="varies", weight="1 lb."),
+        Equipment("Wand of Magic Missiles", cost="varies", weight="1 lb."),
+        Equipment("Staff of Fire", cost="varies", weight="4 lb."),
+        Equipment("Magic Item", cost="varies", weight="0 lb."),
+    ]]
 
 
 def load_equipment_library(_event=None):
@@ -6361,17 +6481,30 @@ def populate_equipment_results(search_term: str = ""):
     attach_equipment_card_handlers(results_div)
 
 
-def build_equipment_card_html(item: dict) -> str:
+def build_equipment_card_html(item: dict | 'Equipment') -> str:
     """Build HTML for an equipment card similar to spell cards"""
-    name = item.get("name", "Unknown")
-    cost = item.get("cost", "Unknown")
-    weight = item.get("weight", "Unknown")
-    damage = item.get("damage", "")
-    damage_type = item.get("damage_type", "")
-    range_text = item.get("range", "")
-    properties = item.get("properties", "")
-    ac_string = item.get("ac", "")
-    armor_class = item.get("armor_class", "")
+    # Handle both dict and Equipment object
+    if isinstance(item, dict):
+        name = item.get("name", "Unknown")
+        cost = item.get("cost", "Unknown")
+        weight = item.get("weight", "Unknown")
+        damage = item.get("damage", "")
+        damage_type = item.get("damage_type", "")
+        range_text = item.get("range", "")
+        properties = item.get("properties", "")
+        ac_string = item.get("ac", "")
+        armor_class = item.get("armor_class", "")
+    else:
+        # Equipment object
+        name = item.name
+        cost = item.cost or "Unknown"
+        weight = item.weight or "Unknown"
+        damage = getattr(item, 'damage', "")
+        damage_type = getattr(item, 'damage_type', "")
+        range_text = getattr(item, 'range', "")
+        properties = getattr(item, 'properties', "")
+        ac_string = getattr(item, 'ac_bonus', "")
+        armor_class = getattr(item, 'armor_class', "")
     
     # Convert to strings to handle numeric values
     if armor_class and not isinstance(armor_class, str):
@@ -6443,6 +6576,8 @@ def attach_equipment_card_handlers(container):
         properties = button.getAttribute("data-equipment-properties") or ""
         ac_string = button.getAttribute("data-equipment-ac") or ""
         armor_class = button.getAttribute("data-equipment-armor-class") or ""
+        
+        console.log(f"Equipment button: {name} | cost={cost} | ac_string={ac_string} | armor_class={armor_class}")
         
         proxy = create_proxy(
             lambda event, n=name, c=cost, w=weight, d=damage, dt=damage_type, r=range_text, p=properties, ac=ac_string, acv=armor_class: 
@@ -6661,6 +6796,8 @@ def submit_custom_item(_event=None):
 def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str = "", damage_type: str = "", 
                        range_text: str = "", properties: str = "", ac_string: str = "", armor_class: str = ""):
     """Add an Open5e item to inventory with all properties"""
+    console.log(f"submit_open5e_item called: name={name} | cost={cost} | armor_class={armor_class}")
+    
     # Build a properties dict to store extra info as JSON in notes
     extra_props = {}
     if damage:
@@ -6675,11 +6812,6 @@ def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str 
         extra_props["ac_string"] = ac_string
     if armor_class:
         extra_props["armor_class"] = armor_class
-    else:
-        # Auto-detect standard D&D 5e armor AC values by name
-        detected_ac = get_armor_ac(name)
-        if detected_ac:
-            extra_props["armor_class"] = detected_ac
     
     # Store properties as JSON in notes field
     notes = json.dumps(extra_props) if extra_props else ""
