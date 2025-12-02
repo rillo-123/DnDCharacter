@@ -108,7 +108,8 @@ class TestShieldEquipment(unittest.TestCase):
         """Test that Shield has AC bonus in source code"""
         self.assertIsNotNone(self.shield_line, "Shield line should exist")
         self.assertIn('"+2"', self.shield_line, "Shield should have +2 AC bonus in source")
-        self.assertIn('"ac"', self.shield_line, "Shield should have ac field in source")
+        # Shield now uses Shield() class with ac_bonus parameter instead of "ac" dict field
+        self.assertIn('ac_bonus', self.shield_line, "Shield should have ac_bonus parameter in source")
 
     def test_shield_basic_properties(self):
         """Test Shield has correct basic properties"""
