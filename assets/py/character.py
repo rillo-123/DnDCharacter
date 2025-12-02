@@ -241,22 +241,23 @@ LOCAL_STORAGE_KEY = "pysheet.character.v1"
 # Equipment Classes
 # ===================================================================
 
-class Equipment:
-    """Base equipment class for all equipment items"""
-    def __init__(self, name: str, cost: str = "", weight: str = "", source: str = ""):
-        self.name = name
+class Equipment(Entity):
+    """Equipment entity - base class for all equipment items"""
+    def __init__(self, name: str, cost: str = "", weight: str = "", source: str = "", **kwargs):
+        super().__init__(name, entity_type="equipment", **kwargs)
         self.cost = cost
         self.weight = weight
         self.source = source
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
-        return {
-            "name": self.name,
+        d = super().to_dict()
+        d.update({
             "cost": self.cost,
             "weight": self.weight,
             "source": self.source
-        }
+        })
+        return d
     
     @staticmethod
     def from_dict(data: dict) -> 'Equipment':
@@ -279,7 +280,8 @@ class Equipment:
                 name=name,
                 cost=data.get("cost", ""),
                 weight=data.get("weight", ""),
-                source=data.get("source", "")
+                source=data.get("source", ""),
+                description=data.get("description", "")
             )
 
 
@@ -316,7 +318,8 @@ class Weapon(Equipment):
             damage=data.get("damage", ""),
             damage_type=data.get("damage_type", ""),
             range_text=data.get("range", ""),
-            properties=data.get("properties", "")
+            properties=data.get("properties", ""),
+            description=data.get("description", "")
         )
 
 
@@ -340,7 +343,8 @@ class Armor(Equipment):
             cost=data.get("cost", ""),
             weight=data.get("weight", ""),
             source=data.get("source", ""),
-            armor_class=data.get("armor_class", "")
+            armor_class=data.get("armor_class", ""),
+            description=data.get("description", "")
         )
 
 
@@ -364,7 +368,8 @@ class Shield(Equipment):
             cost=data.get("cost", ""),
             weight=data.get("weight", ""),
             source=data.get("source", ""),
-            ac_bonus=data.get("ac", "")
+            ac_bonus=data.get("ac", ""),
+            description=data.get("description", "")
         )
 
 
