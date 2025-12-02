@@ -513,6 +513,121 @@ class Spell(Entity):
         return f"Spell(name='{self.name}', {level_label}, school='{self.school}')"
 
 
+class Ability(Entity):
+    """
+    Ability entity - represents class features, feats, or special abilities.
+    """
+    def __init__(self, name: str, ability_type: str = "feature", level_gained: int = 1, **kwargs):
+        super().__init__(name, entity_type="ability", **kwargs)
+        self.ability_type = ability_type  # "feature", "feat", "trait", etc.
+        self.level_gained = level_gained
+    
+    def to_dict(self) -> dict:
+        """Convert ability to dictionary"""
+        d = super().to_dict()
+        d.update({
+            "ability_type": self.ability_type,
+            "level_gained": self.level_gained,
+        })
+        return d
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Ability':
+        """Create Ability from dictionary"""
+        if not isinstance(data, dict):
+            return data
+        
+        ability = Ability(
+            name=data.get("name", "Unknown"),
+            ability_type=data.get("ability_type", "feature"),
+            level_gained=data.get("level_gained", 1),
+            description=data.get("description", "")
+        )
+        
+        for key, value in data.get("properties", {}).items():
+            ability.add_property(key, value)
+        
+        return ability
+    
+    def __repr__(self) -> str:
+        return f"Ability(name='{self.name}', type='{self.ability_type}', L{self.level_gained})"
+
+
+class Resource(Entity):
+    """
+    Resource entity - represents trackable resources like Ki, Rage, Channel Divinity uses.
+    Supports current/max value tracking and use/restore operations.
+    """
+    def __init__(self, name: str, max_value: int = 0, current_value: int = None, **kwargs):
+        super().__init__(name, entity_type="resource", **kwargs)
+        self.max_value = max_value
+        self.current_value = current_value if current_value is not None else max_value
+    
+    def use(self, amount: int = 1) -> int:
+        """
+        Use resource by specified amount.
+        Returns actual amount used (capped at current value).
+        """
+        actual_used = min(amount, self.current_value)
+        self.current_value = max(0, self.current_value - amount)
+        return actual_used
+    
+    def restore(self, amount: int = None) -> int:
+        """
+        Restore resource.
+        If amount is None, restores to full.
+        Returns amount restored.
+        """
+        if amount is None:
+            restored = self.max_value - self.current_value
+            self.current_value = self.max_value
+        else:
+            actual_restored = min(amount, self.max_value - self.current_value)
+            self.current_value += actual_restored
+            restored = actual_restored
+        return restored
+    
+    def is_available(self, amount: int = 1) -> bool:
+        """Check if enough resource is available"""
+        return self.current_value >= amount
+    
+    def get_percent(self) -> int:
+        """Get remaining resource as percentage"""
+        if self.max_value == 0:
+            return 0
+        return int((self.current_value / self.max_value) * 100)
+    
+    def to_dict(self) -> dict:
+        """Convert resource to dictionary"""
+        d = super().to_dict()
+        d.update({
+            "max_value": self.max_value,
+            "current_value": self.current_value,
+        })
+        return d
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Resource':
+        """Create Resource from dictionary"""
+        if not isinstance(data, dict):
+            return data
+        
+        resource = Resource(
+            name=data.get("name", "Unknown"),
+            max_value=data.get("max_value", 0),
+            current_value=data.get("current_value"),
+            description=data.get("description", "")
+        )
+        
+        for key, value in data.get("properties", {}).items():
+            resource.add_property(key, value)
+        
+        return resource
+    
+    def __repr__(self) -> str:
+        return f"Resource(name='{self.name}', {self.current_value}/{self.max_value})"
+
+
 ABILITY_ORDER = list(DEFAULT_ABILITY_KEYS)
 
 SKILLS = {
