@@ -367,6 +367,77 @@ class Shield(Equipment):
             ac_bonus=data.get("ac", "")
         )
 
+
+# ===================================================================
+# Universal Entity System
+# ===================================================================
+
+class Entity:
+    """
+    Base entity class - represents any displayable game object.
+    Can be a spell, equipment, ability, resource, or custom entity.
+    Provides unified interface for properties, serialization, and rendering.
+    """
+    def __init__(self, name: str, entity_type: str = "", description: str = ""):
+        self.name = name
+        self.entity_type = entity_type  # "spell", "equipment", "ability", "resource", etc.
+        self.description = description
+        self.properties = {}  # Dynamic properties - stores any key-value pairs
+    
+    def add_property(self, key: str, value):
+        """Add or update a dynamic property"""
+        self.properties[key] = value
+        return self
+    
+    def get_property(self, key: str, default=None):
+        """Get a property with optional default value"""
+        return self.properties.get(key, default)
+    
+    def has_property(self, key: str) -> bool:
+        """Check if property exists"""
+        return key in self.properties
+    
+    def remove_property(self, key: str):
+        """Remove a property"""
+        if key in self.properties:
+            del self.properties[key]
+        return self
+    
+    def get_all_properties(self) -> dict:
+        """Get all dynamic properties"""
+        return self.properties.copy()
+    
+    def to_dict(self) -> dict:
+        """Convert entity to dictionary for serialization"""
+        return {
+            "name": self.name,
+            "entity_type": self.entity_type,
+            "description": self.description,
+            "properties": self.properties.copy()
+        }
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'Entity':
+        """Create Entity from dictionary"""
+        if not isinstance(data, dict):
+            return data
+        
+        entity = Entity(
+            name=data.get("name", "Unknown"),
+            entity_type=data.get("entity_type", ""),
+            description=data.get("description", "")
+        )
+        
+        # Restore properties
+        for key, value in data.get("properties", {}).items():
+            entity.add_property(key, value)
+        
+        return entity
+    
+    def __repr__(self) -> str:
+        return f"Entity(name='{self.name}', type='{self.entity_type}', props={len(self.properties)})"
+
+
 ABILITY_ORDER = list(DEFAULT_ABILITY_KEYS)
 
 SKILLS = {
