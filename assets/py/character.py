@@ -4962,7 +4962,7 @@ def _make_paragraphs(text: str) -> str:
     return "".join(paragraphs)
 
 
-def sanitize_spell_record(raw: dict) -> dict | None:
+def sanitize_spell_record(raw: dict) -> Optional[dict]:
     name = raw.get("name") or "Unknown Spell"
     slug_source = raw.get("slug") or name
     slug = re.sub(r"[^a-z0-9]+", "-", slug_source.lower()).strip("-")
@@ -5057,7 +5057,7 @@ def sanitize_spell_list(raw_spells: list[dict]) -> list[dict]:
     return sanitized
 
 
-def rehydrate_cached_spell(record: dict) -> dict | None:
+def rehydrate_cached_spell(record: dict) -> Optional[dict]:
     classes = []
     for token in record.get("classes", []):
         canonical = normalize_class_token(token)
@@ -6755,7 +6755,7 @@ def populate_equipment_results(search_term: str = ""):
     attach_equipment_card_handlers(results_div)
 
 
-def build_equipment_card_html(item: dict | 'Equipment') -> str:
+def build_equipment_card_html(item: Union[dict, 'Equipment']) -> str:
     """Build HTML for an equipment card similar to spell cards"""
     # Handle both dict and Equipment object
     if isinstance(item, dict):
