@@ -6577,8 +6577,6 @@ def attach_equipment_card_handlers(container):
         ac_string = button.getAttribute("data-equipment-ac") or ""
         armor_class = button.getAttribute("data-equipment-armor-class") or ""
         
-        console.log(f"Equipment button: {name} | cost={cost} | ac_string={ac_string} | armor_class={armor_class}")
-        
         proxy = create_proxy(
             lambda event, n=name, c=cost, w=weight, d=damage, dt=damage_type, r=range_text, p=properties, ac=ac_string, acv=armor_class: 
                 submit_open5e_item(n, c, w, d, dt, r, p, ac, acv)
@@ -6796,8 +6794,6 @@ def submit_custom_item(_event=None):
 def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str = "", damage_type: str = "", 
                        range_text: str = "", properties: str = "", ac_string: str = "", armor_class: str = ""):
     """Add an Open5e item to inventory with all properties"""
-    console.log(f"submit_open5e_item called: name={name} | cost={cost} | armor_class={armor_class}")
-    
     # Build a properties dict to store extra info as JSON in notes
     extra_props = {}
     if damage:
