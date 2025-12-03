@@ -893,7 +893,7 @@ SPELL_LIBRARY_STATE["loaded"] = True
 
 # All InventoryManager methods also moved
 
-INVENTORY_MANAGER = InventoryManager()
+INVENTORY_MANAGER = InventoryManager() if InventoryManager is not None else None
 SPELLCASTING_MANAGER = SpellcastingManager() if SpellcastingManager is not None else None
 
 
