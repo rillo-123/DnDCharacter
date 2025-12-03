@@ -198,6 +198,14 @@ except ImportError:
     schedule_auto_export = lambda *a, **kw: None
 
 
+# Import the _AUTO_EXPORT_SUPPRESS flag from export_management module
+# This is used to suppress auto-exports during bulk form updates
+try:
+    import export_management as _export_mgmt
+except ImportError:
+    _export_mgmt = None
+
+
 # ===================================================================
 # Authoritative D&D 5e Sources
 # ===================================================================
@@ -2135,9 +2143,13 @@ def collect_character_data() -> dict:
 
 
 def populate_form(data: dict):
-    global _AUTO_EXPORT_SUPPRESS
-    previous_suppression = _AUTO_EXPORT_SUPPRESS
-    _AUTO_EXPORT_SUPPRESS = True
+    # Suppress auto-exports during bulk form updates to avoid performance issues
+    # Access the flag from the export_management module
+    if _export_mgmt is None:
+        return
+    
+    previous_suppression = _export_mgmt._AUTO_EXPORT_SUPPRESS
+    _export_mgmt._AUTO_EXPORT_SUPPRESS = True
     try:
         character = CharacterFactory.from_dict(data)
         normalized = character.to_dict()
@@ -2218,7 +2230,8 @@ def populate_form(data: dict):
         # render_equipment_table(items)
         # update_equipment_totals()
     finally:
-        _AUTO_EXPORT_SUPPRESS = previous_suppression
+        if _export_mgmt is not None:
+            _export_mgmt._AUTO_EXPORT_SUPPRESS = previous_suppression
 
 
 def format_money(value: float) -> str:
