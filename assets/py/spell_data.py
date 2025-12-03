@@ -586,3 +586,39 @@ PACT_MAGIC_TABLE = {
     19: {1: 3, 2: 4, 3: 3, 4: 3},
     20: {1: 3, 2: 4, 3: 3, 4: 3},
 }
+
+# Pact Magic table needs to map level to info about pact slots at that level
+# Format: {level: {"slots": num_slots, "level": spell_level}}
+PACT_MAGIC_TABLE_OLD = {
+    1: {"slots": 1, "level": 1},
+    2: {"slots": 2, "level": 1},
+    3: {"slots": 2, "level": 2},
+    4: {"slots": 3, "level": 2},
+    5: {"slots": 3, "level": 3},
+    6: {"slots": 3, "level": 3},
+    7: {"slots": 3, "level": 4},
+    8: {"slots": 3, "level": 4},
+    9: {"slots": 3, "level": 5},
+    10: {"slots": 3, "level": 5},
+    11: {"slots": 3, "level": 5},
+    12: {"slots": 3, "level": 5},
+    13: {"slots": 3, "level": 5},
+    14: {"slots": 3, "level": 5},
+    15: {"slots": 3, "level": 5},
+    16: {"slots": 3, "level": 5},
+    17: {"slots": 3, "level": 5},
+    18: {"slots": 3, "level": 5},
+    19: {"slots": 3, "level": 5},
+    20: {"slots": 3, "level": 5},
+}
+
+# Supported spell classes for filtering
+SUPPORTED_SPELL_CLASSES = {"bard", "cleric", "druid", "paladin", "ranger", "sorcerer", "wizard", "warlock", "artificer"}
+
+# Spell library storage keys and settings
+SPELL_LIBRARY_STORAGE_KEY = "pysheet_spell_cache"
+SPELL_CACHE_VERSION = 1
+
+# Open5e API endpoints
+OPEN5E_SPELLS_ENDPOINT = "https://api.open5e.com/spells/?limit=1000"
+OPEN5E_MAX_PAGES = 10
