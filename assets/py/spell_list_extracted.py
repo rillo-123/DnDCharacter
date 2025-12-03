@@ -1,6 +1,3 @@
-"""Spell library data, spell corrections, class mappings, and spell tables."""
-
-# Fallback spell list (when Open5e API is unavailable)
 LOCAL_SPELLS_FALLBACK = [
     {
         "name": "Cure Wounds",
@@ -372,217 +369,39 @@ LOCAL_SPELLS_FALLBACK = [
     },
 ]
 
-# Class to spell list mappings
-SPELL_CLASS_SYNONYMS = {
-    "artificer": ["artificer"],
-    "bard": ["bard"],
-    "cleric": ["cleric"],
-    "druid": ["druid"],
-    "paladin": ["paladin"],
-    "ranger": ["ranger"],
-    "sorcerer": ["sorcerer"],
-    "warlock": ["warlock"],
-    "wizard": ["wizard"],
-    "fighter": ["fighter", "eldritch knight", "arcane archer"],
-    "rogue": ["rogue", "arcane trickster"],
-    "monk": ["monk"],
-    "barbarian": ["barbarian"],
-    "blood hunter": ["blood hunter", "bloodhunter"],
-}
 
-SPELL_CLASS_DISPLAY_NAMES = {
-    "artificer": "Artificer",
-    "bard": "Bard",
-    "cleric": "Cleric",
-    "druid": "Druid",
-    "paladin": "Paladin",
-    "ranger": "Ranger",
-    "sorcerer": "Sorcerer",
-    "warlock": "Warlock",
-    "wizard": "Wizard",
-    "fighter": "Fighter (Eldritch Knight)",
-    "rogue": "Rogue (Arcane Trickster)",
-    "monk": "Monk",
-    "barbarian": "Barbarian",
-    "blood hunter": "Blood Hunter",
-}
-
-# Known spell data corrections for Open5e inconsistencies
-# Format: "slug": {"classes": ["correct", "class", "list"]}
-SPELL_CORRECTIONS = {
-    "burning-hands": {"classes": ["sorcerer", "wizard"]},  # Not a cleric spell
-}
-
-def apply_spell_corrections(spell: dict) -> dict:
-    """Apply known corrections to spell data."""
-    slug = spell.get("slug", "")
-    if slug in SPELL_CORRECTIONS:
-        correction = SPELL_CORRECTIONS[slug]
-        if "classes" in correction:
-            spell = dict(spell)  # Make a copy to avoid modifying original
-            spell["dnd_class"] = ", ".join(correction["classes"])
-    return spell
+def set_spell_library_data(spells: list[dict] | None):
+    spell_list = spells or []
+    
+    # Deduplicate by slug to prevent duplicates in spell chooser
+    seen_slugs: set[str] = set()
+    deduplicated: list[dict] = []
+    for spell in spell_list:
+        if isinstance(spell, dict):
+            slug = spell.get("slug", "")
+            if slug and slug not in seen_slugs:
+                deduplicated.append(spell)
+                seen_slugs.add(slug)
+            elif not slug:
+                # Keep spells without slug (shouldn't happen, but be safe)
+                deduplicated.append(spell)
+    
+    # Log if duplicates were removed
+    if len(deduplicated) < len(spell_list):
+        removed_count = len(spell_list) - len(deduplicated)
+        LOGGER.info(f"Removed {removed_count} duplicate spell entries")
+    
+    SPELL_LIBRARY_STATE["spells"] = deduplicated
+    SPELL_LIBRARY_STATE["spell_map"] = {
+        spell.get("slug"): spell
+        for spell in deduplicated
+        if isinstance(spell, dict) and spell.get("slug")
+    }
 
 
-def is_spell_source_allowed(source: str) -> bool:
-    """Check if a spell source is in our allowed list (PHB, TCE, XGE only)."""
-    allowed = {"phb", "tce", "xge", "xgte"}
-    return (source or "").lower() in allowed
+# Pre-populate with fallback spells so old saved spells can get their details at render time
+set_spell_library_data(LOCAL_SPELLS_FALLBACK)
+# Mark spell library as loaded so domain spells can auto-populate on page load
+SPELL_LIBRARY_STATE["loaded"] = True
 
 
-# Spell casting progression tables
-CLASS_CASTING_PROGRESSIONS = {
-    "artificer": "artificer",
-    "bard": "full",
-    "cleric": "full",
-    "druid": "full",
-    "eldritch knight": "half",
-    "arcane archer": "half",
-    "monk": "full",
-    "paladin": "half",
-    "ranger": "half",
-    "sorcerer": "full",
-    "warlock": "warlock",
-    "wizard": "full",
-    "blood hunter": "full",
-}
-
-# Spell slot progressions by class type
-SPELLCASTING_PROGRESSION_TABLES = {
-    "full": {
-        1: {1: 2},
-        2: {1: 3},
-        3: {1: 4, 2: 2},
-        4: {1: 4, 2: 3},
-        5: {1: 4, 2: 3, 3: 2},
-        6: {1: 4, 2: 3, 3: 3},
-        7: {1: 4, 2: 3, 3: 3, 4: 1},
-        8: {1: 4, 2: 3, 3: 3, 4: 2},
-        9: {1: 4, 2: 3, 3: 3, 4: 3, 5: 1},
-        10: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2},
-        11: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1},
-        12: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1},
-        13: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1},
-        14: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1},
-        15: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1},
-        16: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1},
-        17: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1, 9: 1},
-        18: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 1, 7: 1, 8: 1, 9: 1},
-        19: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 1, 8: 1, 9: 1},
-        20: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 2, 8: 1, 9: 1},
-    },
-    "half": {
-        1: {},
-        2: {},
-        3: {1: 2},
-        4: {1: 2},
-        5: {1: 3, 2: 0},
-        6: {1: 3, 2: 0},
-        7: {1: 3, 2: 1},
-        8: {1: 3, 2: 1},
-        9: {1: 3, 2: 2},
-        10: {1: 3, 2: 2},
-        11: {1: 3, 2: 3},
-        12: {1: 3, 2: 3},
-        13: {1: 3, 2: 3, 3: 1},
-        14: {1: 3, 2: 3, 3: 1},
-        15: {1: 3, 2: 3, 3: 2},
-        16: {1: 3, 2: 3, 3: 2},
-        17: {1: 3, 2: 3, 3: 3, 4: 1},
-        18: {1: 3, 2: 3, 3: 3, 4: 1},
-        19: {1: 3, 2: 3, 3: 3, 4: 2},
-        20: {1: 3, 2: 3, 3: 3, 4: 2},
-    },
-    "artificer": {
-        1: {1: 2},
-        2: {1: 2},
-        3: {1: 3, 2: 0},
-        4: {1: 3, 2: 0},
-        5: {1: 3, 2: 2},
-        6: {1: 3, 2: 2},
-        7: {1: 3, 2: 2, 3: 0},
-        8: {1: 3, 2: 2, 3: 0},
-        9: {1: 4, 2: 3, 3: 1},
-        10: {1: 4, 2: 3, 3: 1},
-        11: {1: 4, 2: 3, 3: 2},
-        12: {1: 4, 2: 3, 3: 2},
-        13: {1: 4, 2: 3, 3: 2, 4: 0},
-        14: {1: 4, 2: 3, 3: 2, 4: 0},
-        15: {1: 4, 2: 3, 3: 3, 4: 1},
-        16: {1: 4, 2: 3, 3: 3, 4: 1},
-        17: {1: 4, 2: 4, 3: 3, 4: 2},
-        18: {1: 4, 2: 4, 3: 3, 4: 2},
-        19: {1: 4, 2: 4, 3: 3, 4: 3},
-        20: {1: 4, 2: 4, 3: 3, 4: 3},
-    },
-    "warlock": {
-        1: {1: 1},
-        2: {1: 2},
-        3: {1: 2, 2: 1},
-        4: {1: 3, 2: 1},
-        5: {1: 3, 2: 1, 3: 1},
-        6: {1: 3, 2: 2, 3: 1},
-        7: {1: 3, 2: 2, 3: 2},
-        8: {1: 3, 2: 2, 3: 2},
-        9: {1: 3, 2: 3, 3: 2},
-        10: {1: 3, 2: 3, 3: 3},
-        11: {1: 3, 2: 3, 3: 3, 4: 1},
-        12: {1: 3, 2: 3, 3: 3, 4: 1},
-        13: {1: 3, 2: 3, 3: 3, 4: 2},
-        14: {1: 3, 2: 3, 3: 3, 4: 2},
-        15: {1: 3, 2: 3, 3: 3, 4: 3},
-        16: {1: 3, 2: 3, 3: 3, 4: 3},
-        17: {1: 3, 2: 4, 3: 3, 4: 3},
-        18: {1: 3, 2: 4, 3: 3, 4: 3},
-        19: {1: 3, 2: 4, 3: 3, 4: 3},
-        20: {1: 3, 2: 4, 3: 3, 4: 3},
-    },
-}
-
-# Standard (non-warlock) spell slot table
-STANDARD_SLOT_TABLE = {
-    1: {1: 2},
-    2: {1: 3},
-    3: {1: 4, 2: 2},
-    4: {1: 4, 2: 3},
-    5: {1: 4, 2: 3, 3: 2},
-    6: {1: 4, 2: 3, 3: 3},
-    7: {1: 4, 2: 3, 3: 3, 4: 1},
-    8: {1: 4, 2: 3, 3: 3, 4: 2},
-    9: {1: 4, 2: 3, 3: 3, 4: 3, 5: 1},
-    10: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2},
-    11: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1},
-    12: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1},
-    13: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1},
-    14: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1},
-    15: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1},
-    16: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1},
-    17: {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1, 9: 1},
-    18: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 1, 7: 1, 8: 1, 9: 1},
-    19: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 1, 8: 1, 9: 1},
-    20: {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 2, 8: 1, 9: 1},
-}
-
-# Warlock (Pact Magic) spell slot table
-PACT_MAGIC_TABLE = {
-    1: {1: 1},
-    2: {1: 2},
-    3: {1: 2, 2: 1},
-    4: {1: 3, 2: 1},
-    5: {1: 3, 2: 1, 3: 1},
-    6: {1: 3, 2: 2, 3: 1},
-    7: {1: 3, 2: 2, 3: 2},
-    8: {1: 3, 2: 2, 3: 2},
-    9: {1: 3, 2: 3, 3: 2},
-    10: {1: 3, 2: 3, 3: 3},
-    11: {1: 3, 2: 3, 3: 3, 4: 1},
-    12: {1: 3, 2: 3, 3: 3, 4: 1},
-    13: {1: 3, 2: 3, 3: 3, 4: 2},
-    14: {1: 3, 2: 3, 3: 3, 4: 2},
-    15: {1: 3, 2: 3, 3: 3, 4: 3},
-    16: {1: 3, 2: 3, 3: 3, 4: 3},
-    17: {1: 3, 2: 4, 3: 3, 4: 3},
-    18: {1: 3, 2: 4, 3: 3, 4: 3},
-    19: {1: 3, 2: 4, 3: 3, 4: 3},
-    20: {1: 3, 2: 4, 3: 3, 4: 3},
-}
