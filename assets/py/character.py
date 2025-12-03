@@ -918,54 +918,69 @@ def sync_prepared_spells_with_library():
 
 
 def get_prepared_slug_set() -> set[str]:
-    return SPELLCASTING_MANAGER.get_prepared_slug_set()
+    if SPELLCASTING_MANAGER is not None:
+        return SPELLCASTING_MANAGER.get_prepared_slug_set()
+    return set()
 
 
 def is_spell_prepared(slug: Optional[str]) -> bool:
-    return SPELLCASTING_MANAGER.is_spell_prepared(slug)
+    if SPELLCASTING_MANAGER is not None:
+        return SPELLCASTING_MANAGER.is_spell_prepared(slug)
+    return False
 
 
 def add_spell_to_spellbook(slug: str):
-    SPELLCASTING_MANAGER.add_spell(slug)
+    if SPELLCASTING_MANAGER is not None:
+        SPELLCASTING_MANAGER.add_spell(slug)
 
 
 def remove_spell_from_spellbook(slug: str):
-    SPELLCASTING_MANAGER.remove_spell(slug)
+    if SPELLCASTING_MANAGER is not None:
+        SPELLCASTING_MANAGER.remove_spell(slug)
 
 
 def render_spellbook():
-    SPELLCASTING_MANAGER.render_spellbook()
+    if SPELLCASTING_MANAGER is not None:
+        SPELLCASTING_MANAGER.render_spellbook()
 
 
 def compute_spell_slot_summary(profile: Optional[dict] = None) -> dict:
-    return SPELLCASTING_MANAGER.compute_slot_summary(profile)
+    if SPELLCASTING_MANAGER is not None:
+        return SPELLCASTING_MANAGER.compute_slot_summary(profile)
+    return {}
 
 
 def render_spell_slots(slot_summary: Optional[dict] = None):
-    SPELLCASTING_MANAGER.render_spell_slots(slot_summary)
+    if SPELLCASTING_MANAGER is not None:
+        SPELLCASTING_MANAGER.render_spell_slots(slot_summary)
 
 
 def adjust_spell_slot(level: int, delta: int):
-    SPELLCASTING_MANAGER.adjust_spell_slot(level, delta)
+    if SPELLCASTING_MANAGER is not None:
+        SPELLCASTING_MANAGER.adjust_spell_slot(level, delta)
 
 
 def adjust_pact_slot(delta: int):
-    SPELLCASTING_MANAGER.adjust_pact_slot(delta)
+    if SPELLCASTING_MANAGER is not None:
+        SPELLCASTING_MANAGER.adjust_pact_slot(delta)
 
 
 def reset_spell_slots(_event=None):
-    SPELLCASTING_MANAGER.reset_spell_slots()
+    if SPELLCASTING_MANAGER is not None:
+        SPELLCASTING_MANAGER.reset_spell_slots()
     reset_channel_divinity()
 
 
 def load_inventory_state(state: Optional[dict]):
     """Load inventory from character state."""
-    INVENTORY_MANAGER.load_state(state)
+    if INVENTORY_MANAGER is not None:
+        INVENTORY_MANAGER.load_state(state)
 
 
 def render_inventory():
     """Render the inventory list."""
-    INVENTORY_MANAGER.render_inventory()
+    if INVENTORY_MANAGER is not None:
+        INVENTORY_MANAGER.render_inventory()
 
 
 MAX_RESOURCES = 12
@@ -1464,20 +1479,21 @@ def generate_ac_tooltip() -> tuple[int, str]:
     armor_ac = None
     armor_name = None
     armor_type = None
-    for item in INVENTORY_MANAGER.items:
-        if item.get("category") == "Armor" and item.get("qty", 0) > 0:
-            try:
-                notes_str = item.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    extra_props = json.loads(notes_str)
-                    ac_val = extra_props.get("armor_class", extra_props.get("ac"))
-                    if ac_val:
-                        armor_ac = int(ac_val)
-                        armor_name = item.get("name", "Unknown Armor")
-                        armor_type = get_armor_type(armor_name)
-                        break
-            except:
-                pass
+    if INVENTORY_MANAGER is not None:
+        for item in INVENTORY_MANAGER.items:
+            if item.get("category") == "Armor" and item.get("qty", 0) > 0:
+                try:
+                    notes_str = item.get("notes", "")
+                    if notes_str and notes_str.startswith("{"):
+                        extra_props = json.loads(notes_str)
+                        ac_val = extra_props.get("armor_class", extra_props.get("ac"))
+                        if ac_val:
+                            armor_ac = int(ac_val)
+                            armor_name = item.get("name", "Unknown Armor")
+                            armor_type = get_armor_type(armor_name)
+                            break
+                except:
+                    pass
     
     # Build breakdown
     rows = []
@@ -1506,21 +1522,22 @@ def generate_ac_tooltip() -> tuple[int, str]:
     # Add item modifiers (skip armor-only items)
     item_ac_mod = 0
     item_mods = []
-    for item in INVENTORY_MANAGER.items:
-        try:
-            notes_str = item.get("notes", "")
-            if notes_str and notes_str.startswith("{"):
-                extra_props = json.loads(notes_str)
-                # Skip armor-only items - they affect AC differently in calculate_armor_class
-                if extra_props.get("armor_only", False):
-                    continue
-                ac_mod = extra_props.get("ac_modifier", 0)
-                if ac_mod:
-                    ac_mod = int(ac_mod)
-                    item_ac_mod += ac_mod
-                    item_mods.append((item.get("name", "Unknown"), ac_mod))
-        except:
-            pass
+    if INVENTORY_MANAGER is not None:
+        for item in INVENTORY_MANAGER.items:
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                    # Skip armor-only items - they affect AC differently in calculate_armor_class
+                    if extra_props.get("armor_only", False):
+                        continue
+                    ac_mod = extra_props.get("ac_modifier", 0)
+                    if ac_mod:
+                        ac_mod = int(ac_mod)
+                        item_ac_mod += ac_mod
+                        item_mods.append((item.get("name", "Unknown"), ac_mod))
+            except:
+                pass
     
     if item_mods:
         rows.append('<div style="margin-top: 0.4rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 0.4rem;"></div>')
@@ -1545,16 +1562,17 @@ def generate_save_tooltip(ability: str, ability_score: int, proficient: bool, pr
     
     # Add saves modifiers from items
     item_saves_mod = 0
-    for item in INVENTORY_MANAGER.items:
-        try:
-            notes_str = item.get("notes", "")
-            if notes_str and notes_str.startswith("{"):
-                extra_props = json.loads(notes_str)
-                saves_mod = extra_props.get("saves_modifier", 0)
-                if saves_mod:
-                    item_saves_mod += int(saves_mod)
-        except:
-            pass
+    if INVENTORY_MANAGER is not None:
+        for item in INVENTORY_MANAGER.items:
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                    saves_mod = extra_props.get("saves_modifier", 0)
+                    if saves_mod:
+                        item_saves_mod += int(saves_mod)
+            except:
+                pass
     
     if item_saves_mod:
         rows.append('<div style="margin-top: 0.4rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 0.4rem;"></div>')
@@ -1609,22 +1627,23 @@ def calculate_armor_class() -> int:
     armor_name = None
     armor_type = None
     
-    for item in INVENTORY_MANAGER.items:
-        category = item.get("category", "")
-        if category == "Armor" and item.get("qty", 0) > 0:
-            # Found an armor item - try to get its AC
-            try:
-                notes_str = item.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    extra_props = json.loads(notes_str)
-                    ac_val = extra_props.get("armor_class", extra_props.get("ac"))
-                    if ac_val:
-                        armor_ac = int(ac_val)
-                        armor_name = item.get("name", "Unknown Armor")
-                        armor_type = get_armor_type(armor_name)
-                        break  # Use first armor found
-            except:
-                pass
+    if INVENTORY_MANAGER is not None:
+        for item in INVENTORY_MANAGER.items:
+            category = item.get("category", "")
+            if category == "Armor" and item.get("qty", 0) > 0:
+                # Found an armor item - try to get its AC
+                try:
+                    notes_str = item.get("notes", "")
+                    if notes_str and notes_str.startswith("{"):
+                        extra_props = json.loads(notes_str)
+                        ac_val = extra_props.get("armor_class", extra_props.get("ac"))
+                        if ac_val:
+                            armor_ac = int(ac_val)
+                            armor_name = item.get("name", "Unknown Armor")
+                            armor_type = get_armor_type(armor_name)
+                            break  # Use first armor found
+                except:
+                    pass
     
     # Calculate base AC
     if armor_ac is not None:
@@ -1645,16 +1664,17 @@ def calculate_armor_class() -> int:
     # armor-only items add to AC but not to saves (e.g. +1 breastplate)
     # regular items add to both AC and saves (e.g. Ring of Protection)
     item_ac_mod = 0
-    for item in INVENTORY_MANAGER.items:
-        try:
-            notes_str = item.get("notes", "")
-            if notes_str and notes_str.startswith("{"):
-                extra_props = json.loads(notes_str)
-                ac_mod = extra_props.get("ac_modifier", 0)
-                if ac_mod:
-                    item_ac_mod += int(ac_mod)
-        except:
-            pass
+    if INVENTORY_MANAGER is not None:
+        for item in INVENTORY_MANAGER.items:
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                    ac_mod = extra_props.get("ac_modifier", 0)
+                    if ac_mod:
+                        item_ac_mod += int(ac_mod)
+            except:
+                pass
     
     return max(1, base_ac + item_ac_mod)
 
@@ -2072,7 +2092,7 @@ def collect_character_data() -> dict:
         },
         "inventory": {
             # items collected from the inventory manager
-            "items": INVENTORY_MANAGER.items,
+            "items": INVENTORY_MANAGER.items if (INVENTORY_MANAGER is not None) else [],
             "currency": {key: get_numeric_value(f"currency-{key}", 0) for key in CURRENCY_ORDER},
         },
         "spells": {
@@ -2097,7 +2117,7 @@ def collect_character_data() -> dict:
             "bonus": total,
         }
 
-    data["spellcasting"] = SPELLCASTING_MANAGER.export_state()
+    data["spellcasting"] = SPELLCASTING_MANAGER.export_state() if (SPELLCASTING_MANAGER is not None) else {}
 
     # Determine if this will be a Cleric character
     class_text = data["identity"].get("class", "")
@@ -3772,7 +3792,7 @@ def parse_custom_item_html(html: str):
 
 def clear_equipment_list(_event=None):
     """Clear all equipment from the inventory"""
-    if len(INVENTORY_MANAGER.items) == 0:
+    if INVENTORY_MANAGER is None or len(INVENTORY_MANAGER.items) == 0:
         return
     INVENTORY_MANAGER.items = []
     INVENTORY_MANAGER.render_inventory()
@@ -3781,6 +3801,8 @@ def clear_equipment_list(_event=None):
 
 def update_inventory_totals():
     """Update total weight and cost displays"""
+    if INVENTORY_MANAGER is None:
+        return
     total_weight = INVENTORY_MANAGER.get_total_weight()
     weight_el = get_element("equipment-total-weight")
     if weight_el:
@@ -3790,6 +3812,8 @@ def update_inventory_totals():
 
 def get_equipment_items_from_dom() -> list:
     """Legacy function - now returns from INVENTORY_MANAGER"""
+    if INVENTORY_MANAGER is None:
+        return []
     return INVENTORY_MANAGER.items
 
 
@@ -4330,13 +4354,14 @@ def submit_custom_item(_event=None):
     
     # Add to inventory
     console.log(f"PySheet: Adding to inventory manager: name={name}, qty={qty}, category={category}")
-    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=qty, category=category, notes=final_notes, source="custom")
+    if INVENTORY_MANAGER is not None:
+        INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=qty, category=category, notes=final_notes, source="custom")
     
-    console.log(f"PySheet: Total items in inventory: {len(INVENTORY_MANAGER.items)}")
+        console.log(f"PySheet: Total items in inventory: {len(INVENTORY_MANAGER.items)}")
     
-    # Render inventory
-    INVENTORY_MANAGER.render_inventory()
-    console.log("PySheet: Inventory rendered")
+        # Render inventory
+        INVENTORY_MANAGER.render_inventory()
+        console.log("PySheet: Inventory rendered")
     
     # Close modal
     modal = get_element("custom-item-modal")
