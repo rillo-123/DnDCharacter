@@ -4929,6 +4929,10 @@ if document is not None:
 
 # Auto-populate domain spells if domain is set and spell library is loaded
 def _populate_domain_spells_on_load():
+    if SPELLCASTING_MANAGER is None:
+        console.log("DEBUG: _populate_domain_spells_on_load - SPELLCASTING_MANAGER is None, skipping")
+        return
+    
     domain = get_text_value("domain")
     if domain and SPELL_LIBRARY_STATE.get("loaded"):
         level = get_numeric_value("level", 1)
