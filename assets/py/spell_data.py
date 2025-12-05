@@ -426,8 +426,31 @@ def apply_spell_corrections(spell: dict) -> dict:
 
 def is_spell_source_allowed(source: str) -> bool:
     """Check if a spell source is in our allowed list (PHB, TCE, XGE only)."""
-    allowed = {"phb", "tce", "xge", "xgte"}
-    return (source or "").lower() in allowed
+    if not source:
+        return True  # Allow spells with no source
+    
+    source_lower = source.lower().strip()
+    
+    # Direct abbreviation matches
+    if source_lower in {"phb", "tce", "xge", "xgte"}:
+        return True
+    
+    # Check for authoritative source names (PHB, TCE, XGE)
+    authoritative_phrases = {
+        "player's handbook",
+        "players handbook",
+        "tasha's cauldron",
+        "tashas cauldron",
+        "xanathar's guide",
+        "xanathars guide",
+        "srd",  # Open5e's standard reference document
+    }
+    
+    for phrase in authoritative_phrases:
+        if phrase in source_lower:
+            return True
+    
+    return False
 
 
 # Spell casting progression tables
