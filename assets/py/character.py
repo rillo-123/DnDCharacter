@@ -895,6 +895,8 @@ def set_spell_library_data(spells: Optional[list[dict]]) -> None:
 set_spell_library_data(LOCAL_SPELLS_FALLBACK)
 # Mark spell library as loaded so domain spells can auto-populate on page load
 SPELL_LIBRARY_STATE["loaded"] = True
+# Note: populate_spell_class_filter() will be called later during page initialization
+# after document is ready, using the fallback spells loaded above
 
 # InventoryManager class moved to equipment_management.py
 # Imported above with fallback stub
@@ -4926,6 +4928,8 @@ if document is not None:
     load_initial_state()
     update_calculations()
     render_equipped_weapons()
+    # Populate spell class filter with fallback spells on startup
+    populate_spell_class_filter(SPELL_LIBRARY_STATE.get("spells"))
 
 # Auto-populate domain spells if domain is set and spell library is loaded
 def _populate_domain_spells_on_load():
