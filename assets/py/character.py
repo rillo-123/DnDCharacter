@@ -2148,11 +2148,10 @@ def collect_character_data() -> dict:
 def populate_form(data: dict):
     # Suppress auto-exports during bulk form updates to avoid performance issues
     # Access the flag from the export_management module
-    if _export_mgmt is None:
-        return
-    
-    previous_suppression = _export_mgmt._AUTO_EXPORT_SUPPRESS
-    _export_mgmt._AUTO_EXPORT_SUPPRESS = True
+    previous_suppression = False
+    if _export_mgmt is not None:
+        previous_suppression = _export_mgmt._AUTO_EXPORT_SUPPRESS
+        _export_mgmt._AUTO_EXPORT_SUPPRESS = True
     try:
         character = CharacterFactory.from_dict(data)
         normalized = character.to_dict()
