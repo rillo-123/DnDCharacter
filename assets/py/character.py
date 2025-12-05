@@ -1916,7 +1916,10 @@ def update_calculations(*_args):
     # Count only user-prepared spells (exclude domain bonus spells and cantrips)
     domain = get_text_value("domain")
     domain_bonus_slugs = set(get_domain_bonus_spells(domain, level)) if domain else set()
-    prepared_count = SPELLCASTING_MANAGER.get_prepared_non_cantrip_count(domain_bonus_slugs)
+    if SPELLCASTING_MANAGER is not None:
+        prepared_count = SPELLCASTING_MANAGER.get_prepared_non_cantrip_count(domain_bonus_slugs)
+    else:
+        prepared_count = 0
     
     # Build counter display with calculation tooltip
     counter_display = f"{prepared_count} / {max_prepared}"
