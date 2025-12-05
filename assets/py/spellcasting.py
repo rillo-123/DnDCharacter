@@ -73,7 +73,7 @@ except ImportError:
     CLASS_CASTING_PROGRESSIONS = {}
     SPELLCASTING_PROGRESSION_TABLES = {}
     STANDARD_SLOT_TABLE = {}
-    SUPPORTED_SPELL_CLASSES = {"bard", "cleric", "druid", "sorcerer", "wizard"}
+    SUPPORTED_SPELL_CLASSES = {"artificer", "bard", "cleric", "druid", "paladin", "ranger", "sorcerer", "warlock", "wizard"}
     SPELL_LIBRARY_STORAGE_KEY = "pysheet_spell_cache"
     SPELL_CACHE_VERSION = 1
     OPEN5E_SPELLS_ENDPOINT = "https://api.open5e.com/spells/?limit=1000"
