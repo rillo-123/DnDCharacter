@@ -4902,6 +4902,11 @@ def register_event_listeners():
         equipment_search.addEventListener("input", proxy_equip_search)
         _EVENT_PROXIES.append(proxy_equip_search)
 
+    # Save character when page is being closed or reloaded
+    if window is not None:
+        proxy_unload = create_proxy(lambda e: export_character())
+        window.addEventListener("beforeunload", proxy_unload)
+
 
 def load_initial_state():
     stored = window.localStorage.getItem(LOCAL_STORAGE_KEY)
