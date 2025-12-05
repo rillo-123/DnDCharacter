@@ -2293,17 +2293,26 @@ def sanitize_spell_record(raw: dict) -> Optional[dict]:
     level_int = parse_int(level_value, 0)
     level_label = format_spell_level_label(level_int)
 
-    # Handle both string and list formats for classes
+    # Handle multiple class field formats:
+    # 1. dnd_class: "Bard, Sorcerer, Wizard" (Open5e standard)
+    # 2. spell_lists: ["bard", "sorcerer", "wizard"] (Open5e alternative)
+    # 3. classes: ["Wizard", "Sorcerer"] (custom format or other sources)
     classes_field = raw.get("dnd_class") or ""
+    
     if not classes_field:
-        # Check if Open5e returns classes as a list
-        classes_raw_input = raw.get("classes")
-        if isinstance(classes_raw_input, list):
-            classes_field = ", ".join(str(c) for c in classes_raw_input)
-        elif isinstance(classes_raw_input, str):
-            classes_field = classes_raw_input
-        else:
-            classes_field = ""
+        # Try spell_lists field (Open5e provides this)
+        spell_lists = raw.get("spell_lists")
+        if isinstance(spell_lists, list) and spell_lists:
+            classes_field = ", ".join(str(c) for c in spell_lists)
+        elif not classes_field:
+            # Try classes field as fallback (list or string format)
+            classes_raw_input = raw.get("classes")
+            if isinstance(classes_raw_input, list):
+                classes_field = ", ".join(str(c) for c in classes_raw_input)
+            elif isinstance(classes_raw_input, str):
+                classes_field = classes_raw_input
+            else:
+                classes_field = ""
     
     classes_raw = [token.strip() for token in re.split(r"[;,/]+", classes_field) if token.strip()]
     classes: list[str] = []
