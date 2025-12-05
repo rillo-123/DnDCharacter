@@ -2313,6 +2313,7 @@ def sanitize_spell_record(raw: dict) -> Optional[dict]:
                 classes_field = classes_raw_input
             else:
                 classes_field = ""
+
     
     classes_raw = [token.strip() for token in re.split(r"[;,/]+", classes_field) if token.strip()]
     classes: list[str] = []
@@ -2386,6 +2387,14 @@ def sanitize_spell_list(raw_spells: list[dict]) -> list[dict]:
     sanitized: list[dict] = []
     seen_slugs: set[str] = set()
     rejected_count = 0
+    
+    # Debug: Check what SPELL_CLASS_SYNONYMS contains at runtime
+    if len(raw_spells) > 0:
+        if len(SPELL_CLASS_SYNONYMS) == 0:
+            console.warn(f"PySheet: WARNING! SPELL_CLASS_SYNONYMS is EMPTY! This will cause all spells to be rejected!")
+        if len(SUPPORTED_SPELL_CLASSES) == 0:
+            console.warn(f"PySheet: WARNING! SUPPORTED_SPELL_CLASSES is EMPTY! This will cause all spells to be rejected!")
+    
     for spell in raw_spells:
         record = sanitize_spell_record(spell)
         if record is not None:
@@ -2406,6 +2415,7 @@ def sanitize_spell_list(raw_spells: list[dict]) -> list[dict]:
             console.warn(f"  Classes field: {first_spell.get('classes')}")
             console.warn(f"  Type of classes: {type(first_spell.get('classes'))}")
             console.warn(f"  dnd_class field: {first_spell.get('dnd_class')}")
+            console.warn(f"  SPELL_CLASS_SYNONYMS: {SPELL_CLASS_SYNONYMS}")
             console.warn(f"  SUPPORTED_SPELL_CLASSES: {SUPPORTED_SPELL_CLASSES}")
     
     sanitized.sort(key=lambda item: (item["level_int"], item["name"].lower()))
