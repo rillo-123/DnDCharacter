@@ -369,8 +369,15 @@ class CharacterFactory:
     """Factory helpers for constructing character model instances."""
 
     CLASS_MAP = {
+        "artificer": Character,  # Placeholder - not yet implemented as concrete class
         "bard": Bard,
         "cleric": Cleric,
+        "druid": Character,  # Placeholder - not yet implemented as concrete class
+        "paladin": Character,  # Placeholder - not yet implemented as concrete class
+        "ranger": Character,  # Placeholder - not yet implemented as concrete class
+        "sorcerer": Character,  # Placeholder - not yet implemented as concrete class
+        "warlock": Character,  # Placeholder - not yet implemented as concrete class
+        "wizard": Character,  # Placeholder - not yet implemented as concrete class
     }
 
     @classmethod
