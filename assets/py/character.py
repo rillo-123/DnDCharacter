@@ -2376,6 +2376,7 @@ def sanitize_spell_record(raw: dict) -> Optional[dict]:
 def sanitize_spell_list(raw_spells: list[dict]) -> list[dict]:
     sanitized: list[dict] = []
     seen_slugs: set[str] = set()
+    rejected_count = 0
     for spell in raw_spells:
         record = sanitize_spell_record(spell)
         if record is not None:
@@ -2384,6 +2385,20 @@ def sanitize_spell_list(raw_spells: list[dict]) -> list[dict]:
             if slug not in seen_slugs:
                 sanitized.append(record)
                 seen_slugs.add(slug)
+        else:
+            rejected_count += 1
+    
+    # Debug logging if all spells were rejected
+    if rejected_count == len(raw_spells) and rejected_count > 0:
+        console.warn(f"PySheet: All {rejected_count} spells rejected during sanitization!")
+        if len(raw_spells) > 0:
+            first_spell = raw_spells[0]
+            console.warn(f"  First spell: {first_spell.get('name', 'Unknown')}")
+            console.warn(f"  Classes field: {first_spell.get('classes')}")
+            console.warn(f"  Type of classes: {type(first_spell.get('classes'))}")
+            console.warn(f"  dnd_class field: {first_spell.get('dnd_class')}")
+            console.warn(f"  SUPPORTED_SPELL_CLASSES: {SUPPORTED_SPELL_CLASSES}")
+    
     sanitized.sort(key=lambda item: (item["level_int"], item["name"].lower()))
     return sanitized
 
