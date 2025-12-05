@@ -130,8 +130,28 @@ try:
 except ImportError:
     # Fallback - spell data constants will be defined inline if needed
     LOCAL_SPELLS_FALLBACK = []
-    SPELL_CLASS_SYNONYMS = {}
-    SPELL_CLASS_DISPLAY_NAMES = {}
+    SPELL_CLASS_SYNONYMS = {
+        "artificer": ["artificer"],
+        "bard": ["bard"],
+        "cleric": ["cleric"],
+        "druid": ["druid"],
+        "paladin": ["paladin"],
+        "ranger": ["ranger"],
+        "sorcerer": ["sorcerer"],
+        "warlock": ["warlock"],
+        "wizard": ["wizard"],
+    }
+    SPELL_CLASS_DISPLAY_NAMES = {
+        "artificer": "Artificer",
+        "bard": "Bard",
+        "cleric": "Cleric",
+        "druid": "Druid",
+        "paladin": "Paladin",
+        "ranger": "Ranger",
+        "sorcerer": "Sorcerer",
+        "warlock": "Warlock",
+        "wizard": "Wizard",
+    }
     SPELL_CORRECTIONS = {}
     apply_spell_corrections = lambda spell: spell
     is_spell_source_allowed = lambda source: True
@@ -832,7 +852,12 @@ SPELL_LIBRARY_STATE = {
     "spell_map": {},
 }
 
-SUPPORTED_SPELL_CLASSES = set(CharacterFactory.supported_classes())
+# Initialize SUPPORTED_SPELL_CLASSES with fallback
+try:
+    SUPPORTED_SPELL_CLASSES = set(CharacterFactory.supported_classes())
+except (NameError, AttributeError):
+    # Fallback if CharacterFactory is not available
+    SUPPORTED_SPELL_CLASSES = set(SPELL_CLASS_SYNONYMS.keys())
 
 WEAPON_LIBRARY_STATE = {
     "loading": False,
