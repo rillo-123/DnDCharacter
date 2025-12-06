@@ -60,8 +60,7 @@ try:
         SPELL_CACHE_VERSION,
         OPEN5E_SPELLS_ENDPOINT,
         OPEN5E_MAX_PAGES,
-    PACT_MAGIC_TABLE_OLD,
-)
+    )
 except ImportError:
     # Fallback constants
     LOCAL_SPELLS_FALLBACK = []
