@@ -65,8 +65,18 @@ MODULE_DIR = (
     if "__file__" in globals()
     else (Path.cwd() / "assets" / "py")
 )
+console.log(f"DEBUG: MODULE_DIR = {MODULE_DIR}")
+console.log(f"DEBUG: '__file__' in globals() = {'__file__' in globals()}")
+console.log(f"DEBUG: Path.cwd() = {Path.cwd()}")
+console.log(f"DEBUG: sys.path before update: {sys.path[:3]}...")
+
 if str(MODULE_DIR) not in sys.path:
-    sys.path.append(str(MODULE_DIR))
+    sys.path.insert(0, str(MODULE_DIR))
+    console.log(f"DEBUG: Added {MODULE_DIR} to sys.path[0]")
+else:
+    console.log(f"DEBUG: {MODULE_DIR} already in sys.path")
+
+console.log(f"DEBUG: sys.path after update: {sys.path[:3]}...")
 
 try:
     from character_models import Character, CharacterFactory, DEFAULT_ABILITY_KEYS, get_race_ability_bonuses
@@ -162,14 +172,29 @@ except ImportError:
 
 try:
     from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library, apply_spell_filters, sync_prepared_spells_with_library
-except ImportError:
-    # Fallbacks will be needed - define stubs
-    SpellcastingManager = None
-    SPELL_LIBRARY_STATE = {}
-    set_spell_library_data = lambda x: None
-    load_spell_library = lambda x=None: None
-    apply_spell_filters = lambda auto_select=False: None
-    sync_prepared_spells_with_library = lambda: None
+    console.log("DEBUG: spellcasting module imported successfully on first try")
+except ImportError as e:
+    # Fallback 1: Try adding assets/py to sys.path and retry
+    console.warn(f"DEBUG: spellcasting module import failed: {e}")
+    console.log("DEBUG: Attempting retry with explicit path insertion")
+    
+    try:
+        assets_py = Path.cwd() / "assets" / "py"
+        if str(assets_py) not in sys.path:
+            sys.path.insert(0, str(assets_py))
+            console.log(f"DEBUG: Added {assets_py} to sys.path[0]")
+        
+        from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library, apply_spell_filters, sync_prepared_spells_with_library
+        console.log("DEBUG: spellcasting module imported successfully on retry")
+    except ImportError as e2:
+        # Fallback 2: All imports fail - use stubs
+        console.error(f"DEBUG: spellcasting module import failed on retry: {e2}")
+        SpellcastingManager = None
+        SPELL_LIBRARY_STATE = {}
+        set_spell_library_data = lambda x: None
+        load_spell_library = lambda x=None: None
+        apply_spell_filters = lambda auto_select=False: None
+        sync_prepared_spells_with_library = lambda: None
 
 try:
     from equipment_management import (
@@ -929,7 +954,16 @@ SPELL_LIBRARY_STATE["loaded"] = True
 # All InventoryManager methods also moved
 
 INVENTORY_MANAGER = InventoryManager() if InventoryManager is not None else None
-SPELLCASTING_MANAGER = SpellcastingManager() if SpellcastingManager is not None else None
+if SpellcastingManager is not None:
+    try:
+        SPELLCASTING_MANAGER = SpellcastingManager()
+        console.log("DEBUG: SPELLCASTING_MANAGER instantiated successfully")
+    except Exception as e:
+        console.error(f"DEBUG: SPELLCASTING_MANAGER instantiation failed: {e}")
+        SPELLCASTING_MANAGER = None
+else:
+    console.warn("DEBUG: SpellcastingManager class is None, cannot instantiate")
+    SPELLCASTING_MANAGER = None
 
 
 def reset_spellcasting_state():
@@ -949,12 +983,18 @@ def load_spellcasting_state(state: Optional[dict]):
 
 def sync_prepared_spells_with_library():
     if SPELLCASTING_MANAGER is not None:
+        console.log("DEBUG: sync_prepared_spells_with_library() called")
         SPELLCASTING_MANAGER.sync_with_library()
+    else:
+        console.warn("DEBUG: sync_prepared_spells_with_library() - SPELLCASTING_MANAGER is None")
 
 
 def get_prepared_slug_set() -> set[str]:
     if SPELLCASTING_MANAGER is not None:
-        return SPELLCASTING_MANAGER.get_prepared_slug_set()
+        prepared = SPELLCASTING_MANAGER.get_prepared_slug_set()
+        console.log(f"DEBUG: get_prepared_slug_set returned {len(prepared)} spells: {list(prepared)[:5]}...")
+        return prepared
+    console.warn("DEBUG: get_prepared_slug_set - SPELLCASTING_MANAGER is None")
     return set()
 
 
@@ -966,7 +1006,10 @@ def is_spell_prepared(slug: Optional[str]) -> bool:
 
 def add_spell_to_spellbook(slug: str):
     if SPELLCASTING_MANAGER is not None:
+        console.log(f"DEBUG: add_spell_to_spellbook({slug})")
         SPELLCASTING_MANAGER.add_spell(slug)
+    else:
+        console.warn(f"DEBUG: add_spell_to_spellbook({slug}) - SPELLCASTING_MANAGER is None")
 
 
 def remove_spell_from_spellbook(slug: str):
@@ -2907,7 +2950,9 @@ def apply_spell_filters(auto_select: bool = False):
 
 
 async def load_spell_library(_event=None):
+    console.log(f"DEBUG: load_spell_library() started, SPELLCASTING_MANAGER={SPELLCASTING_MANAGER}")
     if SPELL_LIBRARY_STATE.get("loading"):
+        console.log("DEBUG: load_spell_library() - already loading, returning")
         return
 
     button = get_element("spells-load-btn")
@@ -2969,7 +3014,9 @@ async def load_spell_library(_event=None):
             console.log(f"PySheet: Merged {merge_count} fallback spells: {merged_slugs}")
             console.log(f"PySheet: Total after merge: {len(raw_spells)}")
 
+        console.log(f"DEBUG: Calling sanitize_spell_list with {len(raw_spells)} spells")
         sanitized = sanitize_spell_list(raw_spells)
+        console.log(f"DEBUG: sanitize_spell_list returned {len(sanitized)} spells")
         if not sanitized and raw_spells is not LOCAL_SPELLS_FALLBACK:
             console.warn("PySheet: remote spell list missing supported classes; using fallback list.")
             raw_spells = LOCAL_SPELLS_FALLBACK
@@ -5003,34 +5050,48 @@ if document is not None:
 
 # Auto-populate domain spells if domain is set and spell library is loaded
 def _populate_domain_spells_on_load():
+    console.log(f"DEBUG: _populate_domain_spells_on_load() called, SPELLCASTING_MANAGER={SPELLCASTING_MANAGER}")
     if SPELLCASTING_MANAGER is None:
-        console.log("DEBUG: _populate_domain_spells_on_load - SPELLCASTING_MANAGER is None, skipping")
+        console.warn("DEBUG: _populate_domain_spells_on_load - SPELLCASTING_MANAGER is None, skipping")
+        console.log(f"DEBUG: SpellcastingManager class={SpellcastingManager}")
         return
     
     domain = get_text_value("domain")
-    if domain and SPELL_LIBRARY_STATE.get("loaded"):
+    loaded = SPELL_LIBRARY_STATE.get("loaded")
+    console.log(f"DEBUG: _populate_domain_spells_on_load - domain={domain}, loaded={loaded}")
+    
+    if domain and loaded:
         level = get_numeric_value("level", 1)
         domain_spells = get_domain_bonus_spells(domain, level)
         console.log(f"DEBUG: _populate_domain_spells_on_load - domain={domain}, level={level}, spells={domain_spells}")
+        
+        prepared_before = len(SPELLCASTING_MANAGER.get_prepared_slug_set())
         for spell_slug in domain_spells:
             if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
                 console.log(f"DEBUG: Adding domain spell {spell_slug}")
                 SPELLCASTING_MANAGER.add_spell(spell_slug)
             else:
                 console.log(f"DEBUG: Domain spell {spell_slug} already prepared")
+        prepared_after = len(SPELLCASTING_MANAGER.get_prepared_slug_set())
+        console.log(f"DEBUG: Domain spells added: {prepared_after - prepared_before} spells (before={prepared_before}, after={prepared_after})")
         update_calculations()
     else:
-        console.log(f"DEBUG: _populate_domain_spells_on_load - skipped (domain={domain}, loaded={SPELL_LIBRARY_STATE.get('loaded')})")
+        console.log(f"DEBUG: _populate_domain_spells_on_load - skipped (domain={domain}, loaded={loaded})")
 
 # Auto-load weapon library
 async def _auto_load_weapons():
+    console.log("DEBUG: _auto_load_weapons() started")
     await load_weapon_library()
+    console.log("DEBUG: _auto_load_weapons() - weapon library loaded, calling _populate_domain_spells_on_load")
     _populate_domain_spells_on_load()
+    console.log("DEBUG: _auto_load_weapons() completed")
 
 # Only start async tasks if we're in a PyScript environment
 if document is not None:
     try:
+        console.log("DEBUG: Creating async task for _auto_load_weapons")
         asyncio.create_task(_auto_load_weapons())
-    except RuntimeError:
+    except RuntimeError as e:
         # No event loop available (e.g., in test environment)
+        console.warn(f"DEBUG: Could not create async task: {e}")
         pass
