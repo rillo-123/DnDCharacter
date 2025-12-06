@@ -31,6 +31,13 @@ except ImportError:
     document = None
     window = None
 
+# VERY FIRST DEBUG MESSAGE - if this doesn't appear, Python didn't load
+if document is not None:
+    try:
+        console.log("[DEBUG-START] character.py module loading...")
+    except:
+        pass
+
 try:
     from pyodide import JsException
 except ImportError:  # Pyodide >=0.23 exposes JsException under pyodide.ffi
@@ -137,7 +144,9 @@ try:
         STANDARD_SLOT_TABLE,
         PACT_MAGIC_TABLE,
     )
-except ImportError:
+    console.log(f"DEBUG: spell_data import succeeded - CLASS_CASTING_PROGRESSIONS keys: {list(CLASS_CASTING_PROGRESSIONS.keys())}")
+except ImportError as e:
+    console.log(f"DEBUG: spell_data import failed: {e}")
     # Fallback - spell data constants will be defined inline if needed
     LOCAL_SPELLS_FALLBACK = []
     SPELL_CLASS_SYNONYMS = {
@@ -170,10 +179,51 @@ except ImportError:
     STANDARD_SLOT_TABLE = {}
     PACT_MAGIC_TABLE = {}
 
+# Manual HTTP fetch for spellcasting module (workaround for Pyodide path resolution)
+def _load_module_from_http_sync(module_name: str, url: str):
+    """Load a Python module from HTTP URL synchronously using open_url."""
+    try:
+        console.log(f"DEBUG: [HTTP] Starting load_module_from_http_sync")
+        console.log(f"DEBUG: [HTTP] module_name = {module_name}")
+        console.log(f"DEBUG: [HTTP] url = {url}")
+        console.log(f"DEBUG: [HTTP] open_url available = {open_url is not None}")
+        
+        if open_url is None:
+            raise RuntimeError("open_url is None")
+        
+        console.log(f"DEBUG: [HTTP] Calling open_url({url})")
+        response = open_url(url)
+        console.log(f"DEBUG: [HTTP] open_url returned")
+        
+        source = response.read()
+        console.log(f"DEBUG: [HTTP] Read {len(source)} bytes")
+        
+        module = ModuleType(module_name)
+        console.log(f"DEBUG: [HTTP] Created ModuleType")
+        
+        exec(source, module.__dict__)
+        console.log(f"DEBUG: [HTTP] exec() completed")
+        
+        sys.modules[module_name] = module
+        console.log(f"DEBUG: [HTTP] Added to sys.modules")
+        console.log(f"DEBUG: [HTTP] SUCCESS")
+        
+        return module
+    except Exception as e:
+        console.error(f"DEBUG: [HTTP] EXCEPTION: {type(e).__name__}")
+        console.error(f"DEBUG: [HTTP] Message: {str(e)}")
+        import traceback
+        for line in traceback.format_exc().split('\n'):
+            if line.strip():
+                console.error(f"DEBUG: [HTTP] {line}")
+        return None
+
+# Try standard import first
 try:
-    from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library, apply_spell_filters, sync_prepared_spells_with_library
+    from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library
     console.log("DEBUG: spellcasting module imported successfully on first try")
 except ImportError as e:
+    console.log("DEBUG: *** FALLBACK 1 TRIGGERED ***")
     # Fallback 1: Try adding assets/py to sys.path and retry
     console.warn(f"DEBUG: spellcasting module import failed: {e}")
     console.log("DEBUG: Attempting retry with explicit path insertion")
@@ -184,17 +234,43 @@ except ImportError as e:
             sys.path.insert(0, str(assets_py))
             console.log(f"DEBUG: Added {assets_py} to sys.path[0]")
         
-        from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library, apply_spell_filters, sync_prepared_spells_with_library
+        from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library
         console.log("DEBUG: spellcasting module imported successfully on retry")
     except ImportError as e2:
-        # Fallback 2: All imports fail - use stubs
+        # Fallback 2: Try HTTP fetch with open_url
         console.error(f"DEBUG: spellcasting module import failed on retry: {e2}")
-        SpellcastingManager = None
-        SPELL_LIBRARY_STATE = {}
-        set_spell_library_data = lambda x: None
-        load_spell_library = lambda x=None: None
-        apply_spell_filters = lambda auto_select=False: None
-        sync_prepared_spells_with_library = lambda: None
+        console.log("DEBUG: *** FALLBACK 2: HTTP FETCH ***")
+        
+        try:
+            # First, manually load spell_data via HTTP (needed by spellcasting)
+            console.log("DEBUG: [Fallback2] Loading spell_data")
+            spell_data_module = _load_module_from_http_sync("spell_data", "http://localhost:8080/assets/py/spell_data.py")
+            console.log(f"DEBUG: [Fallback2] spell_data_module = {spell_data_module}")
+            
+            # Then load spellcasting via HTTP
+            console.log("DEBUG: [Fallback2] Loading spellcasting")
+            spellcasting_module = _load_module_from_http_sync("spellcasting", "http://localhost:8080/assets/py/spellcasting.py")
+            console.log(f"DEBUG: [Fallback2] spellcasting_module = {spellcasting_module}")
+            
+            if spellcasting_module is not None:
+                console.log("DEBUG: [Fallback2] Extracting attributes from spellcasting_module")
+                SpellcastingManager = spellcasting_module.SpellcastingManager
+                SPELL_LIBRARY_STATE = spellcasting_module.SPELL_LIBRARY_STATE
+                set_spell_library_data = spellcasting_module.set_spell_library_data
+                load_spell_library = spellcasting_module.load_spell_library
+                console.log("DEBUG: spellcasting module loaded via HTTP successfully")
+            else:
+                raise ImportError("HTTP fetch returned None")
+        except Exception as e3:
+            # Fallback 3: All imports fail - use stubs
+            console.error(f"DEBUG: spellcasting module import failed on HTTP fetch: {e3}")
+            console.error(f"DEBUG: Using stub functions")
+            SpellcastingManager = None
+            SPELL_LIBRARY_STATE = {}
+            set_spell_library_data = lambda x: None
+            load_spell_library = lambda x=None: None
+            apply_spell_filters = lambda auto_select=False: None
+            sync_prepared_spells_with_library = lambda: None
 
 try:
     from equipment_management import (
@@ -232,23 +308,43 @@ try:
         cleanup_exports,
         schedule_auto_export,
     )
-except ImportError:
-    # Fallbacks for non-modular environments
-    save_character = lambda *a, **kw: None
-    export_character = lambda *a, **kw: None
-    reset_character = lambda *a, **kw: None
-    handle_import = lambda *a, **kw: None
-    show_storage_info = lambda *a, **kw: None
-    cleanup_exports = lambda *a, **kw: None
-    schedule_auto_export = lambda *a, **kw: None
-
-
-# Import the _AUTO_EXPORT_SUPPRESS flag from export_management module
-# This is used to suppress auto-exports during bulk form updates
-try:
-    import export_management as _export_mgmt
-except ImportError:
-    _export_mgmt = None
+    _export_mgmt = sys.modules.get("export_management")
+    if _export_mgmt is not None:
+        # Provide a back-reference so export_management can reach this module in Pyodide
+        _export_mgmt.CHARACTER_MODULE = sys.modules.get(__name__)
+    console.log("DEBUG: export_management module imported successfully on first try")
+except ImportError as e:
+    console.log("DEBUG: *** EXPORT_MGMT FALLBACK TRIGGERED ***")
+    console.warn(f"DEBUG: export_management import failed: {e}")
+    try:
+        export_mgmt_module = _load_module_from_http_sync(
+            "export_management",
+            "http://localhost:8080/assets/py/export_management.py",
+        )
+        save_character = getattr(export_mgmt_module, "save_character", lambda *a, **kw: None)
+        export_character = getattr(export_mgmt_module, "export_character", lambda *a, **kw: None)
+        reset_character = getattr(export_mgmt_module, "reset_character", lambda *a, **kw: None)
+        handle_import = getattr(export_mgmt_module, "handle_import", lambda *a, **kw: None)
+        show_storage_info = getattr(export_mgmt_module, "show_storage_info", lambda *a, **kw: None)
+        cleanup_exports = getattr(export_mgmt_module, "cleanup_exports", lambda *a, **kw: None)
+        schedule_auto_export = getattr(export_mgmt_module, "schedule_auto_export", lambda *a, **kw: None)
+        _export_mgmt = export_mgmt_module
+        try:
+            _export_mgmt.CHARACTER_MODULE = sys.modules.get(__name__)
+        except Exception:
+            pass
+        console.log("DEBUG: export_management module loaded via HTTP successfully")
+    except Exception as e2:
+        console.error(f"DEBUG: export_management fallback failed: {e2}")
+        # Fallbacks for non-modular environments
+        save_character = lambda *a, **kw: None
+        export_character = lambda *a, **kw: None
+        reset_character = lambda *a, **kw: None
+        handle_import = lambda *a, **kw: None
+        show_storage_info = lambda *a, **kw: None
+        cleanup_exports = lambda *a, **kw: None
+        schedule_auto_export = lambda *a, **kw: None
+        _export_mgmt = None
 
 
 # ===================================================================
@@ -868,14 +964,8 @@ ALLOWED_SPELL_SOURCES_MAP = {
     "xanathars-guide-to-everything": True,
 }
 
-SPELL_LIBRARY_STATE = {
-    "loaded": False,
-    "loading": False,
-    "spells": [],
-    "class_options": list(CharacterFactory.supported_classes()),
-    "last_profile_signature": "",
-    "spell_map": {},
-}
+# SPELL_LIBRARY_STATE is now imported from spellcasting.py - don't redefine it here
+# This prevents duplicate state management
 
 # Initialize SUPPORTED_SPELL_CLASSES with fallback
 try:
@@ -907,39 +997,6 @@ _EQUIPMENT_RESULT_PROXY = None  # Track the current equipment results listener t
 # Imported above with fallback stubs
 
 
-
-
-
-def set_spell_library_data(spells: Optional[list[dict]]) -> None:
-    """Set spell library data and build lookup map with deduplication."""
-    spell_list = spells or []
-    
-    # Deduplicate by slug to prevent duplicates in spell chooser
-    seen_slugs: set[str] = set()
-    deduplicated: list[dict] = []
-    for spell in spell_list:
-        if isinstance(spell, dict):
-            slug = spell.get("slug", "")
-            if slug and slug not in seen_slugs:
-                deduplicated.append(spell)
-                seen_slugs.add(slug)
-            elif not slug:
-                # Keep spells without slug (shouldn't happen, but be safe)
-                deduplicated.append(spell)
-    
-    # Log if duplicates were removed
-    if len(deduplicated) < len(spell_list):
-        removed_count = len(spell_list) - len(deduplicated)
-        LOGGER.info(f"Removed {removed_count} duplicate spell entries")
-    
-    SPELL_LIBRARY_STATE["spells"] = deduplicated
-    SPELL_LIBRARY_STATE["spell_map"] = {
-        spell.get("slug"): spell
-        for spell in deduplicated
-        if isinstance(spell, dict) and spell.get("slug")
-    }
-
-
 # Spell data extracted to spell_data.py
 # Pre-populate with fallback spells so old saved spells can get their details at render time
 set_spell_library_data(LOCAL_SPELLS_FALLBACK)
@@ -958,6 +1015,20 @@ if SpellcastingManager is not None:
     try:
         SPELLCASTING_MANAGER = SpellcastingManager()
         console.log("DEBUG: SPELLCASTING_MANAGER instantiated successfully")
+        
+        # If spell_data import failed, try to get CLASS_CASTING_PROGRESSIONS from spellcasting module
+        if not CLASS_CASTING_PROGRESSIONS:
+            try:
+                import spellcasting as sc_module
+                if hasattr(sc_module, 'CLASS_CASTING_PROGRESSIONS'):
+                    globals()['CLASS_CASTING_PROGRESSIONS'] = sc_module.CLASS_CASTING_PROGRESSIONS
+                    console.log(f"DEBUG: Populated CLASS_CASTING_PROGRESSIONS from spellcasting module: {list(CLASS_CASTING_PROGRESSIONS.keys())}")
+                if hasattr(sc_module, 'SPELLCASTING_PROGRESSION_TABLES'):
+                    globals()['SPELLCASTING_PROGRESSION_TABLES'] = sc_module.SPELLCASTING_PROGRESSION_TABLES
+                    console.log(f"DEBUG: Populated SPELLCASTING_PROGRESSION_TABLES from spellcasting module")
+            except Exception as e:
+                console.log(f"DEBUG: Could not populate spell progression tables from spellcasting: {e}")
+        
     except Exception as e:
         console.error(f"DEBUG: SPELLCASTING_MANAGER instantiation failed: {e}")
         SPELLCASTING_MANAGER = None
@@ -1357,6 +1428,7 @@ def extract_character_classes(raw_text: Optional[str] = None) -> list[dict]:
 
 def determine_progression_key(class_key: str, raw_text: str) -> str:
     base = CLASS_CASTING_PROGRESSIONS.get(class_key, "none")
+    console.log(f"DEBUG: determine_progression_key() - class_key={class_key}, CLASS_CASTING_PROGRESSIONS={CLASS_CASTING_PROGRESSIONS}, base={base}")
     lowered = raw_text or ""
     if class_key == "fighter":
         if "eldritch" in lowered or "arcane archer" in lowered:
@@ -1370,9 +1442,8 @@ def determine_progression_key(class_key: str, raw_text: str) -> str:
 
 
 def get_progression_table(progression_key: str) -> list[int]:
-    return SPELLCASTING_PROGRESSION_TABLES.get(
-        progression_key, SPELLCASTING_PROGRESSION_TABLES["none"]
-    )
+    # Return the progression table for the key, or an empty dict if not found
+    return SPELLCASTING_PROGRESSION_TABLES.get(progression_key, {})
 
 
 def compute_spellcasting_profile(
@@ -1380,9 +1451,11 @@ def compute_spellcasting_profile(
     fallback_level: Optional[int] = None,
 ) -> dict:
     entries = extract_character_classes(raw_text)
+    console.log(f"DEBUG: compute_spellcasting_profile() - entries={entries}")
     if fallback_level is None:
         fallback_level = get_numeric_value("level", 1)
     fallback_level = max(1, int(fallback_level or 1))
+    console.log(f"DEBUG: compute_spellcasting_profile() - fallback_level={fallback_level}")
 
     allowed_classes: list[str] = []
     max_spell_level = -1
@@ -1393,11 +1466,27 @@ def compute_spellcasting_profile(
         class_level = entry["level"] if entry["level"] is not None else fallback_level
         class_level = max(1, min(int(class_level or fallback_level), 20))
         progression = determine_progression_key(class_key, entry["raw"])
+        console.log(f"DEBUG: compute_spellcasting_profile() - processing class_key={class_key}, class_level={class_level}, progression={progression}")
         if progression == "none":
+            console.log(f"DEBUG: compute_spellcasting_profile() - progression is 'none', skipping")
             continue
         has_progression = True
         table = get_progression_table(progression)
-        level_cap = table[class_level] if class_level < len(table) else table[-1]
+        
+        # table is a dict where keys are character levels and values are spell level dicts
+        # e.g., table[9] = {1: 4, 2: 3, 3: 3, 4: 3, 5: 1} means level 9 has spells up to level 5
+        level_slots = table.get(class_level, {})
+        if not level_slots and table:
+            # If exact level not found, use the last available level
+            level_slots = table.get(max(table.keys()), {})
+        
+        # Get the maximum spell level available (highest key in the slots dict)
+        if level_slots:
+            level_cap = max(level_slots.keys())
+        else:
+            level_cap = 0
+        
+        console.log(f"DEBUG: compute_spellcasting_profile() - table keys={list(table.keys())[:3]}, class_level={class_level}, level_slots={level_slots}, level_cap={level_cap}")
         if class_key not in allowed_classes:
             allowed_classes.append(class_key)
         if level_cap > max_spell_level:
@@ -1408,6 +1497,7 @@ def compute_spellcasting_profile(
     elif max_spell_level < 0:
         max_spell_level = 0
 
+    console.log(f"DEBUG: compute_spellcasting_profile() - result: allowed_classes={allowed_classes}, max_spell_level={max_spell_level}")
     return {
         "entries": entries,
         "allowed_classes": allowed_classes,
@@ -2218,13 +2308,18 @@ def collect_character_data() -> dict:
 def populate_form(data: dict):
     # Suppress auto-exports during bulk form updates to avoid performance issues
     # Access the flag from the export_management module
+    console.log("[POPULATE] populate_form() called")
     previous_suppression = False
     if _export_mgmt is not None:
         previous_suppression = _export_mgmt._AUTO_EXPORT_SUPPRESS
         _export_mgmt._AUTO_EXPORT_SUPPRESS = True
+    console.log("[POPULATE] Auto-export suppression enabled")
     try:
+        console.log("[POPULATE] Creating character from dict...")
         character = CharacterFactory.from_dict(data)
+        console.log(f"[POPULATE] Character created: {character.name} ({character.class_text})")
         normalized = character.to_dict()
+        console.log("[POPULATE] Character normalized")
 
         # Normalize class: extract just the class name from "Class Level" format
         class_text = character.class_text.strip()
@@ -2235,26 +2330,34 @@ def populate_form(data: dict):
         else:
             set_form_value("class", "")
         
+        console.log("[POPULATE] Setting identity fields...")
         set_form_value("name", character.name)
         set_form_value("race", character.race)
         set_form_value("background", character.background)
         set_form_value("alignment", character.alignment)
         set_form_value("player_name", character.player_name)
         set_form_value("domain", character.domain)
+        console.log(f"[POPULATE] Identity set, domain: {character.domain}")
 
         set_form_value("level", character.level)
         set_form_value("inspiration", character.inspiration)
         set_form_value("spell_ability", character.spell_ability)
+        console.log("[POPULATE] Basic stats set")
 
+        console.log("[POPULATE] Setting ability scores...")
         for ability in ABILITY_ORDER:
             set_form_value(f"{ability}-score", character.attributes[ability])
             set_form_value(f"{ability}-save-prof", character.attributes.is_proficient(ability))
+        console.log("[POPULATE] Ability scores set")
 
+        console.log("[POPULATE] Setting skills...")
         for skill in SKILLS:
             skill_state = normalized.get("skills", {}).get(skill, {})
             set_form_value(f"{skill}-prof", skill_state.get("proficient", False))
             set_form_value(f"{skill}-exp", skill_state.get("expertise", False))
+        console.log("[POPULATE] Skills set")
 
+        console.log("[POPULATE] Setting combat data...")
         combat = normalized.get("combat", {})
         set_form_value("armor_class", combat.get("armor_class", 10))
         set_form_value("speed", combat.get("speed", 30))
@@ -2277,31 +2380,48 @@ def populate_form(data: dict):
         set_form_value("features", notes.get("features", ""))
         set_form_value("attacks", notes.get("attacks", ""))
         set_form_value("notes", notes.get("notes", ""))
+        console.log("[POPULATE] Notes set")
 
+        console.log("[POPULATE] Setting spell fields...")
         spells = normalized.get("spells", {})
         for key, element_id in SPELL_FIELDS.items():
             set_form_value(element_id, spells.get(key, ""))
 
+        console.log("[POPULATE] Loading spellcasting state...")
         load_spellcasting_state(normalized.get("spellcasting"))
+        console.log("[POPULATE] Spellcasting state loaded")
 
         # Load inventory BEFORE update_calculations so totals can be calculated correctly
+        console.log("[POPULATE] Loading inventory...")
         load_inventory_state(normalized)
         render_inventory()
+        console.log("[POPULATE] Inventory loaded and rendered")
 
         # NOW update calculations (which calls update_equipment_totals)
+        console.log("[POPULATE] Updating calculations...")
         update_calculations()
+        console.log("[POPULATE] Calculations updated")
 
         # populate currency
+        console.log("[POPULATE] Setting currency...")
         inv = normalized.get("inventory", {})
         currency = inv.get("currency", {})
         for key in CURRENCY_ORDER:
             set_form_value(f"currency-{key}", currency.get(key, 0))
+        console.log("[POPULATE] Currency set")
 
         # NOTE: Old equipment table code removed - using new InventoryManager system instead
         # items = get_equipment_items_from_data(normalized)
         # render_equipment_table(items)
         # update_equipment_totals()
+        console.log("[POPULATE] populate_form() COMPLETED SUCCESSFULLY")
+    except Exception as e:
+        console.error(f"[POPULATE] ERROR in populate_form: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
     finally:
+        console.log("[POPULATE] Restoring auto-export suppression")
         if _export_mgmt is not None:
             _export_mgmt._AUTO_EXPORT_SUPPRESS = previous_suppression
 
@@ -2801,8 +2921,11 @@ def update_header_display():
 def render_spell_results(
     spells: list[dict], allowed_classes: set[str] | None = None
 ) -> tuple[int, bool, int]:
+    console.log(f"DEBUG: render_spell_results() called with {len(spells)} spells")
     results_el = get_element("spell-library-results")
+    console.log(f"DEBUG: render_spell_results() - results_el found: {results_el is not None}")
     if results_el is None:
+        console.warn("DEBUG: render_spell_results() - spell-library-results element not found!")
         return 0, False, 0
     if not spells:
         results_el.innerHTML = (
@@ -2849,6 +2972,7 @@ def handle_spell_card_action(event, action: str, slug: str):
 
 
 def apply_spell_filters(auto_select: bool = False):
+    console.log(f"DEBUG: apply_spell_filters() called with auto_select={auto_select}")
     profile = compute_spellcasting_profile()
     profile_signature = ",".join(profile["allowed_classes"]) + f"|{profile['max_spell_level']}"
     if profile_signature != SPELL_LIBRARY_STATE.get("last_profile_signature"):
@@ -2857,9 +2981,11 @@ def apply_spell_filters(auto_select: bool = False):
             auto_select = True
 
     if not SPELL_LIBRARY_STATE.get("loaded"):
+        console.log("DEBUG: apply_spell_filters() - spells not loaded yet, returning")
         update_spell_library_status("Spells not loaded yet. Click \"Load Spells\" to fetch the Open5e SRD.")
         return
 
+    console.log("DEBUG: apply_spell_filters() - spells loaded, getting DOM elements...")
     search_el = get_element("spell-search")
     level_el = get_element("spell-level-filter")
     class_el = get_element("spell-class-filter")
@@ -2896,29 +3022,45 @@ def apply_spell_filters(auto_select: bool = False):
     filtered: list[dict] = []
     spells = SPELL_LIBRARY_STATE.get("spells", [])
     allowed_set = set(allowed_classes)
+    console.log(f"DEBUG: apply_spell_filters() - spells={len(spells)}, allowed_classes={allowed_classes}, selected_class='{selected_class}', allowed_set={allowed_set}")
+    
+    source_filtered = 0
+    level_filtered = 0
+    class_filtered = 0
+    search_filtered = 0
+    
     for spell in spells:
         # Filter by allowed sources
         source = spell.get("source", "")
         if not is_spell_source_allowed(source):
+            source_filtered += 1
             continue
         
         spell_level = spell.get("level_int", 0)
         if max_spell_level is not None and spell_level > max_spell_level:
+            level_filtered += 1
             continue
         spell_classes = set(spell.get("classes", []))
         if selected_class:
             if selected_class not in spell_classes:
+                class_filtered += 1
                 continue
         elif allowed_set:
             if not spell_classes.intersection(allowed_set):
+                class_filtered += 1
                 continue
         if level_filter is not None and spell_level != level_filter:
+            level_filtered += 1
             continue
         if search_term and search_term not in spell.get("search_blob", ""):
+            search_filtered += 1
             continue
         filtered.append(spell)
-
+    
+    console.log(f"DEBUG: Spell filtering breakdown - source_filtered={source_filtered}, level_filtered={level_filtered}, class_filtered={class_filtered}, search_filtered={search_filtered}, passed={len(filtered)}")
+    console.log(f"DEBUG: apply_spell_filters() - filtered {len(filtered)} spells, calling render_spell_results")
     displayed, truncated, total_filtered = render_spell_results(filtered, allowed_set)
+    console.log(f"DEBUG: apply_spell_filters() - render_spell_results returned: displayed={displayed}, truncated={truncated}, total={total_filtered}")
 
     if allowed_classes:
         class_caption = ", ".join(
@@ -2962,16 +3104,23 @@ async def load_spell_library(_event=None):
     update_spell_library_status("Loading spells from Open5e...")
 
     try:
+        console.log("DEBUG: load_spell_library() - checking cache...")
         cached_spells = load_spell_cache()
+        console.log(f"DEBUG: load_spell_library() - cached_spells = {type(cached_spells)}, len = {len(cached_spells) if cached_spells else 0}")
         if cached_spells:
+            console.log(f"DEBUG: load_spell_library() - loading from cache, {len(cached_spells)} spells")
             set_spell_library_data(cached_spells)
             SPELL_LIBRARY_STATE["loaded"] = True
             populate_spell_class_filter(cached_spells)
+            console.log("DEBUG: load_spell_library() - populated class filter, calling sync_prepared_spells_with_library")
             sync_prepared_spells_with_library()
+            console.log("DEBUG: load_spell_library() - calling apply_spell_filters")
             apply_spell_filters(auto_select=True)
+            console.log("DEBUG: load_spell_library() - calling _populate_domain_spells_on_load")
             # Auto-populate domain spells now that spell library is loaded from cache
             _populate_domain_spells_on_load()
             update_spell_library_status("Loaded spells from cache. Filters apply to your current class and level.")
+            console.log("DEBUG: load_spell_library() - cache loading complete!")
             return
 
         status_message = "Loaded latest Open5e SRD spells."
@@ -2985,6 +3134,7 @@ async def load_spell_library(_event=None):
             fetch_error = exc
             console.warn(f"PySheet: Open5e fetch failed: {exc}")
         
+        console.log(f"DEBUG: load_spell_library() - raw_spells check: raw_spells={bool(raw_spells)}, len={len(raw_spells) if raw_spells else 0}")
         if not raw_spells:
             console.warn(f"PySheet: No spells from Open5e, using fallback ({len(LOCAL_SPELLS_FALLBACK)} spells)")
             if fetch_error is not None:
@@ -4621,11 +4771,76 @@ DOMAIN_FEATURES_DATABASE = {
 
 DOMAIN_BONUS_SPELLS = {
     "life": {
-        1: ["cure-wounds", "bless"],
+        1: ["bless", "cure-wounds"],
         3: ["lesser-restoration", "spiritual-weapon"],
         5: ["beacon-of-hope", "revivify"],
-        7: ["guardian-of-faith", "death-ward"],
+        7: ["death-ward", "guardian-of-faith"],
         9: ["mass-cure-wounds", "raise-dead"],
+    },
+    "knowledge": {
+        1: ["detect-magic", "bless"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "insect-plague"],
+    },
+    "tempest": {
+        1: ["faerie-fire", "shatter"],
+        3: ["hold-person", "confusion"],
+        5: ["insect-plague", "mass-cure-wounds"],
+    },
+    "trickery": {
+        1: ["faerie-fire", "vicious-mockery"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "insect-plague"],
+    },
+    "war": {
+        1: ["bless", "guiding-bolt"],
+        3: ["hold-person", "shatter"],
+        5: ["insect-plague", "raise-dead"],
+    },
+    "light": {
+        1: ["guiding-bolt", "sacred-flame"],
+        3: ["shatter", "hold-person"],
+        5: ["insect-plague", "mass-cure-wounds"],
+    },
+    "nature": {
+        1: ["faerie-fire", "detect-magic"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "insect-plague"],
+    },
+    "forge": {
+        1: ["detect-magic", "bless"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "insect-plague"],
+    },
+    "grave": {
+        1: ["bless", "detect-magic"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "raise-dead"],
+    },
+    "death": {
+        1: ["bless", "detect-magic"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "raise-dead"],
+    },
+    "arcana": {
+        1: ["detect-magic", "bless"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "insect-plague"],
+    },
+    "city": {
+        1: ["detect-magic", "faerie-fire"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "insect-plague"],
+    },
+    "order": {
+        1: ["bless", "guiding-bolt"],
+        3: ["hold-person", "shatter"],
+        5: ["confusion", "insect-plague"],
+    },
+    "peace": {
+        1: ["bless", "detect-magic"],
+        3: ["healing-word", "prayer-of-healing"],
+        5: ["mass-cure-wounds", "raise-dead"],
     },
 }
 
@@ -4657,11 +4872,15 @@ def get_domain_bonus_spells(domain_name: str, current_level: int) -> list[str]:
     """Get all domain bonus spell slugs available up to the current level."""
     domain_key = domain_name.lower().strip() if domain_name else ""
     spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+    console.log(f"DEBUG: get_domain_bonus_spells - domain_name='{domain_name}', domain_key='{domain_key}', spells_by_level={spells_by_level}")
     
     bonus_spells = []
     for level in sorted(spells_by_level.keys()):
         if level <= current_level:
             bonus_spells.extend(spells_by_level[level])
+            console.log(f"DEBUG: get_domain_bonus_spells - adding spells for level {level}: {spells_by_level[level]}")
+    
+    console.log(f"DEBUG: get_domain_bonus_spells - returning {len(bonus_spells)} total spells: {bonus_spells}")
     return bonus_spells
 
 
@@ -4867,9 +5086,9 @@ def handle_input_event(event=None):
         target_id = getattr(event.target, "id", "")
         if target_id == "domain":
             value = getattr(event.target, "value", "")
-            console.log(f"DEBUG: domain input event fired! New value: {value}")
+            console.log(f"DEBUG: domain input event fired! New value: {value}, SPELLCASTING_MANAGER={SPELLCASTING_MANAGER is not None}")
             # Auto-populate domain spells when domain is selected
-            if value and SPELL_LIBRARY_STATE.get("loaded"):
+            if value and SPELL_LIBRARY_STATE.get("loaded") and SPELLCASTING_MANAGER is not None:
                 level = get_numeric_value("level", 1)
                 domain_spells = get_domain_bonus_spells(value, level)
                 console.log(f"DEBUG: handle_input_event - Adding {len(domain_spells)} domain spells: {domain_spells}")
@@ -4877,11 +5096,11 @@ def handle_input_event(event=None):
                 for spell_slug in domain_spells:
                     if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
                         console.log(f"DEBUG: Adding domain spell from input event: {spell_slug}")
-                        SPELLCASTING_MANAGER.add_spell(spell_slug)
+                        SPELLCASTING_MANAGER.add_spell(spell_slug, is_domain_bonus=True)
                         added_count += 1
                 console.log(f"DEBUG: Added {added_count} domain spells from input event")
             else:
-                console.log(f"DEBUG: Skipped domain spell add - value={value}, loaded={SPELL_LIBRARY_STATE.get('loaded')}")
+                console.log(f"DEBUG: Skipped domain spell add - value={value}, loaded={SPELL_LIBRARY_STATE.get('loaded')}, manager={SPELLCASTING_MANAGER is not None}")
         # Auto-check proficiency if expertise is checked
         elif target_id.endswith("-exp") and event.target.checked:
             skill_name = target_id[:-4]  # Remove "-exp" suffix
@@ -4963,7 +5182,9 @@ def handle_adjust_button(event=None):
 
 
 def register_event_listeners():
+    console.log("[DEBUG] register_event_listeners() called - starting event registration")
     nodes = document.querySelectorAll("[data-character-input]")
+    console.log(f"[DEBUG] Found {len(nodes)} character input elements")
     for element in nodes:
         proxy_input = create_proxy(handle_input_event)
         element.addEventListener("input", proxy_input)
@@ -4983,9 +5204,31 @@ def register_event_listeners():
 
     import_input = get_element("import-file")
     if import_input is not None:
-        proxy_import = create_proxy(handle_import)
+        console.log("[DEBUG] import-file element found, registering event listener")
+        console.log(f"[DEBUG] import-file element tag: {import_input.tagName}, type: {getattr(import_input, 'type', 'N/A')}")
+        
+        # Create a Python wrapper function that catches the event and calls handle_import
+        def import_event_wrapper(evt):
+            try:
+                console.log("[DEBUG] import_event_wrapper called!")
+                console.log(f"[DEBUG] event type: {evt.type}, target: {evt.target}")
+                handle_import(evt)
+            except Exception as e:
+                console.error(f"[DEBUG] import_event_wrapper error: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Create proxy from wrapper
+        proxy_import = create_proxy(import_event_wrapper)
+        
+        # Register on change event
         import_input.addEventListener("change", proxy_import)
+        console.log("[DEBUG] 'change' event listener registered via wrapper")
         _EVENT_PROXIES.append(proxy_import)
+        
+        console.log("[DEBUG] All import event listeners registered successfully")
+    else:
+        console.warn("[DEBUG] import-file element NOT FOUND in DOM")
 
     spell_search = get_element("spell-search")
     if spell_search is not None:
@@ -5028,25 +5271,23 @@ def register_event_listeners():
 
 
 def load_initial_state():
+    console.log("[DEBUG] load_initial_state() called")
     stored = window.localStorage.getItem(LOCAL_STORAGE_KEY)
     if stored:
         try:
             data = json.loads(stored)
+            console.log("[DEBUG] Loaded character from localStorage")
             populate_form(data)
+            # Populate domain spells after character is fully loaded
+            if SPELL_LIBRARY_STATE.get("loaded"):
+                console.log("DEBUG: Character loaded from storage - calling _populate_domain_spells_on_load")
+                _populate_domain_spells_on_load()
             return
         except Exception as exc:
             console.warn(f"PySheet: unable to parse stored character, using defaults ({exc})")
+    console.log("[DEBUG] No stored character, using defaults")
     populate_form(clone_default_state())
 
-
-# Only run module initialization if we're in a PyScript environment (document is not None)
-if document is not None:
-    register_event_listeners()
-    load_initial_state()
-    update_calculations()
-    render_equipped_weapons()
-    # Populate spell class filter with fallback spells on startup
-    populate_spell_class_filter(SPELL_LIBRARY_STATE.get("spells"))
 
 # Auto-populate domain spells if domain is set and spell library is loaded
 def _populate_domain_spells_on_load():
@@ -5066,23 +5307,48 @@ def _populate_domain_spells_on_load():
         console.log(f"DEBUG: _populate_domain_spells_on_load - domain={domain}, level={level}, spells={domain_spells}")
         
         prepared_before = len(SPELLCASTING_MANAGER.get_prepared_slug_set())
+        added_count = 0
         for spell_slug in domain_spells:
             if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
                 console.log(f"DEBUG: Adding domain spell {spell_slug}")
-                SPELLCASTING_MANAGER.add_spell(spell_slug)
+                result = SPELLCASTING_MANAGER.add_spell(spell_slug, is_domain_bonus=True)
+                console.log(f"DEBUG: add_spell({spell_slug}, is_domain_bonus=True) returned: {result}")
+                added_count += 1
             else:
                 console.log(f"DEBUG: Domain spell {spell_slug} already prepared")
         prepared_after = len(SPELLCASTING_MANAGER.get_prepared_slug_set())
-        console.log(f"DEBUG: Domain spells added: {prepared_after - prepared_before} spells (before={prepared_before}, after={prepared_after})")
-        update_calculations()
+        console.log(f"DEBUG: Domain spells added: {added_count} new spells (before={prepared_before}, after={prepared_after}, total in list={len(domain_spells)})")
+        if added_count > 0:
+            update_calculations()
     else:
         console.log(f"DEBUG: _populate_domain_spells_on_load - skipped (domain={domain}, loaded={loaded})")
+
+
+# Only run module initialization if we're in a PyScript environment (document is not None)
+if document is not None:
+    console.log("[DEBUG] === PySheet initialization starting ===")
+    console.log("[DEBUG] Calling register_event_listeners()")
+    register_event_listeners()
+    console.log("[DEBUG] Calling load_initial_state()")
+    load_initial_state()
+    console.log("[DEBUG] Calling update_calculations()")
+    update_calculations()
+    console.log("[DEBUG] Calling render_equipped_weapons()")
+    render_equipped_weapons()
+    # Populate spell class filter with fallback spells on startup
+    console.log("[DEBUG] Populating spell class filter")
+    populate_spell_class_filter(SPELL_LIBRARY_STATE.get("spells"))
+    console.log("[DEBUG] === PySheet initialization complete ===")
+
 
 # Auto-load weapon library
 async def _auto_load_weapons():
     console.log("DEBUG: _auto_load_weapons() started")
     await load_weapon_library()
-    console.log("DEBUG: _auto_load_weapons() - weapon library loaded, calling _populate_domain_spells_on_load")
+    console.log("DEBUG: _auto_load_weapons() - weapon library loaded")
+    # Give SPELLCASTING_MANAGER a chance to fully initialize
+    await asyncio.sleep(0.1)
+    console.log("DEBUG: _auto_load_weapons() - calling _populate_domain_spells_on_load")
     _populate_domain_spells_on_load()
     console.log("DEBUG: _auto_load_weapons() completed")
 

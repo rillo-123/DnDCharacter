@@ -68,8 +68,8 @@ AUTO_EXPORT_MAX_EVENTS = 15
 MAX_EXPORTS_PER_CHARACTER = 20
 EXPORT_PRUNE_DAYS = 30
 
-# Note: LOCAL_STORAGE_KEY is defined in character.py
-LOCAL_STORAGE_KEY = "pysheet_character"
+# Note: LOCAL_STORAGE_KEY is defined in character.py (keep in sync)
+LOCAL_STORAGE_KEY = "pysheet.character.v1"
 
 # ===================================================================
 # Export State (Global Tracking)
@@ -90,6 +90,22 @@ _AUTO_EXPORT_SETUP_PROMPTED = False
 
 # Event proxy list (for memory management)
 _EVENT_PROXIES = []
+
+
+def _resolve_local_storage():
+    """Return the browser localStorage object if available."""
+    if localStorage is not None:
+        return localStorage
+    try:
+        if window is not None and hasattr(window, "localStorage"):
+            return window.localStorage
+    except Exception:
+        pass
+    try:
+        from js import window as js_window  # type: ignore
+        return getattr(js_window, "localStorage", None)
+    except Exception:
+        return None
 
 # ===================================================================
 # Export Filename Utilities
@@ -129,6 +145,9 @@ def _build_export_filename(data: dict, *, now: Optional[datetime] = None) -> str
     if level_value <= 0:
         level_value = 0
     
+    # Use DATE and MINUTE (YYYYMMDD_HHMM) resolution
+    # Files with same timestamp will overwrite each other (intended)
+    # Different minutes create different files
     timestamp = now.strftime("%Y%m%d_%H%M")
     return f"{base_name}_{class_part}_lvl{level_value}_{timestamp}.json"
 
@@ -168,13 +187,14 @@ def _extract_character_name_from_filename(filename: str) -> str:
 
 def estimate_export_cleanup():
     """Estimate storage savings from cleanup (browser localStorage only)."""
-    if localStorage is None:
+    storage = _resolve_local_storage()
+    if storage is None:
         return None
     
     try:
-        stored_logs = localStorage.getItem("pysheet_logs") or ""
-        stored_spells = localStorage.getItem("pysheet_spells") or ""
-        stored_chars = localStorage.getItem(LOCAL_STORAGE_KEY) or ""
+        stored_logs = storage.getItem("pysheet_logs") or ""
+        stored_spells = storage.getItem("pysheet_spells") or ""
+        stored_chars = storage.getItem(LOCAL_STORAGE_KEY) or ""
         
         total_size = len(stored_logs) + len(stored_spells) + len(stored_chars)
         
@@ -208,6 +228,7 @@ def prune_old_exports(directory_handle, max_keep: int = MAX_EXPORTS_PER_CHARACTE
 async def _prune_old_exports_from_directory(directory_handle):
     """Prune exports older than EXPORT_PRUNE_DAYS from the directory.
     
+    Format: <name>_<class>_lvl<level>_YYYYMMDD_HHMM.json
     Only works if directory_handle supports async iteration (desktop/Chrome).
     """
     if directory_handle is None:
@@ -218,31 +239,54 @@ async def _prune_old_exports_from_directory(directory_handle):
         pruned_count = 0
         
         # Attempt to iterate and delete old files
-        async for entry in directory_handle.entries():
-            if not entry.name.endswith(".json"):
-                continue
-            
-            match = re.search(r'_(\d{8})_(\d{4})\.json$', entry.name)
-            if not match:
-                continue
-            
-            date_str, time_str = match.groups()
+        try:
+            async for entry in directory_handle.entries():
+                if not entry.name.endswith(".json"):
+                    continue
+                
+                # Match format: <name>_<class>_lvl<level>_YYYYMMDD_HHMM.json
+                match = re.search(r'_(\d{8})_(\d{4})\.json$', entry.name)
+                if not match:
+                    continue
+                
+                date_str, time_str = match.groups()
+                try:
+                    file_date = datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M")
+                    if file_date < cutoff_date:
+                        await directory_handle.removeEntry(entry.name)
+                        pruned_count += 1
+                        console.log(f"PySheet: pruned old export {entry.name}")
+                except (ValueError, JsException):
+                    continue
+        except (AttributeError, TypeError):
+            # Try alternative method using keys()
             try:
-                file_date = datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M")
-                if file_date < cutoff_date:
-                    await directory_handle.removeEntry(entry.name)
-                    pruned_count += 1
-                    LOGGER.info(f"Pruned old export: {entry.name}")
-            except (ValueError, JsException):
-                continue
+                file_names = await directory_handle.keys()
+                for entry_name in file_names:
+                    if not entry_name.endswith(".json"):
+                        continue
+                    
+                    match = re.search(r'_(\d{8})_(\d{4})\.json$', entry_name)
+                    if not match:
+                        continue
+                    
+                    date_str, time_str = match.groups()
+                    try:
+                        file_date = datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M")
+                        if file_date < cutoff_date:
+                            await directory_handle.removeEntry(entry_name)
+                            pruned_count += 1
+                            console.log(f"PySheet: pruned old export {entry_name}")
+                    except (ValueError, JsException):
+                        continue
+            except (AttributeError, JsException):
+                pass
         
         if pruned_count > 0:
-            LOGGER.info(f"Pruned {pruned_count} exports older than {EXPORT_PRUNE_DAYS} days")
+            console.log(f"PySheet: pruned {pruned_count} exports older than {EXPORT_PRUNE_DAYS} days")
     
-    except (AttributeError, JsException):
-        pass
     except Exception as exc:
-        LOGGER.warning(f"Error during export pruning: {exc}")
+        console.warn(f"PySheet: error during export pruning: {exc}")
 
 
 # ===================================================================
@@ -470,6 +514,8 @@ async def _attempt_persistent_export(
                 verb = "auto-exported" if auto else "exported"
                 console.log(f"PySheet: {verb} character JSON to {_AUTO_EXPORT_LAST_FILENAME}")
                 _AUTO_EXPORT_DISABLED = False
+                # Prune old exports after successful export
+                await _prune_old_exports_from_directory(_AUTO_EXPORT_DIRECTORY_HANDLE)
                 return True
 
     handle = _AUTO_EXPORT_FILE_HANDLE
@@ -505,14 +551,15 @@ async def _attempt_persistent_export(
 
 def save_character(_event=None):
     """Save character to browser localStorage."""
-    if localStorage is None or document is None:
+    storage = _resolve_local_storage()
+    if storage is None or document is None:
         return
     
     try:
         # Import from character module - will be provided by parent
         from character import collect_character_data
         data = collect_character_data()
-        localStorage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
+        storage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
         console.log("PySheet: character saved to localStorage")
     except Exception as exc:
         console.error(f"PySheet: failed to save character - {exc}")
@@ -591,7 +638,8 @@ async def export_character(_event=None, *, auto: bool = False):
     global _AUTO_EXPORT_DISABLED, _AUTO_EXPORT_SUPPORT_WARNED, _AUTO_EXPORT_DIRECTORY_HANDLE
     global _AUTO_EXPORT_LAST_FILENAME, _AUTO_EXPORT_SETUP_PROMPTED
     
-    if window is None or document is None or localStorage is None:
+    storage = _resolve_local_storage()
+    if window is None or document is None or storage is None:
         return
     
     def show_saving_state():
@@ -688,14 +736,15 @@ async def export_character(_event=None, *, auto: bool = False):
 
 def reset_character(_event=None):
     """Reset character to default state."""
-    if window is None or localStorage is None or document is None:
+    storage = _resolve_local_storage()
+    if window is None or storage is None or document is None:
         return
     
     if not window.confirm("Reset the sheet to default values? This will clear saved data."):
         return
     
     try:
-        localStorage.removeItem(LOCAL_STORAGE_KEY)
+        storage.removeItem(LOCAL_STORAGE_KEY)
         from character import populate_form, clone_default_state, schedule_auto_export
         populate_form(clone_default_state())
         schedule_auto_export()
@@ -706,37 +755,117 @@ def reset_character(_event=None):
 
 def handle_import(event):
     """Handle character import from JSON file."""
-    if window is None or document is None or localStorage is None or FileReader is None:
-        return
+    console.log("[IMPORT] START - handle_import function entered")
     
-    file_list = event.target.files
-    if not file_list or file_list.length == 0:
-        return
-    
-    file_obj = file_list.item(0)
-    reader = window.FileReader.new()
-
-    def on_load(_evt):
-        try:
-            payload = reader.result
-            data = json.loads(payload)
-        except Exception as exc:
-            console.error(f"PySheet: failed to import character - {exc}")
+    try:
+        # Get the file from the input
+        files = event.target.files
+        console.log(f"[IMPORT] Got files object: {files}")
+        
+        if not files or files.length == 0:
+            console.log("[IMPORT] No file selected")
             return
         
+        # FileList in Pyodide needs item(0) instead of subscript access
+        file_obj = files.item(0)
+        console.log(f"[IMPORT] File selected: {file_obj.name}")
+        
+        # Use FileReader to read the file (handle environments where FileReader imported as None)
+        file_reader_ctor = None
+        # Prefer window.FileReader
         try:
-            from character import populate_form, schedule_auto_export
-            populate_form(data)
-            localStorage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
-            schedule_auto_export()
-            console.log("PySheet: character imported from JSON")
-        except Exception as exc:
-            console.error(f"PySheet: failed to populate imported character - {exc}")
-
-    load_proxy = create_proxy(on_load)
-    _EVENT_PROXIES.append(load_proxy)
-    reader.onload = load_proxy
-    reader.readAsText(file_obj)
+            if window is not None:
+                file_reader_ctor = getattr(window, "FileReader", None)
+        except Exception as e:
+            console.warn(f"[IMPORT] window.FileReader access failed: {e}")
+        # Fallback to js import
+        if file_reader_ctor is None:
+            try:
+                from js import FileReader as JSFileReader  # type: ignore
+                file_reader_ctor = JSFileReader
+            except Exception as e:
+                console.warn(f"[IMPORT] js FileReader import failed: {e}")
+        # Fallback to eval
+        if file_reader_ctor is None and window is not None:
+            try:
+                file_reader_ctor = window.eval("FileReader") if hasattr(window, "eval") else None
+            except Exception as e:
+                console.warn(f"[IMPORT] window.eval FileReader failed: {e}")
+        if file_reader_ctor is None:
+            console.error("[IMPORT] FileReader API not available")
+            return
+        try:
+            reader = file_reader_ctor.new() if hasattr(file_reader_ctor, "new") else file_reader_ctor()
+        except Exception as e:
+            console.error(f"[IMPORT] Failed to construct FileReader: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+        console.log(f"[IMPORT] FileReader created: {reader}")
+        
+        # Define onload callback
+        def on_load(evt):
+            console.log("[IMPORT] onload callback triggered")
+            try:
+                payload = reader.result
+                console.log(f"[IMPORT] File loaded: {len(payload)} chars")
+                
+                # Parse JSON
+                data = json.loads(payload)
+                console.log(f"[IMPORT] JSON parsed: {data.get('identity', {}).get('name')}")
+                
+                # Get populate_form function
+                import sys, importlib
+                # Prefer injected back-reference from character.py if available
+                character_module = globals().get("CHARACTER_MODULE")
+                if character_module is None:
+                    character_module = sys.modules.get('character')
+                if character_module is None:
+                    try:
+                        character_module = importlib.import_module('character')
+                        console.log("[IMPORT] character module imported via importlib")
+                    except Exception as err:
+                        console.error(f"[IMPORT] character module not found: {err}")
+                        return
+                
+                populate_form = getattr(character_module, 'populate_form', None)
+                if not populate_form:
+                    console.error("[IMPORT] populate_form not found")
+                    return
+                
+                console.log("[IMPORT] Calling populate_form...")
+                populate_form(data)
+                console.log("[IMPORT] populate_form completed")
+                
+                # Save to localStorage
+                console.log("[IMPORT] Saving to localStorage...")
+                storage = _resolve_local_storage()
+                if storage is not None:
+                    storage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
+                else:
+                    console.warn("[IMPORT] localStorage unavailable; skipping persistence")
+                try:
+                    schedule_auto_export()
+                except Exception:
+                    console.log("[IMPORT] schedule_auto_export not executed")
+                console.log("[IMPORT] SUCCESS: character imported")
+                
+            except Exception as e:
+                console.error(f"[IMPORT] onload error: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Attach the callback
+        load_proxy = create_proxy(on_load)
+        _EVENT_PROXIES.append(load_proxy)
+        reader.onload = load_proxy
+        console.log("[IMPORT] Callback attached, reading file...")
+        reader.readAsText(file_obj)
+        
+    except Exception as e:
+        console.error(f"[IMPORT] EXCEPTION: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def schedule_auto_export():
@@ -746,7 +875,8 @@ def schedule_auto_export():
     Also schedules an async export if browser supports File System API and user configured it.
     """
     global _AUTO_EXPORT_TIMER_ID, _AUTO_EXPORT_EVENT_COUNT
-    if _AUTO_EXPORT_SUPPRESS or window is None or document is None or localStorage is None:
+    storage = _resolve_local_storage()
+    if _AUTO_EXPORT_SUPPRESS or window is None or document is None or storage is None:
         return
     
     _AUTO_EXPORT_EVENT_COUNT = min(_AUTO_EXPORT_EVENT_COUNT + 1, AUTO_EXPORT_MAX_EVENTS)
@@ -755,7 +885,7 @@ def schedule_auto_export():
     try:
         from character import collect_character_data
         data = collect_character_data()
-        localStorage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
+        storage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
     except Exception as exc:
         console.warn(f"PySheet: failed to save to localStorage - {exc}")
     

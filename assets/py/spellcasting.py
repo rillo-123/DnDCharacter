@@ -465,9 +465,9 @@ class SpellcastingManager:
     # ------------------------------------------------------------------
     # spellbook manipulation
     # ------------------------------------------------------------------
-    def add_spell(self, slug: str):
+    def add_spell(self, slug: str, is_domain_bonus: bool = False):
         """Add a spell to the prepared list."""
-        console.log(f"DEBUG add_spell: slug={slug}, already_prepared={self.is_spell_prepared(slug)}")
+        console.log(f"DEBUG add_spell: slug={slug}, already_prepared={self.is_spell_prepared(slug)}, is_domain_bonus={is_domain_bonus}")
         if not slug or self.is_spell_prepared(slug):
             if slug:
                 console.log(f"DEBUG add_spell: Skipping {slug} - already prepared")
@@ -505,7 +505,7 @@ class SpellcastingManager:
                 "higher_level": record.get("higher_level", ""),
                 "classes": record.get("classes", []),
                 "classes_display": record.get("classes_display", []),
-                "is_domain_bonus": False,
+                "is_domain_bonus": is_domain_bonus,
             }
         )
         console.log(f"DEBUG add_spell: Successfully added {slug}. Total prepared: {len(self.prepared)}")
@@ -551,18 +551,24 @@ class SpellcastingManager:
         """Render the spellbook UI with all prepared spells."""
         container = get_element("spellbook-levels")
         empty_state = get_element("spellbook-empty-state")
+        console.log(f"DEBUG: [render_spellbook] container={container is not None}, empty_state={empty_state is not None}, prepared={len(self.prepared)}")
         if container is None or empty_state is None:
+            console.warn(f"DEBUG: [render_spellbook] Missing DOM elements, returning")
             return
 
         # Render slot tracker
         self.render_slots_tracker()
 
         if not self.prepared:
+            console.log(f"DEBUG: [render_spellbook] No prepared spells, showing empty state")
             empty_state.style.display = "block"
             container.innerHTML = ""
             return
 
+        console.log(f"DEBUG: [render_spellbook] Rendering {len(self.prepared)} prepared spells")
+        console.log(f"💡 TIP: Click the 'Spells' tab at the top to see your prepared spellbook!")
         empty_state.style.display = "none"
+        console.log(f"DEBUG: [render_spellbook] Set empty_state.style.display = 'none'")
         groups: dict[int, list[dict]] = {}
         for entry in self.prepared:
             level = entry.get("level", 0)
@@ -626,6 +632,40 @@ class SpellcastingManager:
                     if source
                     else ""
                 )
+                
+                # Build mnemonics for prepared spells
+                mnemonics = []
+                if record.get("concentration"):
+                    mnemonics.append("<span class=\"spell-mnemonic\" title=\"Concentration\">Conc.</span>")
+                if record.get("ritual"):
+                    mnemonics.append("<span class=\"spell-mnemonic\" title=\"Ritual\">Rit.</span>")
+                if record.get("is_domain_bonus"):
+                    mnemonics.append("<span class=\"spell-mnemonic domain\" title=\"Domain Bonus\">Dom.</span>")
+                
+                # Add range mnemonic
+                range_text = record.get("range", "").lower()
+                if range_text:
+                    if "self" in range_text:
+                        range_label = "Self"
+                    elif "touch" in range_text:
+                        range_label = "Touch"
+                    elif "sight" in range_text:
+                        range_label = "Sight"
+                    elif "unlimited" in range_text:
+                        range_label = "∞"
+                    else:
+                        # Extract number from range (e.g., "60 feet" -> "60ft")
+                        match = re.search(r'(\d+)\s*(?:feet|ft)', range_text)
+                        if match:
+                            range_label = f"{match.group(1)}ft"
+                        else:
+                            range_label = None
+                    
+                    if range_label:
+                        mnemonics.append(f"<span class=\"spell-mnemonic range\" title=\"Range: {escape(record.get('range', ''))}\">{ escape(range_label)}</span>")
+                
+                mnemonics_html = f"<span class=\"spell-mnemonics\">{''.join(mnemonics)}</span>" if mnemonics else ""
+                
                 tag_parts: list[str] = []
                 if record.get("ritual"):
                     tag_parts.append("<span class=\"spell-tag\">Ritual</span>")
@@ -712,7 +752,7 @@ class SpellcastingManager:
                 is_castable = self.can_cast_spell(level)
                 castable_class = "" if is_castable else " uncastable"
                 
-                is_bonus_spell = spell.get("is_domain_bonus", False)
+                is_bonus_spell = record.get("is_domain_bonus", False)
                 
                 # Remove button (only if not a bonus spell)
                 remove_button_html = ""
@@ -727,6 +767,7 @@ class SpellcastingManager:
                     + "<summary>"
                     + "<div class=\"spellbook-summary-main\">"
                     + f"<span class=\"spellbook-name\">{escape(name)}</span>"
+                    + mnemonics_html
                     + "</div>"
                     + "<div class=\"spellbook-actions\">"
                     + remove_button_html
@@ -744,9 +785,22 @@ class SpellcastingManager:
                 + "</ul></section>"
             )
 
-        container.innerHTML = "".join(sections)
+        html_content = "".join(sections)
+        console.log(f"DEBUG: [render_spellbook] Setting container.innerHTML with {len(html_content)} chars, {len(sections)} sections")
+        console.log(f"DEBUG: [render_spellbook] First 200 chars of HTML: {html_content[:200]}")
+        container.innerHTML = html_content
+        
+        # Verify the content was actually set
+        console.log(f"DEBUG: [render_spellbook] After innerHTML set: container.innerHTML.length = {len(container.innerHTML)}")
+        console.log(f"DEBUG: [render_spellbook] container.children.length = {container.children.length}")
+        console.log(f"DEBUG: [render_spellbook] container textContent length = {len(container.textContent)}")
+        
+        # Force a style update to ensure visibility
+        container.style.display = "block"
+        console.log(f"DEBUG: [render_spellbook] Set container.style.display = 'block'")
 
         buttons = container.querySelectorAll("button[data-remove-spell]")
+        console.log(f"DEBUG: [render_spellbook] Found {len(buttons)} remove buttons")
         for button in buttons:
             slug = button.getAttribute("data-remove-spell")
             if not slug:
@@ -770,11 +824,12 @@ class SpellcastingManager:
         effective_level = get_numeric_value("level", 1)
         
         slot_counts = STANDARD_SLOT_TABLE.get(
-            effective_level, STANDARD_SLOT_TABLE.get(0, [0, 0, 0, 0, 0, 0, 0, 0, 0])
+            effective_level, STANDARD_SLOT_TABLE.get(1, {})
         )
-        level_slots = {level: slot_counts[level - 1] if level <= len(slot_counts) else 0 for level in range(1, 10)}
+        # slot_counts is a dict like {1: 2, 2: 3, 3: 4, ...} mapping spell level to slot count
+        level_slots = {level: slot_counts.get(level, 0) for level in range(1, 10)}
 
-        pact_info = PACT_MAGIC_TABLE_OLD.get(1, {"slots": 0, "level": 0})
+        pact_info = PACT_MAGIC_TABLE.get(effective_level, {"slots": 0, "level": 0})
 
         return {
             "levels": level_slots,
@@ -973,24 +1028,36 @@ def get_spell_by_slug(slug: Optional[str]) -> Union[dict, None]:
     if not slug:
         return None
     spell_map = SPELL_LIBRARY_STATE.get("spell_map") or {}
+    spell_map_size = len(spell_map)
+    spells_list_size = len(SPELL_LIBRARY_STATE.get("spells", []))
+    
     if slug in spell_map:
         spell = spell_map[slug]
+        console.log(f"DEBUG get_spell_by_slug: Found '{slug}' in spell_map (size={spell_map_size}, spells_list={spells_list_size})")
     else:
         spell = None
+        console.log(f"DEBUG get_spell_by_slug: '{slug}' NOT in spell_map (size={spell_map_size}), checking spells list (size={spells_list_size})")
         for s in SPELL_LIBRARY_STATE.get("spells", []):
             if s.get("slug") == slug:
                 spell = s
+                console.log(f"DEBUG get_spell_by_slug: Found '{slug}' in spells list")
                 break
+        if spell is None:
+            # Show first 5 spell_map keys for debugging
+            keys_sample = list(spell_map.keys())[:5]
+            console.log(f"DEBUG get_spell_by_slug: '{slug}' not found. Sample spell_map keys: {keys_sample}")
     
     # Try normalizing slug by removing source suffixes
     if spell is None and "-a5e" in slug:
         normalized_slug = slug.replace("-a5e", "")
         if normalized_slug in spell_map:
             spell = spell_map[normalized_slug]
+            console.log(f"DEBUG get_spell_by_slug: Found normalized slug '{normalized_slug}' in spell_map")
         else:
             for s in SPELL_LIBRARY_STATE.get("spells", []):
                 if s.get("slug") == normalized_slug:
                     spell = s
+                    console.log(f"DEBUG get_spell_by_slug: Found normalized slug '{normalized_slug}' in spells list")
                     break
     
     # Normalize spell record: ensure level_int is set
@@ -1196,13 +1263,41 @@ async def fetch_open5e_spells() -> list[dict]:
 
 
 def set_spell_library_data(spells: list):
-    """Populate spell library state and build searchable index."""
-    SPELL_LIBRARY_STATE["spells"] = spells or []
+    """Populate spell library state and build searchable index with deduplication."""
+    spell_list = spells or []
+    
+    # Deduplicate by slug to prevent duplicates in spell chooser
+    seen_slugs = set()
+    deduplicated = []
+    for spell in spell_list:
+        if isinstance(spell, dict):
+            slug = spell.get("slug", "")
+            if slug and slug not in seen_slugs:
+                deduplicated.append(spell)
+                seen_slugs.add(slug)
+            elif not slug:
+                # Keep spells without slug (shouldn't happen, but be safe)
+                deduplicated.append(spell)
+    
+    SPELL_LIBRARY_STATE["spells"] = deduplicated
     SPELL_LIBRARY_STATE["spell_map"] = {}
-    for spell in spells:
+    for spell in deduplicated:
         spell_slug = (spell.get("slug") or "").lower()
         if spell_slug:
             SPELL_LIBRARY_STATE["spell_map"][spell_slug] = spell
+    
+    console.log(f"DEBUG set_spell_library_data: Built spell_map with {len(SPELL_LIBRARY_STATE['spell_map'])} spells")
+    
+    # Log domain spell presence
+    domain_spells_to_check = ["bless", "cure-wounds", "raise-dead", "mass-cure-wounds", "beacon-of-hope"]
+    domain_present = []
+    domain_missing = []
+    for spell_slug in domain_spells_to_check:
+        if spell_slug in SPELL_LIBRARY_STATE["spell_map"]:
+            domain_present.append(spell_slug)
+        else:
+            domain_missing.append(spell_slug)
+    console.log(f"DEBUG set_spell_library_data: Domain spells present: {domain_present}, missing: {domain_missing}")
 
 
 def update_spell_library_status(message: str):

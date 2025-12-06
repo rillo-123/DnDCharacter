@@ -370,6 +370,131 @@ LOCAL_SPELLS_FALLBACK = [
         "dnd_class": "Bard, Druid, Sorcerer, Wizard",
         "document__title": "SRD",
     },
+    {
+        "name": "Lesser Restoration",
+        "slug": "lesser-restoration",
+        "level": 2,
+        "school": "abjuration",
+        "casting_time": "1 action",
+        "range": "Touch",
+        "components": "V, S",
+        "material": "",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "source": "5e Core Rules",
+        "desc": [
+            "You touch a creature and can end either one disease or one condition afflicting it. The condition can be blinded, deafened, paralyzed, or poisoned.",
+        ],
+        "higher_level": "",
+        "dnd_class": "Bard, Cleric, Druid",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Spiritual Weapon",
+        "slug": "spiritual-weapon",
+        "level": 2,
+        "school": "evocation",
+        "casting_time": "1 bonus action",
+        "range": "60 feet",
+        "components": "V, S",
+        "material": "",
+        "duration": "1 minute",
+        "ritual": False,
+        "concentration": True,
+        "source": "5e Core Rules",
+        "desc": [
+            "You create a ghostly, spectral weapon within range that lasts for the duration or until you cast this spell again. When you cast the spell, you can make a melee spell attack against a creature within 5 feet of the weapon. On a hit, the target takes force damage equal to 1d8 + your spellcasting ability modifier.",
+            "As a bonus action on your turn, you can move the weapon up to 20 feet and repeat the attack against a creature within 5 feet of it.",
+            "The weapon can't be attacked, damaged, or otherwise interacted with by anyone other than you. At the end of your turn, the weapon disappears if it has not been used.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 3rd level or higher, the damage increases by 1d8 for every two slot levels above 2nd.",
+        "dnd_class": "Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Beacon of Hope",
+        "slug": "beacon-of-hope",
+        "level": 3,
+        "school": "abjuration",
+        "casting_time": "1 action",
+        "range": "60 feet",
+        "components": "V, S",
+        "material": "",
+        "duration": "1 minute",
+        "ritual": False,
+        "concentration": True,
+        "source": "5e Core Rules",
+        "desc": [
+            "This spell bestows hope and vitality. Choose any number of creatures within range. For the duration, each target has advantage on Wisdom saving throws and death saving throws, and regains the maximum number of hit points possible from any healing.",
+        ],
+        "higher_level": "",
+        "dnd_class": "Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Revivify",
+        "slug": "revivify",
+        "level": 3,
+        "school": "necromancy",
+        "casting_time": "1 action",
+        "range": "Touch",
+        "components": "V, S, M",
+        "material": "Diamonds worth at least 300 gp, which the spell consumes",
+        "duration": "Instantaneous",
+        "ritual": False,
+        "concentration": False,
+        "source": "5e Core Rules",
+        "desc": [
+            "You touch a creature that has been dead for no longer than 1 minute. That creature returns to life with 1 hit point. This spell can't return to life a creature that has died of old age, nor can it restore any missing body parts.",
+        ],
+        "higher_level": "",
+        "dnd_class": "Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Guardian of Faith",
+        "slug": "guardian-of-faith",
+        "level": 4,
+        "school": "evocation",
+        "casting_time": "1 action",
+        "range": "30 feet",
+        "components": "V",
+        "material": "",
+        "duration": "8 hours",
+        "ritual": False,
+        "concentration": False,
+        "source": "5e Core Rules",
+        "desc": [
+            "A Large spectral guardian appears and hovers for the duration in an unoccupied space of your choice that you can see within 30 feet of you. The guardian occupies that space and is indistinct except for a gleaming sword and shield emblazoned with the symbol of your deity.",
+            "Any creature hostile to you that moves to a space within 10 feet of the guardian for the first time on a turn must succeed on a Dexterity saving throw. The creature takes 20 radiant damage on a failed save, or half as much damage on a successful one. A creature is immune to this damage if it has total cover from the guardian.",
+            "In addition, the guardian has disadvantage on attack rolls against all creatures other than undead and fiends. If the target is in the process of casting a spell when it makes the saving throw, that spell fails and is wasted.",
+        ],
+        "higher_level": "When you cast this spell using a spell slot of 5th level or higher, the damage increases by 10 for each slot level above 4th.",
+        "dnd_class": "Cleric",
+        "document__title": "SRD",
+    },
+    {
+        "name": "Death Ward",
+        "slug": "death-ward",
+        "level": 4,
+        "school": "abjuration",
+        "casting_time": "1 action",
+        "range": "Touch",
+        "components": "V, S",
+        "material": "",
+        "duration": "8 hours",
+        "ritual": False,
+        "concentration": False,
+        "source": "5e Core Rules",
+        "desc": [
+            "You touch a creature and grant it a measure of protection from death. The first time the target would take damage that would reduce it below 1 hit point, the target instead drops to 1 hit point, and the spell ends.",
+            "If the spell is still active when the target is subjected to an effect that would kill it outright without taking damage, that effect is instead negated against the target, and the spell ends.",
+        ],
+        "higher_level": "",
+        "dnd_class": "Cleric, Wizard",
+        "document__title": "SRD",
+    },
 ]
 
 # Class to spell list mappings
@@ -425,7 +550,7 @@ def apply_spell_corrections(spell: dict) -> dict:
 
 
 def is_spell_source_allowed(source: str) -> bool:
-    """Check if a spell source is in our allowed list (PHB, TCE, XGE only)."""
+    """Check if a spell source is in our allowed list (PHB, TCE, XGE, and official sources)."""
     if not source:
         return True  # Allow spells with no source
     
@@ -435,7 +560,7 @@ def is_spell_source_allowed(source: str) -> bool:
     if source_lower in {"phb", "tce", "xge", "xgte"}:
         return True
     
-    # Check for authoritative source names (PHB, TCE, XGE)
+    # Check for authoritative source names (PHB, TCE, XGE, 5e Core Rules, SRD)
     authoritative_phrases = {
         "player's handbook",
         "players handbook",
@@ -443,6 +568,7 @@ def is_spell_source_allowed(source: str) -> bool:
         "tashas cauldron",
         "xanathar's guide",
         "xanathars guide",
+        "5e core",  # 5e Core Rules
         "srd",  # Open5e's standard reference document
     }
     
