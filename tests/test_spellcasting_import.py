@@ -39,14 +39,14 @@ def test_spell_class_synonyms_not_empty():
     assert len(SPELL_CLASS_SYNONYMS) > 0, "SPELL_CLASS_SYNONYMS should not be empty"
     assert "wizard" in SPELL_CLASS_SYNONYMS, "wizard should be in SPELL_CLASS_SYNONYMS"
     assert "cleric" in SPELL_CLASS_SYNONYMS, "cleric should be in SPELL_CLASS_SYNONYMS"
-    print(f"✓ SPELL_CLASS_SYNONYMS has {len(SPELL_CLASS_SYNONYMS)} entries")
+    print(f"[PASS] SPELL_CLASS_SYNONYMS has {len(SPELL_CLASS_SYNONYMS)} entries")
 
 
 def test_spell_class_display_names_not_empty():
     """Test that SPELL_CLASS_DISPLAY_NAMES is populated."""
     assert len(SPELL_CLASS_DISPLAY_NAMES) > 0, "SPELL_CLASS_DISPLAY_NAMES should not be empty"
     assert "wizard" in SPELL_CLASS_DISPLAY_NAMES, "wizard should be in SPELL_CLASS_DISPLAY_NAMES"
-    print(f"✓ SPELL_CLASS_DISPLAY_NAMES has {len(SPELL_CLASS_DISPLAY_NAMES)} entries")
+    print(f"[PASS] SPELL_CLASS_DISPLAY_NAMES has {len(SPELL_CLASS_DISPLAY_NAMES)} entries")
 
 
 def test_spellcasting_manager_imports():
@@ -55,7 +55,7 @@ def test_spellcasting_manager_imports():
         from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE
         assert SpellcastingManager is not None, "SpellcastingManager should not be None"
         assert SPELL_LIBRARY_STATE is not None, "SPELL_LIBRARY_STATE should not be None"
-        print("✓ SpellcastingManager imports successfully")
+        print("[PASS] SpellcastingManager imports successfully")
     except ImportError as e:
         raise AssertionError(f"Failed to import spellcasting: {e}")
 
@@ -66,12 +66,12 @@ def test_character_module_with_spellcasting():
         from character import SPELLCASTING_MANAGER, SUPPORTED_SPELL_CLASSES
         # SPELLCASTING_MANAGER might be None if spellcasting import failed, but we should have SUPPORTED_SPELL_CLASSES
         assert len(SUPPORTED_SPELL_CLASSES) > 0, "SUPPORTED_SPELL_CLASSES should not be empty"
-        print(f"✓ character module imported successfully")
-        print(f"✓ SUPPORTED_SPELL_CLASSES: {SUPPORTED_SPELL_CLASSES}")
+        print("[PASS] character module imported successfully")
+        print(f"    SUPPORTED_SPELL_CLASSES: {SUPPORTED_SPELL_CLASSES}")
         if SPELLCASTING_MANAGER is not None:
-            print(f"✓ SPELLCASTING_MANAGER is available")
+            print(f"    SPELLCASTING_MANAGER is available")
         else:
-            print(f"⚠ SPELLCASTING_MANAGER is None (spellcasting import may have failed)")
+            print(f"    WARNING: SPELLCASTING_MANAGER is None (spellcasting import may have failed)")
     except ImportError as e:
         raise AssertionError(f"Failed to import character with spellcasting: {e}")
 
@@ -92,7 +92,7 @@ def test_normalize_class_token():
     result = normalize_class_token("Cleric-Domain")
     assert result is None or result == "cleric", f"Cleric-Domain should return None or cleric, got {result}"
     
-    print("✓ normalize_class_token works correctly")
+    print("[PASS] normalize_class_token works correctly")
 
 
 def test_sanitize_spell_record_with_open5e_format():
@@ -130,7 +130,7 @@ def test_sanitize_spell_record_with_open5e_format():
     assert result.get("name") == "Magic Missile", "name should be preserved"
     assert len(result.get("classes", [])) > 0, "classes should not be empty"
     
-    print(f"✓ sanitize_spell_record works: {result.get('name')} has classes {result.get('classes')}")
+    print(f"[PASS] sanitize_spell_record works: {result.get('name')} has classes {result.get('classes')}")
 
 
 def test_sanitize_spell_list():
@@ -177,7 +177,7 @@ def test_sanitize_spell_list():
     assert result[0]["slug"] == "magic-missile", "First spell should be magic-missile"
     assert len(result[0]["classes"]) > 0, "magic-missile should have classes"
     
-    print(f"✓ sanitize_spell_list works: {len(result)} spells sanitized successfully")
+    print(f"[PASS] sanitize_spell_list works: {len(result)} spells sanitized successfully")
 
 
 if __name__ == '__main__':
@@ -191,4 +191,4 @@ if __name__ == '__main__':
     test_sanitize_spell_record_with_open5e_format()
     test_sanitize_spell_list()
     
-    print("\n✅ All spellcasting import tests passed!\n")
+    print("\n[SUCCESS] All spellcasting import tests passed!\n")
