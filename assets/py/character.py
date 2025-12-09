@@ -1198,6 +1198,8 @@ def render_inventory():
     """Render the inventory list."""
     if INVENTORY_MANAGER is not None:
         INVENTORY_MANAGER.render_inventory()
+    # Update equipped items display
+    render_equipped_attack_grid()
 
 
 MAX_RESOURCES = 12
@@ -1815,33 +1817,64 @@ def calculate_armor_class() -> int:
     - Medium Armor: Armor AC + DEX modifier (max +2)
     - Heavy Armor: Armor AC (no DEX modifier)
     Plus any AC modifiers from equipped items
+    
+    Priority: Equipped items first, then any items found
     """
     # Get DEX modifier
     dex_score = get_numeric_value("dex-score", 10)
     dex_mod = ability_modifier(dex_score)
     
-    # Check for armor in inventory
+    # Check for equipped armor in inventory (priority)
     armor_ac = None
     armor_name = None
     armor_type = None
     
     if INVENTORY_MANAGER is not None:
+        # First, look for equipped armor
         for item in INVENTORY_MANAGER.items:
-            category = item.get("category", "")
-            if category == "Armor" and item.get("qty", 0) > 0:
-                # Found an armor item - try to get its AC
-                try:
-                    notes_str = item.get("notes", "")
-                    if notes_str and notes_str.startswith("{"):
-                        extra_props = json.loads(notes_str)
-                        ac_val = extra_props.get("armor_class", extra_props.get("ac"))
-                        if ac_val:
-                            armor_ac = int(ac_val)
-                            armor_name = item.get("name", "Unknown Armor")
-                            armor_type = get_armor_type(armor_name)
-                            break  # Use first armor found
-                except:
-                    pass
+            if item.get("equipped") and is_equipable(item):
+                item_name = item.get("name", "").lower()
+                
+                # Check if it's armor (exclude weapons)
+                armor_keywords = ["plate", "leather", "chain", "hide", "scale", "mail", "breastplate", "armor"]
+                weapon_keywords = ["sword", "axe", "bow", "spear", "mace", "staff", "dagger", "rapier", "crossbow", "club", "flail", "hammer", "lance", "pike", "scimitar"]
+                
+                is_armor = any(kw in item_name for kw in armor_keywords)
+                is_weapon = any(kw in item_name for kw in weapon_keywords)
+                
+                if is_armor and not is_weapon:
+                    # Found equipped armor
+                    try:
+                        notes_str = item.get("notes", "")
+                        if notes_str and notes_str.startswith("{"):
+                            extra_props = json.loads(notes_str)
+                            ac_val = extra_props.get("armor_class", extra_props.get("ac"))
+                            if ac_val:
+                                armor_ac = int(ac_val)
+                                armor_name = item.get("name", "Unknown Armor")
+                                armor_type = get_armor_type(armor_name)
+                                break  # Use first equipped armor found
+                    except:
+                        pass
+        
+        # If no equipped armor found, look for any armor
+        if armor_ac is None:
+            for item in INVENTORY_MANAGER.items:
+                category = item.get("category", "")
+                if category == "Armor" and item.get("qty", 0) > 0:
+                    # Found an armor item - try to get its AC
+                    try:
+                        notes_str = item.get("notes", "")
+                        if notes_str and notes_str.startswith("{"):
+                            extra_props = json.loads(notes_str)
+                            ac_val = extra_props.get("armor_class", extra_props.get("ac"))
+                            if ac_val:
+                                armor_ac = int(ac_val)
+                                armor_name = item.get("name", "Unknown Armor")
+                                armor_type = get_armor_type(armor_name)
+                                break  # Use first armor found
+                    except:
+                        pass
     
     # Calculate base AC
     if armor_ac is not None:
@@ -1858,19 +1891,21 @@ def calculate_armor_class() -> int:
         # No armor - use 10 + DEX
         base_ac = 10 + dex_mod
     
-    # Add AC modifiers from items
+    # Add AC modifiers from equipped items first, then other items
     # armor-only items add to AC but not to saves (e.g. +1 breastplate)
     # regular items add to both AC and saves (e.g. Ring of Protection)
     item_ac_mod = 0
     if INVENTORY_MANAGER is not None:
         for item in INVENTORY_MANAGER.items:
             try:
-                notes_str = item.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    extra_props = json.loads(notes_str)
-                    ac_mod = extra_props.get("ac_modifier", 0)
-                    if ac_mod:
-                        item_ac_mod += int(ac_mod)
+                # Prioritize equipped items
+                if item.get("equipped"):
+                    notes_str = item.get("notes", "")
+                    if notes_str and notes_str.startswith("{"):
+                        extra_props = json.loads(notes_str)
+                        ac_mod = extra_props.get("ac_modifier", 0)
+                        if ac_mod:
+                            item_ac_mod += int(ac_mod)
             except:
                 pass
     
@@ -3701,6 +3736,173 @@ Full API Data:
     window.alert(dialog_text)
 
 
+def is_equipable(item: dict) -> bool:
+    """Check if item can be equipped (armor or weapon)."""
+    item_type = (item.get("type") or "").lower()
+    item_name = (item.get("name") or "").lower()
+    
+    # Check explicit type field
+    armor_types = ["armor", "light armor", "medium armor", "heavy armor", "shield"]
+    weapon_types = ["weapon", "melee weapon", "ranged weapon", "simple melee", "simple ranged", "martial melee", "martial ranged"]
+    
+    if item_type in armor_types or item_type in weapon_types:
+        return True
+    
+    # Heuristic: check name for common patterns
+    armor_keywords = ["plate", "leather", "chain", "hide", "scale", "mail", "breastplate", "armor", "shield"]
+    weapon_keywords = ["sword", "axe", "bow", "spear", "mace", "staff", "dagger", "rapier", "longsword", "shortsword", "greataxe", "greatsword", "crossbow", "shield", "club", "flail", "hammer", "lance", "pike", "scimitar"]
+    
+    for keyword in armor_keywords:
+        if keyword in item_name:
+            return True
+    for keyword in weapon_keywords:
+        if keyword in item_name:
+            return True
+    
+    return False
+
+
+def calculate_weapon_tohit(item: dict) -> int:
+    """Calculate attack bonus for a weapon."""
+    # Get proficiency and ability modifiers
+    level = get_numeric_value("level", 1)
+    proficiency = compute_proficiency(level)
+    
+    # Determine relevant ability (STR for melee, DEX for ranged typically)
+    # For simplicity, use STR unless it's explicitly a ranged weapon
+    item_type = (item.get("type") or "").lower()
+    item_name = (item.get("name") or "").lower()
+    
+    ranged_keywords = ["bow", "crossbow", "ranged"]
+    is_ranged = any(kw in item_name or kw in item_type for kw in ranged_keywords)
+    
+    ability_key = "dex" if is_ranged else "str"
+    ability_score = get_numeric_value(f"{ability_key}-score", 10)
+    ability_mod = ability_modifier(ability_score)
+    
+    # Add proficiency bonus
+    to_hit = proficiency + ability_mod
+    
+    # Add any enchantment bonus (parse from name like "+1 Sword")
+    import re
+    match = re.search(r'\+(\d+)', item.get("name", ""))
+    if match:
+        to_hit += int(match.group(1))
+    
+    return to_hit
+
+
+def render_equipped_attack_grid():
+    """Render grid of equipped weapons and armor in Skills tab right pane."""
+    if INVENTORY_MANAGER is None:
+        return
+    
+    # Get equipped items from inventory
+    equipped_items = []
+    for item in INVENTORY_MANAGER.items:
+        if item.get("equipped") and is_equipable(item):
+            equipped_items.append(item)
+    
+    # Find or create container in right pane
+    weapons_section = get_element("weapons-list")
+    if weapons_section is None:
+        console.log("DEBUG: weapons-list container not found")
+        return
+    
+    # Clear existing content
+    weapons_section.innerHTML = ""
+    
+    if not equipped_items:
+        empty_state = get_element("weapons-empty-state")
+        if empty_state:
+            empty_state.style.display = "block"
+        return
+    
+    # Hide empty state
+    empty_state = get_element("weapons-empty-state")
+    if empty_state:
+        empty_state.style.display = "none"
+    
+    # Build grid header
+    header_div = document.createElement("div")
+    header_div.className = "attack-grid-header"
+    header_div.style.display = "grid"
+    header_div.style.gridTemplateColumns = "1fr 0.8fr 1fr 0.8fr 1fr"
+    header_div.style.gap = "0.5rem"
+    header_div.style.padding = "0.5rem"
+    header_div.style.fontSize = "0.75rem"
+    header_div.style.fontWeight = "bold"
+    header_div.style.color = "#94a3b8"
+    header_div.style.borderBottom = "1px solid rgba(148, 163, 184, 0.2)"
+    header_div.style.marginBottom = "0.5rem"
+    
+    headers = ["Type", "To Hit", "Dmg", "Range", "Prop."]
+    for h in headers:
+        col = document.createElement("div")
+        col.textContent = h
+        col.style.textAlign = "center"
+        header_div.appendChild(col)
+    
+    weapons_section.appendChild(header_div)
+    
+    # Build grid rows
+    for item in equipped_items:
+        row = document.createElement("div")
+        row.className = "attack-grid-row"
+        row.style.display = "grid"
+        row.style.gridTemplateColumns = "1fr 0.8fr 1fr 0.8fr 1fr"
+        row.style.gap = "0.5rem"
+        row.style.padding = "0.5rem"
+        row.style.borderRadius = "0.375rem"
+        row.style.backgroundColor = "rgba(30, 41, 59, 0.5)"
+        row.style.fontSize = "0.85rem"
+        row.style.marginBottom = "0.5rem"
+        row.style.alignItems = "center"
+        
+        # Type (weapon or armor)
+        type_cell = document.createElement("div")
+        type_cell.textContent = item.get("name", "Unknown")
+        type_cell.style.textAlign = "left"
+        type_cell.style.fontWeight = "600"
+        type_cell.style.color = "#cbd5f5"
+        row.appendChild(type_cell)
+        
+        # To Hit (attack bonus)
+        to_hit_cell = document.createElement("div")
+        to_hit = calculate_weapon_tohit(item)
+        to_hit_cell.textContent = format_bonus(to_hit)
+        to_hit_cell.style.textAlign = "center"
+        to_hit_cell.style.color = "#a7f3d0"
+        row.appendChild(to_hit_cell)
+        
+        # Damage
+        dmg_cell = document.createElement("div")
+        dmg = item.get("damage", "—")
+        dmg_cell.textContent = dmg if dmg else "—"
+        dmg_cell.style.textAlign = "center"
+        dmg_cell.style.color = "#fca5a5"
+        row.appendChild(dmg_cell)
+        
+        # Range
+        range_cell = document.createElement("div")
+        range_text = item.get("range_text", "—")
+        range_cell.textContent = range_text if range_text else "—"
+        range_cell.style.textAlign = "center"
+        range_cell.style.color = "#fbbf24"
+        row.appendChild(range_cell)
+        
+        # Properties
+        prop_cell = document.createElement("div")
+        props = item.get("properties", "—")
+        prop_cell.textContent = props if props else "—"
+        prop_cell.style.textAlign = "center"
+        prop_cell.style.color = "#c084fc"
+        prop_cell.style.fontSize = "0.8rem"
+        row.appendChild(prop_cell)
+        
+        weapons_section.appendChild(row)
+
+
 def _create_equipment_row(item: dict) -> any:
     """Return a DOM <tr> element for the given item dict."""
     try:
@@ -3728,7 +3930,12 @@ def _create_equipment_row(item: dict) -> any:
         summary.style.cursor = "pointer"
         summary.style.userSelect = "none"
         
-        # Item name and summary
+        # Left section: Item name and summary
+        leftDiv = document.createElement("div")
+        leftDiv.style.display = "flex"
+        leftDiv.style.flexDirection = "column"
+        leftDiv.style.gap = "0.25rem"
+        
         nameDiv = document.createElement("div")
         nameDiv.style.fontWeight = "600"
         nameDiv.style.color = "#cbd5f5"
@@ -3739,8 +3946,43 @@ def _create_equipment_row(item: dict) -> any:
         costWeightDiv.style.color = "#94a3b8"
         costWeightDiv.textContent = f"{format_money(item.get('cost', 0))} | {format_weight(item.get('weight', 0))}"
         
-        summary.appendChild(nameDiv)
-        summary.appendChild(costWeightDiv)
+        leftDiv.appendChild(nameDiv)
+        leftDiv.appendChild(costWeightDiv)
+        
+        # Right section: Equipped checkbox (only for armor/weapons)
+        rightDiv = document.createElement("div")
+        rightDiv.style.display = "flex"
+        rightDiv.style.alignItems = "center"
+        rightDiv.style.gap = "0.5rem"
+        
+        if is_equipable(item):
+            equippedLabel = document.createElement("label")
+            equippedLabel.style.display = "flex"
+            equippedLabel.style.alignItems = "center"
+            equippedLabel.style.gap = "0.5rem"
+            equippedLabel.style.cursor = "pointer"
+            equippedLabel.style.userSelect = "none"
+            equippedLabel.style.color = "#94a3b8"
+            
+            equippedCheckbox = document.createElement("input")
+            equippedCheckbox.type = "checkbox"
+            equippedCheckbox.className = "equipment-equipped-check"
+            equippedCheckbox.checked = bool(item.get("equipped", False))
+            equippedCheckbox.style.cursor = "pointer"
+            
+            equippedText = document.createElement("span")
+            equippedText.textContent = "Equipped"
+            equippedText.style.fontSize = "0.85rem"
+            
+            equippedLabel.appendChild(equippedCheckbox)
+            equippedLabel.appendChild(equippedText)
+            rightDiv.appendChild(equippedLabel)
+            
+            # Store reference to checkbox for event handling
+            item["_checkbox_element"] = equippedCheckbox
+        
+        summary.appendChild(leftDiv)
+        summary.appendChild(rightDiv)
         details.appendChild(summary)
         
         # Expandable details section
@@ -3905,6 +4147,84 @@ def render_equipment_table(items: list[dict]):
             proxy_rm = create_proxy(lambda e, iid=item_id: remove_equipment_item(iid))
             remove_btn.addEventListener("click", proxy_rm)
             _EVENT_PROXIES.append(proxy_rm)
+        
+        # Handle equipped checkbox
+        equipped_check = row.querySelector(".equipment-equipped-check")
+        if equipped_check is not None:
+            proxy_equip = create_proxy(lambda e, iid=item_id: handle_equipment_equipped(e, iid))
+            equipped_check.addEventListener("change", proxy_equip)
+            _EVENT_PROXIES.append(proxy_equip)
+
+
+def handle_equipment_equipped(event=None, item_id: str = None):
+    """Handle when an item's equipped checkbox is toggled."""
+    if INVENTORY_MANAGER is None or item_id is None:
+        return
+    
+    # Find item in inventory and update equipped flag
+    for item in INVENTORY_MANAGER.items:
+        if item.get("id") == item_id:
+            checkbox = event.target if event else None
+            if checkbox:
+                item["equipped"] = bool(checkbox.checked)
+            console.log(f"DEBUG: Equipment {item.get('name')} equipped={item.get('equipped')}")
+            break
+    
+    # Recalculate AC
+    update_calculations()
+    
+    # Re-render attack grid
+    render_equipped_attack_grid()
+    
+    # Auto-save
+    schedule_auto_export()
+
+
+def handle_equipment_input(event=None, item_id: str = None):
+    """Handle when an equipment field is edited."""
+    if INVENTORY_MANAGER is None or item_id is None or event is None:
+        return
+    
+    field_name = event.target.getAttribute("data-item-field")
+    new_value = event.target.value
+    
+    # Find item and update field
+    for item in INVENTORY_MANAGER.items:
+        if item.get("id") == item_id:
+            if field_name == "qty":
+                item[field_name] = int(new_value) if new_value else 0
+            elif field_name in ["cost", "weight"]:
+                item[field_name] = float(new_value) if new_value else 0.0
+            else:
+                item[field_name] = new_value
+            break
+    
+    # Update totals display
+    update_equipment_totals()
+    
+    # Auto-save
+    schedule_auto_export()
+
+
+def remove_equipment_item(item_id: str):
+    """Remove an item from inventory."""
+    if INVENTORY_MANAGER is None or item_id is None:
+        return
+    
+    # Remove item from inventory
+    INVENTORY_MANAGER.items = [item for item in INVENTORY_MANAGER.items if item.get("id") != item_id]
+    
+    # Re-render table
+    render_inventory()
+    
+    # Recalculate AC and update display
+    update_calculations()
+    
+    # Re-render attack grid
+    render_equipped_attack_grid()
+    
+    # Auto-save
+    schedule_auto_export()
 
 
 def get_equipment_items_from_data(data: dict) -> list:
