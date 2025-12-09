@@ -922,14 +922,36 @@ class InventoryManager:
             self.update_item(item_id, {"equipped": equipped})
             console.log(f"PySheet: Equipment {item.get('name')} equipped={equipped}")
             
-            # Recalculate AC
-            update_calculations()
+            # Recalculate AC - access from character.py module
+            try:
+                import sys
+                # Try to get from __main__ (character.py globals in PyScript)
+                character_module = sys.modules.get('__main__')
+                if character_module and hasattr(character_module, 'update_calculations'):
+                    character_module.update_calculations()
+                    console.log("DEBUG: Called update_calculations via __main__")
+            except Exception as e:
+                console.warn(f"DEBUG: Could not call update_calculations: {e}")
             
-            # Re-render attack grid (imported from character.py)
-            render_equipped_attack_grid()
+            # Re-render attack grid (from character.py)
+            try:
+                import sys
+                character_module = sys.modules.get('__main__')
+                if character_module and hasattr(character_module, 'render_equipped_attack_grid'):
+                    character_module.render_equipped_attack_grid()
+                    console.log("DEBUG: Called render_equipped_attack_grid via __main__")
+            except Exception as e:
+                console.warn(f"DEBUG: Could not call render_equipped_attack_grid: {e}")
             
             # Auto-save
-            schedule_auto_export()
+            try:
+                import sys
+                export_module = sys.modules.get('export_management')
+                if export_module and hasattr(export_module, 'schedule_auto_export'):
+                    export_module.schedule_auto_export()
+                    console.log("DEBUG: Called schedule_auto_export via export_management")
+            except Exception as e:
+                console.warn(f"DEBUG: Could not call schedule_auto_export: {e}")
 
     
     def _fetch_magic_item(self, item_id: str, url: str):
