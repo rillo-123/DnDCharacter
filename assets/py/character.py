@@ -86,7 +86,15 @@ else:
 console.log(f"DEBUG: sys.path after update: {sys.path[:3]}...")
 
 try:
-    from character_models import Character, CharacterFactory, DEFAULT_ABILITY_KEYS, get_race_ability_bonuses
+    from character_models import (
+        Character,
+        CharacterFactory,
+        DEFAULT_ABILITY_KEYS,
+        get_class_armor_proficiencies,
+        get_class_hit_die,
+        get_class_weapon_proficiencies,
+        get_race_ability_bonuses,
+    )
 except ModuleNotFoundError:
     module_candidates = [
         MODULE_DIR / "character_models.py",
@@ -105,18 +113,39 @@ except ModuleNotFoundError:
             else:
                 source = open_url("assets/py/character_models.py").read()
                 module = ModuleType("character_models")
-                exec(source, module.__dict__)
+                # Register before exec so dataclass decorators resolve __module__ properly
                 sys.modules["character_models"] = module
+                exec(source, module.__dict__)
             Character = module.Character
             CharacterFactory = module.CharacterFactory
             DEFAULT_ABILITY_KEYS = module.DEFAULT_ABILITY_KEYS
+            get_class_armor_proficiencies = module.get_class_armor_proficiencies
+            get_class_hit_die = module.get_class_hit_die
+            get_class_weapon_proficiencies = module.get_class_weapon_proficiencies
             get_race_ability_bonuses = module.get_race_ability_bonuses
             loaded = True
             break
         except Exception:
             continue
     if not loaded:
-        raise
+        # Final HTTP fallback for Pyodide/static builds
+        try:
+            source = open_url("assets/py/character_models.py").read()
+            module = ModuleType("character_models")
+            # Register before exec so dataclass decorators can resolve __module__
+            sys.modules["character_models"] = module
+            exec(source, module.__dict__)
+            Character = module.Character
+            CharacterFactory = module.CharacterFactory
+            DEFAULT_ABILITY_KEYS = module.DEFAULT_ABILITY_KEYS
+            get_class_armor_proficiencies = module.get_class_armor_proficiencies
+            get_class_hit_die = module.get_class_hit_die
+            get_class_weapon_proficiencies = module.get_class_weapon_proficiencies
+            get_race_ability_bonuses = module.get_race_ability_bonuses
+            console.log("DEBUG: character_models loaded via HTTP fallback")
+        except Exception as e:
+            console.error(f"DEBUG: character_models HTTP fallback failed: {e}")
+            raise
 
 # Import modular components
 try:
@@ -199,13 +228,13 @@ def _load_module_from_http_sync(module_name: str, url: str):
         console.log(f"DEBUG: [HTTP] Read {len(source)} bytes")
         
         module = ModuleType(module_name)
-        console.log(f"DEBUG: [HTTP] Created ModuleType")
+        module.__file__ = url  # Help modules that log __file__
+        # Register before exec so intra-module lookups (e.g., dataclasses __module__) succeed
+        sys.modules[module_name] = module
+        console.log(f"DEBUG: [HTTP] Created ModuleType and registered in sys.modules")
         
         exec(source, module.__dict__)
         console.log(f"DEBUG: [HTTP] exec() completed")
-        
-        sys.modules[module_name] = module
-        console.log(f"DEBUG: [HTTP] Added to sys.modules")
         console.log(f"DEBUG: [HTTP] SUCCESS")
         
         return module
@@ -246,6 +275,18 @@ except ImportError as e:
             console.log("DEBUG: [Fallback2] Loading spell_data")
             spell_data_module = _load_module_from_http_sync("spell_data", "http://localhost:8080/assets/py/spell_data.py")
             console.log(f"DEBUG: [Fallback2] spell_data_module = {spell_data_module}")
+            if spell_data_module is not None:
+                LOCAL_SPELLS_FALLBACK = getattr(spell_data_module, "LOCAL_SPELLS_FALLBACK", LOCAL_SPELLS_FALLBACK)
+                SPELL_CLASS_SYNONYMS = getattr(spell_data_module, "SPELL_CLASS_SYNONYMS", SPELL_CLASS_SYNONYMS)
+                SPELL_CLASS_DISPLAY_NAMES = getattr(spell_data_module, "SPELL_CLASS_DISPLAY_NAMES", SPELL_CLASS_DISPLAY_NAMES)
+                SPELL_CORRECTIONS = getattr(spell_data_module, "SPELL_CORRECTIONS", SPELL_CORRECTIONS)
+                apply_spell_corrections = getattr(spell_data_module, "apply_spell_corrections", apply_spell_corrections)
+                is_spell_source_allowed = getattr(spell_data_module, "is_spell_source_allowed", is_spell_source_allowed)
+                CLASS_CASTING_PROGRESSIONS = getattr(spell_data_module, "CLASS_CASTING_PROGRESSIONS", CLASS_CASTING_PROGRESSIONS)
+                SPELLCASTING_PROGRESSION_TABLES = getattr(spell_data_module, "SPELLCASTING_PROGRESSION_TABLES", SPELLCASTING_PROGRESSION_TABLES)
+                STANDARD_SLOT_TABLE = getattr(spell_data_module, "STANDARD_SLOT_TABLE", STANDARD_SLOT_TABLE)
+                PACT_MAGIC_TABLE = getattr(spell_data_module, "PACT_MAGIC_TABLE", PACT_MAGIC_TABLE)
+                console.log(f"DEBUG: [Fallback2] Loaded spell_data constants: fallback_spells={len(LOCAL_SPELLS_FALLBACK)}")
             
             # Then load spellcasting via HTTP
             console.log("DEBUG: [Fallback2] Loading spellcasting")
@@ -287,16 +328,39 @@ try:
         ARMOR_TYPES,
         ARMOR_AC_VALUES,
     )
-except ImportError:
-    # Fallbacks for non-modular environments
-    InventoryManager = None
-    Item = Weapon = Armor = Shield = Equipment = None
-    format_money = lambda x: str(x)
-    format_weight = lambda x: str(x)
-    get_armor_type = lambda x: "unknown"
-    get_armor_ac = lambda x: None
-    ARMOR_TYPES = {}
-    ARMOR_AC_VALUES = {}
+    console.log("DEBUG: equipment_management import succeeded on first try")
+except ImportError as e:
+    console.log("DEBUG: equipment_management import failed, attempting HTTP fallback")
+    console.warn(f"DEBUG: equipment_management import failed: {e}")
+    try:
+        equipment_module = _load_module_from_http_sync(
+            "equipment_management",
+            "http://localhost:8080/assets/py/equipment_management.py",
+        )
+        InventoryManager = getattr(equipment_module, "InventoryManager", None)
+        Item = getattr(equipment_module, "Item", None)
+        Weapon = getattr(equipment_module, "Weapon", None)
+        Armor = getattr(equipment_module, "Armor", None)
+        Shield = getattr(equipment_module, "Shield", None)
+        Equipment = getattr(equipment_module, "Equipment", None)
+        format_money = getattr(equipment_module, "format_money", lambda x: str(x))
+        format_weight = getattr(equipment_module, "format_weight", lambda x: str(x))
+        get_armor_type = getattr(equipment_module, "get_armor_type", lambda x: "unknown")
+        get_armor_ac = getattr(equipment_module, "get_armor_ac", lambda x: None)
+        ARMOR_TYPES = getattr(equipment_module, "ARMOR_TYPES", {})
+        ARMOR_AC_VALUES = getattr(equipment_module, "ARMOR_AC_VALUES", {})
+        console.log("DEBUG: equipment_management module loaded via HTTP successfully")
+    except Exception as e2:
+        console.error(f"DEBUG: equipment_management HTTP fallback failed: {e2}")
+        # Fallbacks for non-modular environments
+        InventoryManager = None
+        Item = Weapon = Armor = Shield = Equipment = None
+        format_money = lambda x: str(x)
+        format_weight = lambda x: str(x)
+        get_armor_type = lambda x: "unknown"
+        get_armor_ac = lambda x: None
+        ARMOR_TYPES = {}
+        ARMOR_AC_VALUES = {}
 
 try:
     from export_management import (
@@ -562,12 +626,14 @@ class Entity:
     
     def to_dict(self) -> dict:
         """Convert entity to dictionary for serialization"""
-        return {
+        data = {
             "name": self.name,
             "entity_type": self.entity_type,
             "description": self.description,
-            "properties": self.properties.copy()
         }
+        if self.properties:
+            data["properties"] = self.properties.copy()
+        return data
     
     @staticmethod
     def from_dict(data: dict) -> 'Entity':
@@ -831,7 +897,8 @@ class Weapon(Equipment):
         self.damage = damage
         self.damage_type = damage_type
         self.range = range_text
-        self.properties = properties
+        # Keep weapon-specific properties separate so Entity.properties stays a dict
+        self.weapon_properties = properties
     
     def to_dict(self) -> dict:
         d = super().to_dict()
@@ -841,8 +908,8 @@ class Weapon(Equipment):
             d["damage_type"] = self.damage_type
         if self.range:
             d["range"] = self.range
-        if self.properties:
-            d["properties"] = self.properties
+        if self.weapon_properties:
+            d["properties"] = self.weapon_properties
         return d
     
     @staticmethod
@@ -990,6 +1057,7 @@ EQUIPMENT_LIBRARY_STATE = {
 
 _EVENT_PROXIES: list = []
 _EQUIPMENT_RESULT_PROXY = None  # Track the current equipment results listener to remove it
+_DOMAIN_SPELL_SYNCING = False
 
 
 
@@ -1261,22 +1329,7 @@ def format_bonus(value: int) -> str:
 
 def get_hit_dice_for_class(class_name: str) -> str:
     """Return the hit dice for a given D&D 5e class."""
-    class_lower = (class_name or "").lower().strip()
-    hit_dice_map = {
-        "barbarian": "1d12",
-        "fighter": "1d10",
-        "paladin": "1d10",
-        "ranger": "1d10",
-        "bard": "1d8",
-        "cleric": "1d8",
-        "druid": "1d8",
-        "monk": "1d8",
-        "rogue": "1d8",
-        "warlock": "1d8",
-        "sorcerer": "1d6",
-        "wizard": "1d6",
-    }
-    return hit_dice_map.get(class_lower, "1d8")  # Default to 1d8 if unknown
+    return get_class_hit_die(class_name)
 
 
 def get_armor_proficiencies_for_class(class_name: str, domain: str = "") -> str:
@@ -1286,48 +1339,14 @@ def get_armor_proficiencies_for_class(class_name: str, domain: str = "") -> str:
         class_name: The character's class
         domain: The cleric domain (if applicable)
     """
-    class_lower = (class_name or "").lower().strip()
-    proficiencies_map = {
-        "barbarian": "Light armor, Medium armor, Shields",
-        "bard": "Light armor",
-        "cleric": "Light armor, Medium armor, Shields",
-        "druid": "Light armor, Medium armor, Shields",
-        "fighter": "All armor, Shields",
-        "monk": "None",
-        "paladin": "All armor, Shields",
-        "ranger": "Light armor, Medium armor, Shields",
-        "rogue": "Light armor",
-        "sorcerer": "None",
-        "warlock": "Light armor",
-        "wizard": "None",
-    }
-    profs = proficiencies_map.get(class_lower, "None")
-    
-    # Life Domain clerics get Heavy Armor proficiency
-    if class_lower == "cleric" and domain and "life" in domain.lower():
-        profs = "Light armor, Medium armor, Heavy armor, Shields"
-    
-    return profs
+    profs = get_class_armor_proficiencies(class_name, domain)
+    return ", ".join(profs)
 
 
 def get_weapon_proficiencies_for_class(class_name: str) -> str:
     """Return weapon proficiencies for a given D&D 5e class."""
-    class_lower = (class_name or "").lower().strip()
-    proficiencies_map = {
-        "barbarian": "Simple melee, Martial melee",
-        "bard": "Simple melee, Hand crossbows, Longswords, Rapiers, Shortswords",
-        "cleric": "Simple melee, Simple ranged",
-        "druid": "Clubs, Daggers, Darts, Javelins, Maces, Quarterstaffs, Scimitars, Sickles, Slings, Spears",
-        "fighter": "Simple melee, Simple ranged, Martial melee, Martial ranged",
-        "monk": "Simple melee, Shortswords",
-        "paladin": "Simple melee, Simple ranged, Martial melee, Martial ranged",
-        "ranger": "Simple melee, Simple ranged, Martial melee, Martial ranged",
-        "rogue": "Hand crossbows, Longswords, Rapiers, Shortswords, Simple melee",
-        "sorcerer": "Daggers, Darts, Slings, Quarterstaffs, Light crossbows",
-        "warlock": "Simple melee",
-        "wizard": "Daggers, Darts, Slings, Quarterstaffs, Light crossbows",
-    }
-    return proficiencies_map.get(class_lower, "None")
+    profs = get_class_weapon_proficiencies(class_name)
+    return ", ".join(profs)
 
 
 def generate_id(prefix: str) -> str:
@@ -1557,7 +1576,18 @@ def handle_add_spell_click(event, slug: str):
                 button_el.classList.remove("deny-blink")
             except:
                 pass
-        document.defaultView.setTimeout(remove_anim, 600)
+        try:
+            remove_anim_proxy = create_proxy(remove_anim)
+            _EVENT_PROXIES.append(remove_anim_proxy)
+            if document is not None and getattr(document, "defaultView", None) is not None:
+                document.defaultView.setTimeout(remove_anim_proxy, 600)
+            elif window is not None and hasattr(window, "setTimeout"):
+                window.setTimeout(remove_anim_proxy, 600)
+        except Exception:
+            try:
+                remove_anim()
+            except Exception:
+                pass
 
 
 def handle_remove_spell_click(event, slug: str):
@@ -2075,6 +2105,8 @@ def update_calculations(*_args):
     
     # Count only user-prepared spells (exclude domain bonus spells and cantrips)
     domain = get_text_value("domain")
+    if SPELL_LIBRARY_STATE.get("loaded"):
+        _ensure_domain_spells_in_spellbook(reason="calc_sync")
     domain_bonus_slugs = set(get_domain_bonus_spells(domain, level)) if domain else set()
     if SPELLCASTING_MANAGER is not None:
         prepared_count = SPELLCASTING_MANAGER.get_prepared_non_cantrip_count(domain_bonus_slugs)
@@ -2863,6 +2895,46 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
         mnemonics.append("<span class=\"spell-mnemonic\" title=\"Ritual\">Rit.</span>")
     if is_domain_bonus and prepared:
         mnemonics.append("<span class=\"spell-mnemonic domain\" title=\"Domain Bonus\">Dom.</span>")
+    # Detect saving throw requirement (must *require* a save, not just mention it)
+    try:
+        import re
+        # Only match if the spell text says the target "must" make a save or "fails" one
+        # This filters out spells like Bless that just mention saving throws as optional outcomes
+        # Matches patterns like:
+        #   "must succeed on a Dexterity saving throw"
+        #   "must make a Wisdom saving throw"
+        #   "if it fails a Dexterity saving throw"
+        save_regex = re.compile(r"(?:must\s+(?:succeed\s+on\s+|make\s+)(?:a|an)\s+|if\s+it\s+fails\s+(?:a|an)\s+)(strength|dexterity|constitution|intelligence|wisdom|charisma)\s+saving throw", re.IGNORECASE)
+        text_blobs = []
+        for field in ("dc", "saving_throw", "desc", "higher_level", "description", "description_html"):
+            value = spell.get(field)
+            if isinstance(value, (list, tuple)):
+                value = " ".join(str(v) for v in value)
+            if value:
+                text_blobs.append(str(value))
+        save_ability = None
+        save_required = False
+        for blob in text_blobs:
+            match = save_regex.search(blob)
+            if match:
+                save_required = True
+                ability = match.group(1).lower()
+                ability_map = {
+                    "strength": "STR",
+                    "dexterity": "DEX",
+                    "constitution": "CON",
+                    "intelligence": "INT",
+                    "wisdom": "WIS",
+                    "charisma": "CHA",
+                }
+                save_ability = ability_map.get(ability)
+                break
+        if save_required and save_ability:
+            label = f"Save: {save_ability}"
+            title = f"Requires {save_ability} saving throw"
+            mnemonics.append(f"<span class=\"spell-mnemonic save\" title=\"{escape(title)}\">{escape(label)}</span>")
+    except Exception as exc:
+        console.warn(f"DEBUG: save mnemonic detection failed for {slug}: {exc}")
     
     # Add range mnemonic
     range_text = spell.get("range", "").lower()
@@ -2973,6 +3045,7 @@ def handle_spell_card_action(event, action: str, slug: str):
 
 def apply_spell_filters(auto_select: bool = False):
     console.log(f"DEBUG: apply_spell_filters() called with auto_select={auto_select}")
+    _ensure_spell_library_seeded(reason="apply_filters")
     profile = compute_spellcasting_profile()
     profile_signature = ",".join(profile["allowed_classes"]) + f"|{profile['max_spell_level']}"
     if profile_signature != SPELL_LIBRARY_STATE.get("last_profile_signature"):
@@ -4660,6 +4733,17 @@ def submit_custom_item(_event=None):
 def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str = "", damage_type: str = "", 
                        range_text: str = "", properties: str = "", ac_string: str = "", armor_class: str = ""):
     """Add an Open5e item to inventory with all properties"""
+    global INVENTORY_MANAGER
+    if INVENTORY_MANAGER is None:
+        if InventoryManager is None:
+            console.warn("PySheet: INVENTORY_MANAGER is not initialized; cannot add Open5e item")
+            return
+        try:
+            INVENTORY_MANAGER = InventoryManager()
+            console.log("DEBUG: submit_open5e_item created INVENTORY_MANAGER on-demand")
+        except Exception as exc:
+            console.warn(f"PySheet: Unable to create INVENTORY_MANAGER: {exc}")
+            return
     # Build a properties dict to store extra info as JSON in notes
     extra_props = {}
     if damage:
@@ -4680,7 +4764,9 @@ def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str 
     
     INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category="", notes=notes, source="open5e")
     INVENTORY_MANAGER.render_inventory()
+    console.log("DEBUG: submit_open5e_item calling schedule_auto_export()")
     schedule_auto_export()
+    console.log("DEBUG: submit_open5e_item completed schedule_auto_export()")
 
 
 # Class Features & Feats functions
@@ -5087,20 +5173,10 @@ def handle_input_event(event=None):
         if target_id == "domain":
             value = getattr(event.target, "value", "")
             console.log(f"DEBUG: domain input event fired! New value: {value}, SPELLCASTING_MANAGER={SPELLCASTING_MANAGER is not None}")
-            # Auto-populate domain spells when domain is selected
-            if value and SPELL_LIBRARY_STATE.get("loaded") and SPELLCASTING_MANAGER is not None:
-                level = get_numeric_value("level", 1)
-                domain_spells = get_domain_bonus_spells(value, level)
-                console.log(f"DEBUG: handle_input_event - Adding {len(domain_spells)} domain spells: {domain_spells}")
-                added_count = 0
-                for spell_slug in domain_spells:
-                    if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
-                        console.log(f"DEBUG: Adding domain spell from input event: {spell_slug}")
-                        SPELLCASTING_MANAGER.add_spell(spell_slug, is_domain_bonus=True)
-                        added_count += 1
-                console.log(f"DEBUG: Added {added_count} domain spells from input event")
-            else:
-                console.log(f"DEBUG: Skipped domain spell add - value={value}, loaded={SPELL_LIBRARY_STATE.get('loaded')}, manager={SPELLCASTING_MANAGER is not None}")
+            _ensure_domain_spells_in_spellbook(reason="domain_change")
+        elif target_id == "level":
+            # Ensure newly unlocked domain spells are added when leveling up
+            _ensure_domain_spells_in_spellbook(reason="level_change")
         # Auto-check proficiency if expertise is checked
         elif target_id.endswith("-exp") and event.target.checked:
             skill_name = target_id[:-4]  # Remove "-exp" suffix
@@ -5289,39 +5365,73 @@ def load_initial_state():
     populate_form(clone_default_state())
 
 
-# Auto-populate domain spells if domain is set and spell library is loaded
-def _populate_domain_spells_on_load():
-    console.log(f"DEBUG: _populate_domain_spells_on_load() called, SPELLCASTING_MANAGER={SPELLCASTING_MANAGER}")
-    if SPELLCASTING_MANAGER is None:
-        console.warn("DEBUG: _populate_domain_spells_on_load - SPELLCASTING_MANAGER is None, skipping")
-        console.log(f"DEBUG: SpellcastingManager class={SpellcastingManager}")
+# Spell library safety: ensure fallback data is seeded if map is empty
+def _ensure_spell_library_seeded(reason: str = "unspecified"):
+    if SPELL_LIBRARY_STATE.get("spell_map"):
         return
-    
+    console.log(f"DEBUG: _ensure_spell_library_seeded(reason={reason}) - seeding fallback spells")
+    set_spell_library_data(LOCAL_SPELLS_FALLBACK)
+    SPELL_LIBRARY_STATE["loaded"] = True
+
+
+# Auto-populate domain spells if domain is set and spell library is loaded
+def _ensure_domain_spells_in_spellbook(reason: str = "unspecified"):
+    """Ensure all domain bonus spells up to current level are prepared."""
+    global _DOMAIN_SPELL_SYNCING
+    if _DOMAIN_SPELL_SYNCING:
+        return
+    _DOMAIN_SPELL_SYNCING = True
+    console.log(f"DEBUG: _ensure_domain_spells_in_spellbook(reason={reason})")
+    _ensure_spell_library_seeded(reason="domain_sync")
+    if SPELLCASTING_MANAGER is None:
+        console.warn("DEBUG: _ensure_domain_spells_in_spellbook - SPELLCASTING_MANAGER is None, skipping")
+        console.log(f"DEBUG: SpellcastingManager class={SpellcastingManager}")
+        _DOMAIN_SPELL_SYNCING = False
+        return
+
     domain = get_text_value("domain")
     loaded = SPELL_LIBRARY_STATE.get("loaded")
-    console.log(f"DEBUG: _populate_domain_spells_on_load - domain={domain}, loaded={loaded}")
-    
-    if domain and loaded:
-        level = get_numeric_value("level", 1)
-        domain_spells = get_domain_bonus_spells(domain, level)
-        console.log(f"DEBUG: _populate_domain_spells_on_load - domain={domain}, level={level}, spells={domain_spells}")
-        
-        prepared_before = len(SPELLCASTING_MANAGER.get_prepared_slug_set())
-        added_count = 0
-        for spell_slug in domain_spells:
-            if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
-                console.log(f"DEBUG: Adding domain spell {spell_slug}")
-                result = SPELLCASTING_MANAGER.add_spell(spell_slug, is_domain_bonus=True)
-                console.log(f"DEBUG: add_spell({spell_slug}, is_domain_bonus=True) returned: {result}")
-                added_count += 1
-            else:
-                console.log(f"DEBUG: Domain spell {spell_slug} already prepared")
-        prepared_after = len(SPELLCASTING_MANAGER.get_prepared_slug_set())
-        console.log(f"DEBUG: Domain spells added: {added_count} new spells (before={prepared_before}, after={prepared_after}, total in list={len(domain_spells)})")
-        if added_count > 0:
-            update_calculations()
-    else:
-        console.log(f"DEBUG: _populate_domain_spells_on_load - skipped (domain={domain}, loaded={loaded})")
+    level = get_numeric_value("level", 1)
+    console.log(f"DEBUG: _ensure_domain_spells_in_spellbook - domain={domain}, level={level}, loaded={loaded}")
+
+    if not domain or not loaded:
+        console.log(f"DEBUG: _ensure_domain_spells_in_spellbook - skipped (domain={domain}, loaded={loaded})")
+        return
+
+    domain_spells = get_domain_bonus_spells(domain, level)
+    console.log(f"DEBUG: _ensure_domain_spells_in_spellbook - spells={domain_spells}")
+
+    prepared_before = len(SPELLCASTING_MANAGER.get_prepared_slug_set())
+    added_count = 0
+    flagged_count = 0
+    for spell_slug in domain_spells:
+        if not SPELLCASTING_MANAGER.is_spell_prepared(spell_slug):
+            console.log(f"DEBUG: Adding domain spell {spell_slug}")
+            SPELLCASTING_MANAGER.add_spell(spell_slug, is_domain_bonus=True)
+            added_count += 1
+        else:
+            # Ensure already-prepared domain spells are flagged as domain bonus
+            updated = False
+            for entry in getattr(SPELLCASTING_MANAGER, "prepared", []):
+                if entry.get("slug") == spell_slug and not entry.get("is_domain_bonus"):
+                    entry["is_domain_bonus"] = True
+                    updated = True
+                    flagged_count += 1
+                    console.log(f"DEBUG: Flagged existing spell as domain bonus: {spell_slug}")
+                    break
+            if not updated:
+                console.log(f"DEBUG: Domain spell {spell_slug} already prepared and flagged")
+    prepared_after = len(SPELLCASTING_MANAGER.get_prepared_slug_set())
+    console.log(f"DEBUG: Domain spells added: {added_count} new spells, flagged={flagged_count} existing (before={prepared_before}, after={prepared_after}, total in list={len(domain_spells)})")
+    if added_count > 0 or flagged_count > 0:
+        SPELLCASTING_MANAGER.render_spellbook()
+        update_calculations()
+    _DOMAIN_SPELL_SYNCING = False
+
+
+def _populate_domain_spells_on_load():
+    # Backward-compatible wrapper used during initialization
+    _ensure_domain_spells_in_spellbook(reason="initial_load")
 
 
 # Only run module initialization if we're in a PyScript environment (document is not None)

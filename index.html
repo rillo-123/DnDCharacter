@@ -275,7 +275,7 @@
                 <section class="card equipment-right-column" style="grid-column: 2 / -1;">
                     <div class="inventory-section">
                         <div class="inventory-title-bar">
-                            <h2>Your Inventory</h2>
+                            <h2>Equipment &amp; Wealth</h2>
                             <div class="inventory-counter-wrapper">
                                 <button id="equipment-clear-btn" type="button" py-click="clear_equipment_list" class="outline">Clear</button>
                             </div>
@@ -284,7 +284,7 @@
                             <span>Total Weight: <strong id="equipment-total-weight">0</strong> lb</span>
                             <span>Total Cost: <strong id="equipment-total-cost">0</strong> gp</span>
                         </div>
-                        <div class="inventory-container">
+                        <div id="equipment-table" class="inventory-container">
                             <ul id="inventory-list" class="inventory-list"></ul>
                             <div class="inventory-empty" id="inventory-empty-state">No items yet. Use the Equipment Library to add items to your inventory.</div>
                         </div>

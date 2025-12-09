@@ -11,11 +11,109 @@ from __future__ import annotations
 
 import copy
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Iterator, Mapping, MutableMapping, Optional, Tuple
 
 DEFAULT_ABILITY_KEYS: Tuple[str, ...] = ("str", "dex", "con", "int", "wis", "cha")
 
 AbilityState = Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class CharacterClassInfo:
+    """Lightweight container for core class metadata."""
+
+    key: str
+    hit_die: str
+    armor_proficiencies: Tuple[str, ...]
+    weapon_proficiencies: Tuple[str, ...]
+
+
+CLASS_REGISTRY: Dict[str, CharacterClassInfo] = {
+    "barbarian": CharacterClassInfo(
+        key="barbarian",
+        hit_die="1d12",
+        armor_proficiencies=("Light armor", "Medium armor", "Shields"),
+        weapon_proficiencies=("Simple melee", "Martial melee"),
+    ),
+    "bard": CharacterClassInfo(
+        key="bard",
+        hit_die="1d8",
+        armor_proficiencies=("Light armor",),
+        weapon_proficiencies=("Simple melee", "Hand crossbows", "Longswords", "Rapiers", "Shortswords"),
+    ),
+    "cleric": CharacterClassInfo(
+        key="cleric",
+        hit_die="1d8",
+        armor_proficiencies=("Light armor", "Medium armor", "Shields"),
+        weapon_proficiencies=("Simple melee", "Simple ranged"),
+    ),
+    "druid": CharacterClassInfo(
+        key="druid",
+        hit_die="1d8",
+        armor_proficiencies=("Light armor", "Medium armor", "Shields"),
+        weapon_proficiencies=(
+            "Clubs",
+            "Daggers",
+            "Darts",
+            "Javelins",
+            "Maces",
+            "Quarterstaffs",
+            "Scimitars",
+            "Sickles",
+            "Slings",
+            "Spears",
+        ),
+    ),
+    "fighter": CharacterClassInfo(
+        key="fighter",
+        hit_die="1d10",
+        armor_proficiencies=("All armor", "Shields"),
+        weapon_proficiencies=("Simple melee", "Simple ranged", "Martial melee", "Martial ranged"),
+    ),
+    "monk": CharacterClassInfo(
+        key="monk",
+        hit_die="1d8",
+        armor_proficiencies=("None",),
+        weapon_proficiencies=("Simple melee", "Shortswords"),
+    ),
+    "paladin": CharacterClassInfo(
+        key="paladin",
+        hit_die="1d10",
+        armor_proficiencies=("All armor", "Shields"),
+        weapon_proficiencies=("Simple melee", "Simple ranged", "Martial melee", "Martial ranged"),
+    ),
+    "ranger": CharacterClassInfo(
+        key="ranger",
+        hit_die="1d10",
+        armor_proficiencies=("Light armor", "Medium armor", "Shields"),
+        weapon_proficiencies=("Simple melee", "Simple ranged", "Martial melee", "Martial ranged"),
+    ),
+    "rogue": CharacterClassInfo(
+        key="rogue",
+        hit_die="1d8",
+        armor_proficiencies=("Light armor",),
+        weapon_proficiencies=("Hand crossbows", "Longswords", "Rapiers", "Shortswords", "Simple melee"),
+    ),
+    "sorcerer": CharacterClassInfo(
+        key="sorcerer",
+        hit_die="1d6",
+        armor_proficiencies=("None",),
+        weapon_proficiencies=("Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"),
+    ),
+    "warlock": CharacterClassInfo(
+        key="warlock",
+        hit_die="1d8",
+        armor_proficiencies=("Light armor",),
+        weapon_proficiencies=("Simple melee",),
+    ),
+    "wizard": CharacterClassInfo(
+        key="wizard",
+        hit_die="1d6",
+        armor_proficiencies=("None",),
+        weapon_proficiencies=("Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"),
+    ),
+}
 
 RACE_ABILITY_BONUSES: Dict[str, Dict[str, int]] = {
     "human": {"str": 1, "dex": 1, "con": 1, "int": 1, "wis": 1, "cha": 1},
@@ -48,6 +146,37 @@ def get_race_ability_bonuses(race: str) -> Dict[str, int]:
         return {}
     race_lower = race.strip().lower()
     return copy.copy(RACE_ABILITY_BONUSES.get(race_lower, {}))
+
+
+def get_class_info(raw: Optional[str]) -> Optional[CharacterClassInfo]:
+    """Return class metadata for the first recognized class token."""
+
+    tokens = Character._extract_class_tokens(raw)  # pylint: disable=protected-access
+    for token in tokens:
+        if token in CLASS_REGISTRY:
+            return CLASS_REGISTRY[token]
+    return None
+
+
+def get_class_hit_die(raw: Optional[str]) -> str:
+    info = get_class_info(raw)
+    return info.hit_die if info else "1d8"
+
+
+def get_class_armor_proficiencies(raw: Optional[str], domain: str = "") -> Tuple[str, ...]:
+    info = get_class_info(raw)
+    if not info:
+        return ("None",)
+    if info.key == "cleric" and domain and "life" in domain.lower():
+        # Life Domain clerics get Heavy Armor proficiency.
+        if "Heavy armor" not in info.armor_proficiencies:
+            return info.armor_proficiencies + ("Heavy armor",)
+    return info.armor_proficiencies
+
+
+def get_class_weapon_proficiencies(raw: Optional[str]) -> Tuple[str, ...]:
+    info = get_class_info(raw)
+    return info.weapon_proficiencies if info else ("None",)
 
 
 class AbilityAccessor:
@@ -413,4 +542,11 @@ __all__ = [
     "Bard",
     "Cleric",
     "CharacterFactory",
+    "CharacterClassInfo",
+    "CLASS_REGISTRY",
+    "get_class_info",
+    "get_class_hit_die",
+    "get_class_armor_proficiencies",
+    "get_class_weapon_proficiencies",
+    "get_race_ability_bonuses",
 ]

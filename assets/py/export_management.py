@@ -8,6 +8,8 @@ Extracted from character.py to reduce monolithic size and improve maintainabilit
 
 import json
 import re
+import sys
+import importlib
 from datetime import datetime, timedelta
 from typing import Optional
 import asyncio
@@ -54,9 +56,14 @@ try:
 except (ImportError, AttributeError):
     # Mock console for non-PyScript environments
     class MockConsole:
-        def log(self, msg): print(msg)
-        def warn(self, msg): print(f"WARN: {msg}")
-        def error(self, msg): print(f"ERROR: {msg}")
+        def log(self, *args):
+            print(" ".join(str(a) for a in args))
+
+        def warn(self, *args):
+            print("WARN: " + " ".join(str(a) for a in args))
+
+        def error(self, *args):
+            print("ERROR: " + " ".join(str(a) for a in args))
     console = MockConsole()
 
 # ===================================================================
@@ -90,6 +97,41 @@ _AUTO_EXPORT_SETUP_PROMPTED = False
 
 # Event proxy list (for memory management)
 _EVENT_PROXIES = []
+
+
+def _resolve_timers():
+    """Return callable setTimeout/clearTimeout, preferring globals then window/js."""
+    try_set = setTimeout
+    try_clear = clearTimeout
+
+    # Prefer window methods if globals are missing
+    if (try_set is None or try_clear is None) and window is not None:
+        try_set = try_set or getattr(window, "setTimeout", None)
+        try_clear = try_clear or getattr(window, "clearTimeout", None)
+
+    # Fall back to js imports if still missing
+    if try_set is None or try_clear is None:
+        try:
+            from js import setTimeout as js_setTimeout, clearTimeout as js_clearTimeout  # type: ignore
+
+            try_set = try_set or js_setTimeout
+            try_clear = try_clear or js_clearTimeout
+        except Exception:
+            pass
+
+    return try_set, try_clear
+
+
+def _get_character_module():
+    """Return the character module regardless of how it was loaded."""
+    try:
+        module = sys.modules.get("character") or sys.modules.get("__main__")
+        if module is not None:
+            return module
+        return importlib.import_module("character")
+    except Exception as exc:  # pragma: no cover - runtime safeguard
+        console.warn(f"[export] unable to resolve character module: {exc}")
+        return None
 
 
 def _resolve_local_storage():
@@ -641,42 +683,77 @@ async def export_character(_event=None, *, auto: bool = False):
     storage = _resolve_local_storage()
     if window is None or document is None or storage is None:
         return
-    
+
     def show_saving_state():
         """Show green SAVING state."""
         indicator = document.getElementById("saving-indicator")
         if indicator:
             indicator.classList.remove("recording", "fading")
             indicator.classList.add("saving")
-    
+            indicator.style.display = "flex"
+            indicator.style.opacity = "1"
+
     def fade_indicator():
         """Fade to gray and remove."""
         indicator = document.getElementById("saving-indicator")
         if indicator:
             indicator.classList.remove("saving", "recording")
             indicator.classList.add("fading")
-    
-    if auto and _AUTO_EXPORT_DISABLED:
+            indicator.style.display = "flex"
+            # Hide after the CSS fade completes
+            try:
+                def _hide_after_fade(*_args):
+                    try:
+                        indicator.style.display = "none"
+                    except Exception:
+                        return
+
+                if setTimeout is not None:
+                    proxy = create_proxy(_hide_after_fade)
+                    _EVENT_PROXIES.append(proxy)
+                    setTimeout(proxy, 1200)
+                else:
+                    indicator.style.display = "none"
+            except Exception as exc:
+                console.warn(f"[DEBUG][export] unable to hide saving-indicator: {exc}")
+
+    character_module = _get_character_module()
+    collect_character_data = getattr(character_module, "collect_character_data", None) if character_module else None
+    if collect_character_data is None:
+        console.error("PySheet: export failed before write - collect_character_data unavailable")
+        fade_indicator()
+        return
+
+    try:
+        data = collect_character_data()
+        payload = json.dumps(data)
+    except Exception as exc:
+        console.error(f"PySheet: export failed before write - {exc}")
         fade_indicator()
         return
     
-    if not auto and _AUTO_EXPORT_DISABLED:
-        _AUTO_EXPORT_DISABLED = False
-        _AUTO_EXPORT_DIRECTORY_HANDLE = None
-        _AUTO_EXPORT_FILE_HANDLE = None
-        _AUTO_EXPORT_LAST_FILENAME = ""
-        _AUTO_EXPORT_SETUP_PROMPTED = False
-        console.log("PySheet: auto-export re-enabled after manual export request")
-    
-    try:
-        from character import collect_character_data
-        data = collect_character_data()
-    except (ImportError, Exception) as exc:
-        console.error(f"PySheet: failed to collect character data - {exc}")
-        return
-    
-    payload = json.dumps(data, indent=2)
-    
+    if auto and _AUTO_EXPORT_DISABLED:
+        fade_indicator()
+
+        # New debug logging for indicator state
+        indicator = document.getElementById("saving-indicator") if document is not None else None
+        if indicator:
+            try:
+                computed = window.getComputedStyle(indicator)
+                console.log(
+                    "[DEBUG][export] saving-indicator state",
+                    {
+                        "classList": list(indicator.classList),
+                        "inline.display": indicator.style.display,
+                        "inline.opacity": indicator.style.opacity,
+                        "inline.visibility": indicator.style.visibility,
+                        "computed.display": computed.display if computed else None,
+                        "computed.opacity": computed.opacity if computed else None,
+                        "computed.visibility": computed.visibility if computed else None,
+                    },
+                )
+            except Exception as exc:
+                console.warn(f"[DEBUG][export] unable to inspect saving-indicator: {exc}")
     # For auto-exports: skip only if data hasn't changed AND we've already exported today
     if auto and payload == _LAST_AUTO_EXPORT_SNAPSHOT:
         today = datetime.now().strftime("%Y%m%d")
@@ -876,14 +953,53 @@ def schedule_auto_export():
     """
     global _AUTO_EXPORT_TIMER_ID, _AUTO_EXPORT_EVENT_COUNT
     storage = _resolve_local_storage()
+
+    # If this module was imported in a non-browser context (e.g. test harness) but later
+    # executed in PyScript, try to re-hydrate the browser globals before bailing.
+    if window is None or document is None:
+        try:  # noqa: SIM105 - explicit rebind of globals is intentional
+            from js import window as js_window, document as js_document, setTimeout as js_setTimeout, clearTimeout as js_clearTimeout  # type: ignore
+
+            globals()["window"] = js_window
+            globals()["document"] = js_document
+            if setTimeout is None:
+                globals()["setTimeout"] = js_setTimeout
+            if clearTimeout is None:
+                globals()["clearTimeout"] = js_clearTimeout
+            console.log("[DEBUG][auto-export] rehydrated window/document from js import")
+        except Exception as exc:  # pragma: no cover - defensive logging for PyScript
+            console.warn(f"[DEBUG][auto-export] failed to rehydrate window/document: {exc}")
+        else:
+            # Re-check storage now that browser globals exist
+            storage = storage or _resolve_local_storage()
+
     if _AUTO_EXPORT_SUPPRESS or window is None or document is None or storage is None:
+        console.log(
+            "[DEBUG][auto-export] skip:",
+            {
+                "suppress": _AUTO_EXPORT_SUPPRESS,
+                "has_window": window is not None,
+                "has_document": document is not None,
+                "has_storage": storage is not None,
+            },
+        )
         return
     
     _AUTO_EXPORT_EVENT_COUNT = min(_AUTO_EXPORT_EVENT_COUNT + 1, AUTO_EXPORT_MAX_EVENTS)
+    console.log(
+        "[DEBUG][auto-export] enter:",
+        {
+            "event_count": _AUTO_EXPORT_EVENT_COUNT,
+            "suppress": _AUTO_EXPORT_SUPPRESS,
+        },
+    )
     
     # Always save to localStorage immediately to preserve data across page refreshes
     try:
-        from character import collect_character_data
+        character_module = _get_character_module()
+        collect_character_data = getattr(character_module, "collect_character_data", None) if character_module else None
+        if collect_character_data is None:
+            raise ImportError("collect_character_data not available")
         data = collect_character_data()
         storage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
     except Exception as exc:
@@ -894,6 +1010,26 @@ def schedule_auto_export():
     if indicator:
         indicator.classList.remove("saving", "fading")
         indicator.classList.add("recording")
+        # Force visibility in cases where CSS hasn't applied yet
+        indicator.style.display = "flex"
+        indicator.style.opacity = "1"
+        try:
+            # Debug the current visual state to help diagnose why the lamp may be hidden
+            computed = window.getComputedStyle(indicator)
+            console.log(
+                "[DEBUG][auto-export] saving-indicator state",
+                {
+                    "classList": list(indicator.classList),
+                    "inline.display": indicator.style.display,
+                    "inline.opacity": indicator.style.opacity,
+                    "inline.visibility": indicator.style.visibility,
+                    "computed.display": computed.display if computed else None,
+                    "computed.opacity": computed.opacity if computed else None,
+                    "computed.visibility": computed.visibility if computed else None,
+                },
+            )
+        except Exception as exc:
+            console.warn(f"[DEBUG][auto-export] unable to inspect saving-indicator: {exc}")
     
     # If auto-export is disabled, don't actually schedule the export timer
     if _AUTO_EXPORT_DISABLED:
@@ -903,10 +1039,16 @@ def schedule_auto_export():
     console.log(f"DEBUG: schedule_auto_export called! Event count: {_AUTO_EXPORT_EVENT_COUNT}")
     
     proxy = _ensure_auto_export_proxy()
-    if _AUTO_EXPORT_TIMER_ID is not None:
-        clearTimeout(_AUTO_EXPORT_TIMER_ID)
+
+    timer_set, timer_clear = _resolve_timers()
+    if timer_set is None:
+        console.warn("[DEBUG][auto-export] setTimeout unavailable; skipping schedule")
+        return
+
+    if _AUTO_EXPORT_TIMER_ID is not None and timer_clear is not None:
+        timer_clear(_AUTO_EXPORT_TIMER_ID)
     remaining = AUTO_EXPORT_MAX_EVENTS - _AUTO_EXPORT_EVENT_COUNT
     interval = AUTO_EXPORT_DELAY_MS
     if remaining <= 0:
         interval = int(AUTO_EXPORT_DELAY_MS * 0.25)
-    _AUTO_EXPORT_TIMER_ID = setTimeout(proxy, interval)
+    _AUTO_EXPORT_TIMER_ID = timer_set(proxy, interval)

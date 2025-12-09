@@ -6,10 +6,19 @@ Handles spellbook management, spell slots, prepared spells, and spell library in
 import copy
 import json
 import re
-import asyncio
+import sys
 from html import escape
-from math import ceil
 from typing import Union, Optional
+from pathlib import Path
+
+# Ensure __file__ is always set for diagnostics and tests
+_module_path = Path(globals().get("__file__", Path.cwd() / "assets" / "py" / "spellcasting.py"))
+try:
+    _module_path = _module_path.resolve()
+except Exception:
+    pass
+__file__ = str(_module_path)
+sys.modules[__name__].__file__ = __file__
 
 # Try to import PyScript/Pyodide components
 try:
@@ -48,11 +57,8 @@ try:
         LOCAL_SPELLS_FALLBACK,
         SPELL_CLASS_SYNONYMS,
         SPELL_CLASS_DISPLAY_NAMES,
-        SPELL_CORRECTIONS,
         apply_spell_corrections,
         is_spell_source_allowed,
-        CLASS_CASTING_PROGRESSIONS,
-        SPELLCASTING_PROGRESSION_TABLES,
         STANDARD_SLOT_TABLE,
         PACT_MAGIC_TABLE,
         SUPPORTED_SPELL_CLASSES,
@@ -66,18 +72,14 @@ except ImportError:
     LOCAL_SPELLS_FALLBACK = []
     SPELL_CLASS_SYNONYMS = {}
     SPELL_CLASS_DISPLAY_NAMES = {}
-    SPELL_CORRECTIONS = {}
     apply_spell_corrections = lambda spell: spell
     is_spell_source_allowed = lambda source: True
-    CLASS_CASTING_PROGRESSIONS = {}
-    SPELLCASTING_PROGRESSION_TABLES = {}
     STANDARD_SLOT_TABLE = {}
     SUPPORTED_SPELL_CLASSES = {"artificer", "bard", "cleric", "druid", "paladin", "ranger", "sorcerer", "warlock", "wizard"}
     SPELL_LIBRARY_STORAGE_KEY = "pysheet_spell_cache"
     SPELL_CACHE_VERSION = 1
     OPEN5E_SPELLS_ENDPOINT = "https://api.open5e.com/spells/?limit=1000"
     OPEN5E_MAX_PAGES = 10
-    PACT_MAGIC_TABLE_OLD = {}
 SPELL_LIBRARY_STATE = {
     "spells": [],
     "spell_map": {},
@@ -214,6 +216,44 @@ def _coerce_spell_text(value) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def _detect_saving_throw(spell: dict) -> tuple[bool, str | None]:
+    """Detect if a spell calls for a REQUIRED saving throw and return (has_save, ability).
+    
+    Only matches when spell text says the target "must" make a save or "fails" one.
+    This filters out spells like Bless that just mention saving throws as optional outcomes.
+    """
+    ability_names = {
+        "strength": "STR",
+        "dexterity": "DEX",
+        "constitution": "CON",
+        "intelligence": "INT",
+        "wisdom": "WIS",
+        "charisma": "CHA",
+    }
+    # Only match if the spell text says the target "must" make a save or "fails" one
+    # Matches patterns like:
+    #   "must succeed on a Dexterity saving throw"
+    #   "must make a Wisdom saving throw"
+    #   "if it fails a Dexterity saving throw"
+    save_regex = re.compile(
+        r"(?:must\s+(?:succeed\s+on\s+|make\s+)(?:a|an)\s+|if\s+it\s+fails\s+(?:a|an)\s+)"
+        r"(strength|dexterity|constitution|intelligence|wisdom|charisma)\s+saving throw",
+        re.IGNORECASE
+    )
+    candidates = []
+    for field in ("dc", "saving_throw", "desc", "higher_level", "description", "description_html"):
+        value = spell.get(field)
+        if isinstance(value, (list, tuple)):
+            value = " ".join(_coerce_spell_text(v) for v in value)
+        candidates.append(_coerce_spell_text(value))
+    for text in candidates:
+        match = save_regex.search(text)
+        if match:
+            ability = match.group(1).lower()
+            return True, ability_names.get(ability)
+    return False, None
 
 
 def _make_paragraphs(text: str) -> str:
@@ -641,6 +681,11 @@ class SpellcastingManager:
                     mnemonics.append("<span class=\"spell-mnemonic\" title=\"Ritual\">Rit.</span>")
                 if record.get("is_domain_bonus"):
                     mnemonics.append("<span class=\"spell-mnemonic domain\" title=\"Domain Bonus\">Dom.</span>")
+                save_required, save_ability = _detect_saving_throw(record)
+                if save_required and save_ability:
+                    label = f"Save: {save_ability}"
+                    title = f"Requires {save_ability} saving throw"
+                    mnemonics.append(f"<span class=\"spell-mnemonic save\" title=\"{escape(title)}\">{escape(label)}</span>")
                 
                 # Add range mnemonic
                 range_text = record.get("range", "").lower()
