@@ -585,6 +585,15 @@ class InventoryManager:
                 category_select_html += '</select>'
                 body_html += f'<div class="inventory-item-field"><label>Category</label>{category_select_html}</div>'
                 
+                # Determine if item is equipable (armor or weapon)
+                is_armor = category in ["Armor", "Weapons"]
+                is_weapon = category == "Weapons"
+                equipable = is_armor
+                equipped_checked = "checked" if item.get("equipped") else ""
+                equipped_html = ""
+                if equipable:
+                    equipped_html = f'<label class="inventory-item-equipped" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;"><input type="checkbox" data-item-equipped="{item_id}" {equipped_checked} class="equipment-equipped-check" style="cursor: pointer;"><span style="font-size: 0.9rem;">Equipped</span></label>'
+                
                 category_html += f'''<li class="inventory-item" data-item-id="{escape(item_id)}">
                     <div class="inventory-item-summary" data-toggle-item="{escape(item_id)}">
                         <div class="inventory-item-main">
@@ -595,6 +604,7 @@ class InventoryManager:
                             {details_html}
                         </div>
                         <div class="inventory-item-actions">
+                            {equipped_html}
                             <button class="inventory-item-remove" data-remove-item="{escape(item_id)}" type="button">Remove</button>
                         </div>
                     </div>
@@ -693,6 +703,14 @@ class InventoryManager:
             item_id = ac_input.getAttribute("data-item-armor-ac")
             proxy = create_proxy(lambda event, iid=item_id: self._handle_armor_ac_change(event, iid))
             ac_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Equipped checkboxes
+        equipped_checkboxes = inventory_list.querySelectorAll("[data-item-equipped]")
+        for checkbox in equipped_checkboxes:
+            item_id = checkbox.getAttribute("data-item-equipped")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_equipped_toggle(event, iid))
+            checkbox.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Magic Item fetch buttons
@@ -891,6 +909,26 @@ class InventoryManager:
             
             # Update calculations (which will recalculate AC with new armor base)
             update_calculations()
+            schedule_auto_export()
+
+    def _handle_equipped_toggle(self, event, item_id: str):
+        """Handle equipped checkbox toggle."""
+        checkbox = event.target
+        equipped = bool(checkbox.checked)
+        
+        # Update item's equipped flag
+        item = self.get_item(item_id)
+        if item:
+            self.update_item(item_id, {"equipped": equipped})
+            console.log(f"PySheet: Equipment {item.get('name')} equipped={equipped}")
+            
+            # Recalculate AC
+            update_calculations()
+            
+            # Re-render attack grid (imported from character.py)
+            render_equipped_attack_grid()
+            
+            # Auto-save
             schedule_auto_export()
 
     
