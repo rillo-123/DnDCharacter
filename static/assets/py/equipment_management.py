@@ -7,6 +7,7 @@ import json
 import re
 from typing import Union, Optional
 from html import escape
+from entities import Entity
 
 # =============================================================================
 # PyScript/Pyodide Imports with Guards
@@ -193,8 +194,8 @@ def generate_id(prefix: str) -> str:
 # Item Classes
 # =============================================================================
 
-class Item:
-    """Base class for all inventory items."""
+class Item(Entity):
+    """Base class for all inventory items - inherits from Entity for unified object model."""
     
     def __init__(self, name: str, cost: str = "", weight: str = "", qty: int = 1, category: str = "", notes: str = "", source: str = "custom"):
         """Initialize an Item.
@@ -208,7 +209,7 @@ class Item:
             notes: JSON string of extra properties
             source: Source of item (custom, open5e, phb, etc.)
         """
-        self.name = name
+        super().__init__(name, entity_type="item", description="")
         self.cost = cost
         self.weight = weight
         self.qty = qty
@@ -219,16 +220,17 @@ class Item:
     
     def to_dict(self) -> dict:
         """Convert item to dictionary for storage."""
-        return {
+        d = super().to_dict()
+        d.update({
             "id": self.id,
-            "name": self.name,
             "cost": self.cost,
             "weight": self.weight,
             "qty": self.qty,
             "category": self.category,
             "notes": self.notes,
             "source": self.source,
-        }
+        })
+        return d
     
     @classmethod
     def from_dict(cls, data: dict) -> "Item":
