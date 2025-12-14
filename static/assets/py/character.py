@@ -5689,6 +5689,15 @@ def handle_adjust_button(event=None):
     # Set the new value
     set_form_value(target_id, str(new_value))
     update_calculations()
+    
+    # Trigger auto-export
+    initialize_module_references()
+    if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+        try:
+            _EXPORT_MODULE_REF.schedule_auto_export()
+        except Exception as e:
+            console.error(f"ERROR in schedule_auto_export(): {e}")
+
 def register_event_listeners():
     console.log("[DEBUG] register_event_listeners() called - starting event registration")
     nodes = document.querySelectorAll("[data-character-input]")
