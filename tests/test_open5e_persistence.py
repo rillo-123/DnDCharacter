@@ -40,8 +40,6 @@ def test_open5e_item_added_to_inventory(monkeypatch):
     monkeypatch.setattr(export_management, "localStorage", storage)
     monkeypatch.setattr(export_management, "window", SimpleNamespace(localStorage=storage))
     monkeypatch.setattr(export_management, "document", _FakeDocument())
-    monkeypatch.setattr(export_management, "setTimeout", lambda fn, ms: None)
-    monkeypatch.setattr(export_management, "clearTimeout", lambda tid: None)
     monkeypatch.setattr(export_management, "_AUTO_EXPORT_DISABLED", True)
 
     def _fake_collect_character_data():
