@@ -842,21 +842,18 @@ async def export_character(_event=None, *, auto: bool = False):
                     except Exception:
                         return
 
-                if setTimeout is not None:
-                    # Schedule hiding with asyncio instead of JavaScript setTimeout to avoid proxy destruction
-                    async def _delayed_hide():
-                        await asyncio.sleep(1.2)
-                        try:
-                            _hide_after_fade()
-                        except Exception as exc:
-                            console.warn(f"[DEBUG][export] error hiding indicator: {exc}")
+                # Schedule hiding with asyncio instead of JavaScript setTimeout to avoid proxy destruction
+                async def _delayed_hide():
+                    await asyncio.sleep(1.2)
                     try:
-                        loop = asyncio.get_running_loop()
-                        loop.create_task(_delayed_hide())
-                    except RuntimeError:
-                        # No running loop, hide immediately
-                        indicator.style.display = "none"
-                else:
+                        _hide_after_fade()
+                    except Exception as exc:
+                        console.warn(f"[DEBUG][export] error hiding indicator: {exc}")
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(_delayed_hide())
+                except RuntimeError:
+                    # No running loop, hide immediately
                     indicator.style.display = "none"
             except Exception as exc:
                 console.warn(f"[DEBUG][export] unable to hide saving-indicator: {exc}")
