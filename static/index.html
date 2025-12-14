@@ -472,19 +472,22 @@
                 </section>
                 <section class="card">
                     <h2>Weapons</h2>
-                    <p class="hint">Add and track your equipped weapons, attacks, and bonuses.</p>
-                    <div class="weapons-library-controls">
-                        <div class="weapon-search-wrapper">
-                            <input type="search" id="weapon-search" placeholder="Search weapon (e.g., sword, bow)" py-change="handle_weapon_search" py-keydown="handle_weapon_search">
-                            <div class="weapon-dropdown" id="weapon-dropdown"></div>
-                        </div>
-                    </div>
-                    <div class="weapons-library-status" id="weapons-library-status">Loading weapons...</div>
-                    <div class="weapons-equipped">
-                        <h3>Equipped</h3>
-                        <div class="weapons-list" id="weapons-list"></div>
-                        <div class="weapons-empty" id="weapons-empty-state">No weapons equipped yet. Search and select weapons to add them.</div>
-                    </div>
+                    <table class="weapons-table">
+                        <thead>
+                            <tr>
+                                <th>Weapon</th>
+                                <th>To Hit</th>
+                                <th>Damage</th>
+                                <th>Range</th>
+                                <th>Properties</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weapons-grid">
+                            <tr id="weapons-empty-state">
+                                <td colspan="5" style="text-align: center; padding: 1rem;">No weapons equipped. Add weapons from your equipment inventory.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </section>
             </div>
         </section>

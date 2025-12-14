@@ -463,6 +463,64 @@ body {
     font-size: 1.05rem;
 }
 
+/* Weapons Grid Table - Similar to Skills Table */
+.weapons-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 0.8rem;
+    overflow: hidden;
+}
+
+.weapons-table th,
+.weapons-table td {
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.weapons-table th:nth-child(2),
+.weapons-table th:nth-child(3),
+.weapons-table th:nth-child(4),
+.weapons-table th:nth-child(5),
+.weapons-table td:nth-child(2),
+.weapons-table td:nth-child(3),
+.weapons-table td:nth-child(4),
+.weapons-table td:nth-child(5) {
+    text-align: center;
+}
+
+.weapons-table thead {
+    background: rgba(220, 38, 38, 0.35);
+    color: #fee2e2;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+}
+
+.weapons-table tbody tr:nth-child(odd) {
+    background: rgba(30, 41, 59, 0.5);
+}
+
+.weapons-table tbody tr:nth-child(even) {
+    background: rgba(30, 41, 59, 0.3);
+}
+
+.weapons-table tbody tr:hover {
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.weapons-table td:nth-child(2),
+.weapons-table td:nth-child(3) {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #fca5a5;
+}
+
+.weapons-table td:nth-child(1) {
+    font-weight: 500;
+    color: #e0f2fe;
+}
+
 .weapons-library-controls {
     display: flex;
     flex-direction: column;
