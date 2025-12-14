@@ -7,7 +7,18 @@ import json
 import re
 from typing import Union, Optional
 from html import escape
-from entities import Entity
+
+# Import Entity from same package
+try:
+    from entities import Entity
+except ImportError:
+    # For testing/non-PyScript environments, define a minimal Entity
+    class Entity:
+        def __init__(self, name: str, entity_type: str = "", description: str = ""):
+            self.name = name
+            self.entity_type = entity_type
+            self.description = description
+            self.properties = {}
 
 # =============================================================================
 # PyScript/Pyodide Imports with Guards
