@@ -19,7 +19,7 @@ def test_module_sys_path():
         print(f"  {i}. {exists} {path}")
     
     # Check for assets/py specifically
-    assets_py = Path(os.getcwd()) / "assets" / "py"
+    assets_py = Path(os.getcwd()) / "static" / "assets" / "py"
     print(f"\nassets/py path: {assets_py}")
     print(f"  Exists: {assets_py.exists()}")
     if assets_py.exists():

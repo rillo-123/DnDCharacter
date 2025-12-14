@@ -43,6 +43,12 @@ _EVENT_PROXIES = []
 EQUIPMENT_LIBRARY_STATE = {}
 WEAPON_LIBRARY_STATE = {"weapons": [], "weapon_map": {}, "loading": False, "loaded": False}
 
+# Module references captured at load time to avoid proxy lifecycle issues
+# These are set during module initialization and stay alive throughout
+# NOTE: We store MODULE references, not function references, to avoid PyScript proxy lifecycle issues
+_CHAR_MODULE_REF = None
+_EXPORT_MODULE_REF = None
+
 # =============================================================================
 # Armor Data & Classifications
 # =============================================================================
@@ -749,24 +755,18 @@ class InventoryManager:
         self.remove_item(item_id)
         self.render_inventory()
         update_calculations()
-        schedule_auto_export()
-    
     def _handle_qty_change(self, event, item_id: str):
         """Handle quantity changes."""
         qty_input = event.target
         qty = parse_int(qty_input.value, 1)
         self.update_item(item_id, {"qty": qty})
         self.render_inventory()
-        schedule_auto_export()
-    
     def _handle_category_change(self, event, item_id: str):
         """Handle category changes."""
         cat_select = event.target
         category = cat_select.value or "Other"
         self.update_item(item_id, {"category": category})
         self.render_inventory()
-        schedule_auto_export()
-    
     def _handle_custom_props_change(self, event, item_id: str):
         """Handle custom properties/effects changes."""
         props_input = event.target
@@ -792,8 +792,6 @@ class InventoryManager:
             notes = json.dumps(extra_props) if extra_props else ""
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()
-            schedule_auto_export()
-    
     def _handle_modifier_change(self, event, item_id: str, modifier_type: str):
         """Handle AC or Saves modifier changes."""
         mod_input = event.target
@@ -833,8 +831,6 @@ class InventoryManager:
             
             # Update calculations (which will recalculate AC and stats)
             update_calculations()
-            schedule_auto_export()
-    
     def _handle_armor_only_toggle(self, event, item_id: str):
         """Handle armor-only flag toggle for magic armor/shields."""
         checkbox = event.target
@@ -870,8 +866,6 @@ class InventoryManager:
             
             # Update calculations (which will recalculate AC and stats)
             update_calculations()
-            schedule_auto_export()
-    
     def _handle_armor_ac_change(self, event, item_id: str):
         """Handle armor AC base value changes."""
         ac_input = event.target
@@ -909,49 +903,41 @@ class InventoryManager:
             
             # Update calculations (which will recalculate AC with new armor base)
             update_calculations()
-            schedule_auto_export()
-
     def _handle_equipped_toggle(self, event, item_id: str):
         """Handle equipped checkbox toggle."""
-        checkbox = event.target
-        equipped = bool(checkbox.checked)
-        
-        # Update item's equipped flag
-        item = self.get_item(item_id)
-        if item:
-            self.update_item(item_id, {"equipped": equipped})
-            console.log(f"PySheet: Equipment {item.get('name')} equipped={equipped}")
+        try:
+            checkbox = event.target
+            equipped = bool(checkbox.checked)
             
-            # Recalculate AC - access from character.py module
-            try:
-                import sys
-                # Try to get from __main__ (character.py globals in PyScript)
-                character_module = sys.modules.get('__main__')
-                if character_module and hasattr(character_module, 'update_calculations'):
-                    character_module.update_calculations()
-                    console.log("DEBUG: Called update_calculations via __main__")
-            except Exception as e:
-                console.warn(f"DEBUG: Could not call update_calculations: {e}")
-            
-            # Re-render attack grid (from character.py)
-            try:
-                import sys
-                character_module = sys.modules.get('__main__')
-                if character_module and hasattr(character_module, 'render_equipped_attack_grid'):
-                    character_module.render_equipped_attack_grid()
-                    console.log("DEBUG: Called render_equipped_attack_grid via __main__")
-            except Exception as e:
-                console.warn(f"DEBUG: Could not call render_equipped_attack_grid: {e}")
-            
-            # Auto-save
-            try:
-                import sys
-                export_module = sys.modules.get('export_management')
-                if export_module and hasattr(export_module, 'schedule_auto_export'):
-                    export_module.schedule_auto_export()
-                    console.log("DEBUG: Called schedule_auto_export via export_management")
-            except Exception as e:
-                console.warn(f"DEBUG: Could not call schedule_auto_export: {e}")
+            # Update item's equipped flag
+            item = self.get_item(item_id)
+            if item:
+                self.update_item(item_id, {"equipped": equipped})
+                console.log(f"PySheet: Equipment {item.get('name')} equipped={equipped}")
+                
+                # Ensure module references are initialized (lazy initialization for export_management)
+                initialize_module_references()
+                
+                # Call update_calculations() through main module to avoid proxy lifecycle issues
+                if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'update_calculations'):
+                    try:
+                        _CHAR_MODULE_REF.update_calculations()
+                        console.log("DEBUG: Called update_calculations() - checkbox handler")
+                    except Exception as calc_err:
+                        console.error(f"ERROR in update_calculations(): {calc_err}")
+                        raise  # Re-raise so the outer handler catches it
+                
+                # Auto-save character data through export_management module reference
+                # Call directly through module to avoid PyScript proxy lifecycle issues
+                if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+                    try:
+                        _EXPORT_MODULE_REF.schedule_auto_export()
+                        console.log("DEBUG: Called schedule_auto_export() - checkbox handler")
+                    except Exception as export_err:
+                        console.error(f"ERROR in schedule_auto_export(): {export_err}")
+                        # Don't re-raise here, log but continue
+        except Exception as e:
+            console.error(f"CRITICAL ERROR in _handle_equipped_toggle: {e}")
 
     
     def _fetch_magic_item(self, item_id: str, url: str):
@@ -1036,8 +1022,6 @@ class InventoryManager:
                 self.update_item(item_id, item)
                 self.render_inventory()
                 update_calculations()
-                schedule_auto_export()
-                
                 console.log(f"PySheet: Updated magic item to '{name}'")
         except Exception as e:
             console.error(f"PySheet: Error parsing magic item: {e}")
@@ -1207,3 +1191,53 @@ def get_domain_bonus_spells(domain_name: str, current_level: int) -> list[str]:
         if level <= current_level:
             bonus_spells.extend(spells_by_level[level])
     return bonus_spells
+
+
+# =============================================================================
+# Module Initialization - Capture Function References
+# =============================================================================
+
+def initialize_module_references():
+    """Initialize references to character and export management modules.
+    
+    Called at module load and optionally on first handler use. Uses lazy initialization
+    to handle modules that haven't loaded yet at import time, especially export_management
+    which is imported after equipment_management in character.py.
+    
+    Important: We store MODULE references, not function references. Functions are called
+    through the module to avoid PyScript/Pyodide proxy lifecycle issues where borrowed
+    proxies are automatically destroyed.
+    """
+    global _CHAR_MODULE_REF, _EXPORT_MODULE_REF
+    
+    import sys
+    
+    # Capture main module reference (character.py) if not already done
+    if _CHAR_MODULE_REF is None:
+        _CHAR_MODULE_REF = sys.modules.get('__main__')
+        if _CHAR_MODULE_REF:
+            # Verify function exists
+            if hasattr(_CHAR_MODULE_REF, 'update_calculations'):
+                console.log("DEBUG: Captured __main__ module reference (update_calculations available)")
+            else:
+                _CHAR_MODULE_REF = None
+    
+    # Capture export management module reference (may not be loaded yet at module init time)
+    # This uses lazy initialization - if not captured at load time, will be captured on first use
+    if _EXPORT_MODULE_REF is None:
+        _EXPORT_MODULE_REF = sys.modules.get('export_management')
+        if _EXPORT_MODULE_REF:
+            # Verify function exists
+            if hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+                console.log("DEBUG: Captured export_management module reference (schedule_auto_export available)")
+            else:
+                _EXPORT_MODULE_REF = None
+        else:
+            console.log("DEBUG: export_management not yet in sys.modules (lazy init will retry on first use)")
+
+
+# Call initialization when module loads (idempotent - safe to call multiple times)
+try:
+    initialize_module_references()
+except Exception as e:
+    console.error(f"DEBUG: Failed to initialize module references at load time: {e}")

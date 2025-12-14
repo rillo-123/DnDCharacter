@@ -94,19 +94,29 @@ def _install_env(monkeypatch):
     return window, indicator, proxies
 
 
-def test_schedule_auto_export_uses_proxy_for_timeout(monkeypatch):
+def test_schedule_auto_export_uses_asyncio_for_timeout(monkeypatch):
+    """Test that schedule_auto_export uses asyncio.Task instead of setTimeout.
+    
+    The fix for borrowed proxy destruction is to use Python's asyncio.sleep()
+    instead of JavaScript's setTimeout. This keeps the callback in Python
+    and avoids proxy lifecycle issues.
+    """
+    import asyncio
+    
     window, indicator, proxies = _install_env(monkeypatch)
 
     em.schedule_auto_export()
 
-    # One proxy should be created for the debounced auto-export timer
-    assert proxies, "create_proxy should be used for setTimeout callback"
+    # Should NOT create proxies anymore (we use asyncio instead of setTimeout)
+    # The old test that checked for proxies is now obsolete
+    assert not proxies, "Should not use create_proxy when using asyncio"
 
-    # setTimeout should have been called with the proxy, not the original function
-    assert window._calls, "setTimeout should be invoked"
-    scheduled_callback, timeout = window._calls[0]
-    assert any(proxy is scheduled_callback for proxy, _ in proxies)
-    assert timeout > 0
+    # Should NOT have called setTimeout (using asyncio instead)
+    assert not window._calls, "Should use asyncio.Task instead of setTimeout"
+
+    # Instead, an asyncio Task should be scheduled
+    assert em._AUTO_EXPORT_TIMER_ID is not None
+    assert isinstance(em._AUTO_EXPORT_TIMER_ID, asyncio.Task)
 
     # Saving indicator should have been forced visible
     assert "recording" in indicator.classList

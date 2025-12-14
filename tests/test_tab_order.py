@@ -12,7 +12,7 @@ class TestTabOrder(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Load index.html once for all tests."""
-        html_path = Path(__file__).parent.parent / "index.html"
+        html_path = Path(__file__).parent.parent / "static" / "index.html"
         with open(html_path, 'r', encoding='utf-8') as f:
             cls.html_content = f.read()
     
@@ -42,7 +42,7 @@ class TestTabOrder(unittest.TestCase):
         expected_order = ['overview', 'skills', 'inventory', 'combat', 'spells', 'feats', 'manage']
         
         # Force fresh read from disk
-        html_path = Path(__file__).parent.parent / "index.html"
+        html_path = Path(__file__).parent.parent / "static" / "index.html"
         with open(html_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
@@ -119,7 +119,7 @@ class TestTabContent(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Load index.html once for all tests."""
-        html_path = Path(__file__).parent.parent / "index.html"
+        html_path = Path(__file__).parent.parent / "static" / "index.html"
         with open(html_path, 'r', encoding='utf-8') as f:
             cls.html_content = f.read()
     

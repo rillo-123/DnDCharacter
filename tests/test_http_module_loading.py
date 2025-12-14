@@ -88,8 +88,8 @@ def test_http_module_loading_with_real_files():
     """Test loading actual Python files from the workspace."""
     print("\n=== TEST: Load actual Python files ===")
     
-    spell_data_path = Path(__file__).parent.parent / "assets" / "py" / "spell_data.py"
-    spellcasting_path = Path(__file__).parent.parent / "assets" / "py" / "spellcasting.py"
+    spell_data_path = Path(__file__).parent.parent / "static" / "assets" / "py" / "spell_data.py"
+    spellcasting_path = Path(__file__).parent.parent / "static" / "assets" / "py" / "spellcasting.py"
     
     assert spell_data_path.exists(), f"spell_data.py should exist at {spell_data_path}"
     assert spellcasting_path.exists(), f"spellcasting.py should exist at {spellcasting_path}"
@@ -129,7 +129,7 @@ def test_fallback_import_chain():
     print("\n=== TEST: Fallback import chain ===")
     
     # First, load spell_data with its own dependencies
-    assets_py = Path(__file__).parent.parent / "assets" / "py"
+    assets_py = Path(__file__).parent.parent / "static" / "assets" / "py"
     if str(assets_py) not in sys.path:
         sys.path.insert(0, str(assets_py))
     

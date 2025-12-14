@@ -6,7 +6,7 @@ from html import escape
 from unittest.mock import Mock, patch, MagicMock
 
 # Add assets/py to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "assets" / "py"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
 import pytest
 

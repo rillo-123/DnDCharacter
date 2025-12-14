@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "assets" / "py"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
 # Import equipment classes
 # Note: character.py imports from 'js' which is PyScript-specific

@@ -16,21 +16,56 @@ import asyncio
 
 # Guard for PyScript/Pyodide environment
 try:
-    from js import window, document, setTimeout, clearTimeout, localStorage, fetch, Blob, URL, FileReader
+    from js import window
     from pyodide import create_proxy, JsException
+    try:
+        from pyodide import create_once_callable
+    except ImportError:
+        # Older versions don't have create_once_callable
+        create_once_callable = None
+    _js_module_available = True
 except ImportError:
     # Non-PyScript environment (testing)
     window = None
-    document = None
-    setTimeout = None
-    clearTimeout = None
-    localStorage = None
-    fetch = None
-    Blob = None
-    URL = None
-    FileReader = None
+    _js_module_available = False
     create_proxy = lambda x: x
+    create_once_callable = None
     JsException = Exception
+
+# Lazy-initialized JS globals (set to None initially, will be initialized on first use)
+document = None
+fetch = None
+localStorage = None
+
+
+def _initialize_js_globals():
+    """Initialize JS globals from the js module. Called once on first use."""
+    global document, fetch, localStorage
+    
+    if not _js_module_available:
+        return  # Can't import in non-PyScript environment
+    
+    # Try importing each one carefully
+    if document is None:
+        try:
+            from js import document as js_doc  # type: ignore
+            document = js_doc
+        except (ImportError, AttributeError, Exception):
+            pass
+    
+    if fetch is None:
+        try:
+            from js import fetch as js_fetch  # type: ignore
+            fetch = js_fetch
+        except (ImportError, AttributeError, Exception):
+            pass
+    
+    if localStorage is None:
+        try:
+            from js import localStorage as js_storage  # type: ignore
+            localStorage = js_storage
+        except (ImportError, AttributeError, Exception):
+            pass
 
 try:
     from browser_logger import BrowserLogger
@@ -82,7 +117,7 @@ LOCAL_STORAGE_KEY = "pysheet.character.v1"
 # Export State (Global Tracking)
 # ===================================================================
 
-_AUTO_EXPORT_TIMER_ID: Optional[int] = None
+_AUTO_EXPORT_TIMER_ID: Optional[asyncio.Task] = None  # Now an asyncio Task instead of setTimeout ID
 _AUTO_EXPORT_PROXY = None
 _AUTO_EXPORT_SUPPRESS = False
 _LAST_AUTO_EXPORT_SNAPSHOT = ""
@@ -100,14 +135,14 @@ _EVENT_PROXIES = []
 
 
 def _resolve_timers():
-    """Return callable setTimeout/clearTimeout, preferring globals then window/js."""
-    try_set = setTimeout
-    try_clear = clearTimeout
+    """Return callable setTimeout/clearTimeout from window."""
+    try_set = None
+    try_clear = None
 
-    # Prefer window methods if globals are missing
-    if (try_set is None or try_clear is None) and window is not None:
-        try_set = try_set or getattr(window, "setTimeout", None)
-        try_clear = try_clear or getattr(window, "clearTimeout", None)
+    # Get from window if available
+    if window is not None:
+        try_set = getattr(window, "setTimeout", None)
+        try_clear = getattr(window, "clearTimeout", None)
 
     # Fall back to js imports if still missing
     if try_set is None or try_clear is None:
@@ -337,84 +372,95 @@ async def _prune_old_exports_from_directory(directory_handle):
 
 async def _ensure_directory_write_permission(handle) -> bool:
     """Check/request write permission for directory handle."""
-    if handle is None or window is None:
+    if handle is None:
+        console.warn("[DEBUG] Permission check: handle is None")
         return False
     
     query_permission = getattr(handle, "queryPermission", None)
     request_permission = getattr(handle, "requestPermission", None)
+    console.log(f"[DEBUG] Handle has queryPermission: {query_permission is not None}, requestPermission: {request_permission is not None}")
+    
+    # If handle doesn't have permission methods, assume permission is granted
+    # (browser may not support them, or they're already granted)
     if query_permission is None or request_permission is None:
+        console.log("[DEBUG] Handle lacks permission methods, assuming granted (browser may not support them)")
         return True
     
     try:
         status = await query_permission({"mode": "readwrite"})
-    except JsException as exc:
-        console.warn(f"PySheet: directory permission query failed - {exc}")
+        console.log(f"[DEBUG] queryPermission returned: {status}")
+    except Exception as exc:
+        console.warn(f"[DEBUG] queryPermission error: {exc}")
         status = None
     
     if status == "granted":
+        console.log("[DEBUG] Permission already granted")
         return True
     if status == "denied":
+        console.log("[DEBUG] Permission denied by user")
         return False
     
+    console.log("[DEBUG] Requesting write permission...")
     try:
         status = await request_permission({"mode": "readwrite"})
-    except JsException as exc:
-        console.warn(f"PySheet: directory permission request failed - {exc}")
+        console.log(f"[DEBUG] requestPermission returned: {status}")
+    except Exception as exc:
+        console.warn(f"[DEBUG] requestPermission error: {exc}")
         return False
     
-    return status == "granted"
+    result = status == "granted"
+    console.log(f"[DEBUG] Final permission result: {result}")
+    return result
 
 
 def _ensure_auto_export_proxy():
-    """Create or retrieve the auto-export callback proxy."""
-    global _AUTO_EXPORT_PROXY
-    if _AUTO_EXPORT_PROXY is None and window is not None:
-        def _auto_export_callback(*_args):
-            global _AUTO_EXPORT_TIMER_ID
-            _AUTO_EXPORT_TIMER_ID = None
-            
-            async def _run_auto_export():
-                global _AUTO_EXPORT_EVENT_COUNT
-                try:
-                    await export_character(auto=True)
-                except Exception as exc:
-                    console.error(f"PySheet: auto-export failed - {exc}")
-                finally:
-                    _AUTO_EXPORT_EVENT_COUNT = 0
-
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(_run_auto_export())
-            except RuntimeError:
-                asyncio.run(_run_auto_export())
-        
-        _AUTO_EXPORT_PROXY = create_proxy(_auto_export_callback)
-        _EVENT_PROXIES.append(_AUTO_EXPORT_PROXY)
+    """No longer needed - we use asyncio.sleep() instead of JavaScript setTimeout.
     
-    return _AUTO_EXPORT_PROXY
+    This function is kept for backward compatibility but no longer creates proxies.
+    The actual delay is now handled by Python's asyncio, avoiding proxy destruction entirely.
+    """
+    # Not used anymore, but kept for compatibility
+    return None
 
 
 def _supports_persistent_auto_export() -> bool:
     """Check if browser supports File System API for persistent exports."""
     if window is None:
+        console.log("[DEBUG] _supports_persistent_auto_export: window is None")
         return False
-    return bool(
-        hasattr(window, "showDirectoryPicker")
-        or hasattr(window, "showSaveFilePicker")
-    )
+    
+    # Try to access showDirectoryPicker directly instead of using hasattr
+    # because hasattr() doesn't work reliably with PyScript JS proxies
+    try:
+        picker = getattr(window, "showDirectoryPicker", None)
+        has_support = picker is not None
+        console.log(f"[DEBUG] _supports_persistent_auto_export: showDirectoryPicker={picker is not None}, returning {has_support}")
+        return has_support
+    except Exception as e:
+        console.log(f"[DEBUG] _supports_persistent_auto_export: exception checking - {e}")
+        return False
 
 
-async def _ensure_auto_export_directory(auto_trigger: bool = True):
+async def _ensure_auto_export_directory(auto_trigger: bool = True, directory_picker_method = None):
     """Prompt user to select directory for auto-export."""
     global _AUTO_EXPORT_DIRECTORY_HANDLE, _AUTO_EXPORT_DISABLED
-    if _AUTO_EXPORT_DIRECTORY_HANDLE is not None or window is None:
-        return _AUTO_EXPORT_DIRECTORY_HANDLE if _AUTO_EXPORT_DIRECTORY_HANDLE is not None else None
     
-    if not hasattr(window, "showDirectoryPicker"):
+    # Early exit if already have a handle
+    if _AUTO_EXPORT_DIRECTORY_HANDLE is not None:
+        return _AUTO_EXPORT_DIRECTORY_HANDLE
+    
+    # Use captured method if available, otherwise try accessing from window
+    picker_func = directory_picker_method
+    if picker_func is None:
+        picker_func = getattr(window, "showDirectoryPicker", None) if window else None
+    
+    if picker_func is None:
+        console.log("[DEBUG] showDirectoryPicker not available")
         return None
     
     try:
-        handle = await window.showDirectoryPicker()
+        console.log("[DEBUG] Calling showDirectoryPicker...")
+        handle = await picker_func()
     except JsException as exc:
         name = getattr(exc, "name", "")
         if name == "AbortError":
@@ -488,10 +534,17 @@ async def _ensure_auto_export_file_handle(target_name: str, auto_trigger: bool =
 async def _write_auto_export_file(handle, payload: str):
     """Write payload to file handle."""
     try:
+        console.log(f"[DEBUG] _write_auto_export_file: handle={handle}, payload length={len(payload)}")
+        console.log(f"[DEBUG] Calling createWritable() on handle...")
         writable = await handle.createWritable()
+        console.log(f"[DEBUG] createWritable() succeeded, writable={writable}")
+        console.log(f"[DEBUG] Writing {len(payload)} bytes...")
         await writable.write(payload)
+        console.log(f"[DEBUG] Write completed, closing writable...")
         await writable.close()
-    except JsException as exc:
+        console.log(f"[DEBUG] Writable closed successfully")
+    except Exception as exc:
+        console.error(f"[DEBUG] _write_auto_export_file error: {type(exc).__name__}: {exc}")
         raise RuntimeError(f"failed to write auto-export file ({exc})")
 
 
@@ -510,11 +563,14 @@ async def _attempt_persistent_export(
     if not _supports_persistent_auto_export():
         return False
 
+    # NOTE: Do NOT prompt for setup during auto-export (no user gesture context)
+    # Only prompt when user explicitly clicks "Export JSON" button (has user gesture)
     need_prompt = (
         allow_prompt
         and not _AUTO_EXPORT_SETUP_PROMPTED
         and _AUTO_EXPORT_DIRECTORY_HANDLE is None
         and _AUTO_EXPORT_FILE_HANDLE is None
+        and not auto  # Only prompt if NOT auto-triggered
     )
     
     if need_prompt and window is not None:
@@ -532,19 +588,80 @@ async def _attempt_persistent_export(
             if handle is None:
                 await _ensure_auto_export_file_handle(proposed_filename, auto_trigger=False)
 
+    # Try backend API first (pure Python, no JavaScript)
+    try:
+        console.log(f"[DEBUG] Attempting backend API export: {proposed_filename}")
+        import httpx
+        import json as json_module
+        
+        client = httpx.AsyncClient()
+        response = await client.post('/api/export', json={
+            'filename': proposed_filename,
+            'content': payload
+        })
+        
+        if response.status_code == 200:
+            result = response.json()
+            console.log(f"[DEBUG] Backend export succeeded: {result}")
+            _AUTO_EXPORT_LAST_FILENAME = proposed_filename
+            _LAST_AUTO_EXPORT_SNAPSHOT = payload
+            _LAST_AUTO_EXPORT_DATE = datetime.now().strftime("%Y%m%d")
+            verb = "auto-exported" if auto else "exported"
+            console.log(f"PySheet: {verb} character JSON to {proposed_filename}")
+            _AUTO_EXPORT_DISABLED = False
+            return True
+        else:
+            error_text = response.text
+            console.warn(f"[DEBUG] Backend export failed: HTTP {response.status_code}: {error_text}")
+    except Exception as api_exc:
+        console.log(f"[DEBUG] Backend API not available: {api_exc}")
+    
+    # Fallback to File System API
     if _AUTO_EXPORT_DIRECTORY_HANDLE is not None:
         try:
+            console.log(f"[DEBUG] Fallback: Attempting File System API export: {proposed_filename}")
             file_handle = await _AUTO_EXPORT_DIRECTORY_HANDLE.getFileHandle(
                 proposed_filename,
                 {"create": True},
             )
-        except JsException as exc:
-            console.warn(f"PySheet: unable to open auto-export file in directory ({exc})")
-            if auto:
-                _AUTO_EXPORT_DIRECTORY_HANDLE = None
-        else:
+            console.log(f"[DEBUG] getFileHandle succeeded, file_handle={file_handle}")
+        except Exception as exc:
+            exc_str = str(exc)
+            exc_type_name = type(exc).__name__
+            console.warn(f"[DEBUG] getFileHandle failed: {exc_type_name}: {exc_str}")
+            
+            # Check if it's a NotFoundError (can be JsException wrapping NotFoundError)
+            is_not_found = ("NotFoundError" in exc_type_name or "NotFoundError" in exc_str)
+            console.log(f"[DEBUG] Exception analysis: type={exc_type_name}, is_not_found={is_not_found}, msg={exc_str[:100]}")
+            
+            # Fallback: try to remove the file first, then create it
+            if is_not_found:
+                try:
+                    console.log(f"[DEBUG] NotFoundError detected, attempting to remove existing file first...")
+                    await _AUTO_EXPORT_DIRECTORY_HANDLE.removeEntry(proposed_filename)
+                    console.log(f"[DEBUG] File removed, retrying getFileHandle...")
+                    file_handle = await _AUTO_EXPORT_DIRECTORY_HANDLE.getFileHandle(
+                        proposed_filename,
+                        {"create": True},
+                    )
+                    console.log(f"[DEBUG] getFileHandle succeeded on retry, file_handle={file_handle}")
+                except Exception as retry_exc:
+                    console.warn(f"[DEBUG] Retry failed: {type(retry_exc).__name__}: {retry_exc}")
+                    console.warn(f"PySheet: unable to open auto-export file in directory ({exc_str})")
+                    if auto:
+                        _AUTO_EXPORT_DIRECTORY_HANDLE = None
+                    file_handle = None
+            else:
+                console.warn(f"PySheet: unable to open auto-export file in directory ({exc_str})")
+                if auto:
+                    _AUTO_EXPORT_DIRECTORY_HANDLE = None
+                file_handle = None
+        
+        if file_handle is not None:
             try:
+                console.log(f"[DEBUG] Calling _write_auto_export_file for directory handle...")
                 await _write_auto_export_file(file_handle, payload)
+                console.log(f"[DEBUG] _write_auto_export_file succeeded for directory")
             except Exception as exc:
                 console.warn(f"PySheet: auto-export write failed for directory target ({exc})")
                 if auto:
@@ -593,6 +710,7 @@ async def _attempt_persistent_export(
 
 def save_character(_event=None):
     """Save character to browser localStorage."""
+    console.log("DEBUG: save_character() called")
     storage = _resolve_local_storage()
     if storage is None or document is None:
         return
@@ -609,38 +727,43 @@ def save_character(_event=None):
 
 def show_storage_info(_event=None):
     """Display storage usage information."""
-    if document is None:
-        return
-    
-    info = estimate_export_cleanup()
-    msg_el = document.getElementById("storage-message")
-    
-    if msg_el is None:
-        return
-    
-    if info is None:
-        msg_el.innerText = "Could not determine storage usage."
-        LOGGER.warning("Failed to get storage info")
-        return
-    
-    total_kb = info["total_bytes"] // 1024
-    exports = info["estimated_export_count"]
-    savings_kb = info["estimated_savings_kb"]
-    
-    if savings_kb > 0:
-        msg_el.innerHTML = (
-            f"<strong>Storage Usage:</strong> {total_kb}KB | "
-            f"<strong>Exports:</strong> ~{exports} | "
-            f"<strong>Potential savings:</strong> ~{savings_kb}KB if cleaned"
-        )
-        LOGGER.info(f"Storage info: {total_kb}KB used, ~{exports} exports, ~{savings_kb}KB potential savings")
-    else:
-        msg_el.innerHTML = f"<strong>Storage Usage:</strong> {total_kb}KB | <strong>Exports:</strong> ~{exports}"
-        LOGGER.info(f"Storage info: {total_kb}KB used, ~{exports} exports")
+    console.log("DEBUG: show_storage_info() called")
+    try:
+        if document is None:
+            return
+        
+        info = estimate_export_cleanup()
+        msg_el = document.getElementById("storage-message")
+        
+        if msg_el is None:
+            return
+        
+        if info is None:
+            msg_el.innerText = "Could not determine storage usage."
+            LOGGER.warning("Failed to get storage info")
+            return
+        
+        total_kb = info["total_bytes"] // 1024
+        exports = info["estimated_export_count"]
+        savings_kb = info["estimated_savings_kb"]
+        
+        if savings_kb > 0:
+            msg_el.innerHTML = (
+                f"<strong>Storage Usage:</strong> {total_kb}KB | "
+                f"<strong>Exports:</strong> ~{exports} | "
+                f"<strong>Potential savings:</strong> ~{savings_kb}KB if cleaned"
+            )
+            LOGGER.info(f"Storage info: {total_kb}KB used, ~{exports} exports, ~{savings_kb}KB potential savings")
+        else:
+            msg_el.innerHTML = f"<strong>Storage Usage:</strong> {total_kb}KB | <strong>Exports:</strong> ~{exports}"
+            LOGGER.info(f"Storage info: {total_kb}KB used, ~{exports} exports")
+    except Exception as e:
+        LOGGER.error(f"ERROR in show_storage_info: {e}")
 
 
 def cleanup_exports(_event=None):
     """Clean up old export files (browser-based pruning of localStorage info)."""
+    console.log("DEBUG: cleanup_exports() called")
     if document is None:
         return
     
@@ -676,22 +799,33 @@ async def export_character(_event=None, *, auto: bool = False):
     Can export to browser download or to persistent storage (directory/file handle)
     if File System API is supported and user has configured a target.
     """
+    console.log("[DEBUG] export_character() async function started")
     global _LAST_AUTO_EXPORT_SNAPSHOT, _LAST_AUTO_EXPORT_DATE, _AUTO_EXPORT_FILE_HANDLE
     global _AUTO_EXPORT_DISABLED, _AUTO_EXPORT_SUPPORT_WARNED, _AUTO_EXPORT_DIRECTORY_HANDLE
     global _AUTO_EXPORT_LAST_FILENAME, _AUTO_EXPORT_SETUP_PROMPTED
     
+    # Initialize JS globals if not already done
+    _initialize_js_globals()
+    
+    # Get storage and continue - don't check for None as PyScript proxy objects may not work with `is None`
     storage = _resolve_local_storage()
-    if window is None or document is None or storage is None:
-        return
+    console.log(f"[DEBUG] storage resolved: {storage}")
 
     def show_saving_state():
         """Show green SAVING state."""
+        console.log("[DEBUG] show_saving_state() function START")
         indicator = document.getElementById("saving-indicator")
+        console.log(f"[DEBUG] show_saving_state() - indicator element: {indicator}")
         if indicator:
+            console.log("[DEBUG] show_saving_state() - indicator found, updating classes")
             indicator.classList.remove("recording", "fading")
             indicator.classList.add("saving")
             indicator.style.display = "flex"
             indicator.style.opacity = "1"
+            console.log("[DEBUG] show_saving_state() - classes updated, display set to flex")
+        else:
+            console.warn("[DEBUG] show_saving_state() - no indicator element found!")
+        console.log("[DEBUG] show_saving_state() function END")
 
     def fade_indicator():
         """Fade to gray and remove."""
@@ -709,29 +843,45 @@ async def export_character(_event=None, *, auto: bool = False):
                         return
 
                 if setTimeout is not None:
-                    proxy = create_proxy(_hide_after_fade)
-                    _EVENT_PROXIES.append(proxy)
-                    setTimeout(proxy, 1200)
+                    # Schedule hiding with asyncio instead of JavaScript setTimeout to avoid proxy destruction
+                    async def _delayed_hide():
+                        await asyncio.sleep(1.2)
+                        try:
+                            _hide_after_fade()
+                        except Exception as exc:
+                            console.warn(f"[DEBUG][export] error hiding indicator: {exc}")
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(_delayed_hide())
+                    except RuntimeError:
+                        # No running loop, hide immediately
+                        indicator.style.display = "none"
                 else:
                     indicator.style.display = "none"
             except Exception as exc:
                 console.warn(f"[DEBUG][export] unable to hide saving-indicator: {exc}")
 
     character_module = _get_character_module()
+    console.log(f"[DEBUG] character_module: {character_module}")
     collect_character_data = getattr(character_module, "collect_character_data", None) if character_module else None
+    console.log(f"[DEBUG] collect_character_data: {collect_character_data}")
     if collect_character_data is None:
         console.error("PySheet: export failed before write - collect_character_data unavailable")
         fade_indicator()
         return
 
     try:
+        console.log("[DEBUG] About to call collect_character_data()")
         data = collect_character_data()
+        console.log(f"[DEBUG] collect_character_data() returned, data keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
         payload = json.dumps(data)
+        console.log(f"[DEBUG] JSON payload created, length: {len(payload)}")
     except Exception as exc:
         console.error(f"PySheet: export failed before write - {exc}")
         fade_indicator()
         return
     
+    console.log(f"[DEBUG] === AFTER PAYLOAD: auto={auto}, _AUTO_EXPORT_DISABLED={_AUTO_EXPORT_DISABLED}")
     if auto and _AUTO_EXPORT_DISABLED:
         fade_indicator()
 
@@ -761,58 +911,116 @@ async def export_character(_event=None, *, auto: bool = False):
             fade_indicator()
             return
     
-    show_saving_state()
+    console.log("[DEBUG] About to call show_saving_state()")
+    try:
+        if document is not None:
+            show_saving_state()
+            console.log("[DEBUG] show_saving_state() completed successfully")
+        else:
+            console.warn("[DEBUG] show_saving_state() skipped - document is None")
+    except Exception as exc:
+        console.error(f"[DEBUG] show_saving_state() threw exception: {exc}")
+        import traceback
+        console.error(f"[DEBUG] Traceback: {traceback.format_exc()}")
 
     now = datetime.now()
     proposed_filename = _build_export_filename(data, now=now)
+    console.log(f"[DEBUG] Proposed filename: {proposed_filename}")
 
-    persistent_used = await _attempt_persistent_export(
-        payload,
-        proposed_filename,
-        auto=auto,
-        allow_prompt=not _AUTO_EXPORT_SETUP_PROMPTED,
-    )
-    if persistent_used:
-        fade_indicator()
-        return
-
-    if auto:
-        if not _supports_persistent_auto_export():
-            if not _AUTO_EXPORT_SUPPORT_WARNED:
-                console.warn("PySheet: browser does not support persistent auto-export; using fallback downloads")
-                _AUTO_EXPORT_SUPPORT_WARNED = True
-        elif not (_AUTO_EXPORT_DIRECTORY_HANDLE or _AUTO_EXPORT_FILE_HANDLE):
-            console.log("PySheet: auto-export not yet configured; will try again on next change")
-            fade_indicator()
-            return
-        else:
-            fade_indicator()
-            return
-
-    # Fallback: download via browser
-    if Blob is not None and URL is not None:
+    # Send JSON to Flask backend for file writing
+    console.log("[DEBUG] Sending export to Flask backend via POST /api/export")
+    try:
+        # Ensure fetch is available
+        fetch_func = fetch
+        if fetch_func is None:
+            try:
+                from js import fetch as js_fetch  # type: ignore
+                fetch_func = js_fetch
+            except (ImportError, AttributeError):
+                console.error("ERROR: fetch API not available in this environment")
+                return
+            
+        # Create the request payload
+        request_data = {
+            "filename": proposed_filename,
+            "content": data
+        }
+        
+        console.log(f"[DEBUG] POST payload ready: filename={proposed_filename}, data_size={len(payload)} bytes")
+        
+        # Convert Python dict to JSON string for body
+        body_json = json.dumps(request_data)
+        console.log(f"[DEBUG] Body JSON: {body_json[:100]}...")
+        
+        # Build the fetch using JavaScript directly to ensure proper POST
+        # Use js.JSON.stringify to ensure proper serialization
         try:
-            blob = Blob.new([payload], {"type": "application/json"})
-            url = URL.createObjectURL(blob)
-            link = document.createElement("a")
-            link.href = url
-            link.download = proposed_filename
-            link.click()
-            URL.revokeObjectURL(url)
+            from js import JSON as js_JSON  # type: ignore
+            from js import Object as JSObject  # type: ignore
+            
+            # Create proper JavaScript object for fetch init
+            options = JSObject.new()
+            options.method = "POST"
+            options.body = body_json
+            
+            # Set headers using defineProperty to avoid item assignment issues
+            headers_obj = JSObject.new()
+            # Use property assignment which works with JsProxy
+            headers_obj["Content-Type"] = "application/json"
+            options.headers = headers_obj
+            
+            console.log(f"[DEBUG] Fetch options created with headers")
+        except Exception as e:
+            console.error(f"[DEBUG] Failed to create proper options object: {e}")
+            console.error(f"[DEBUG] Error type: {type(e)}")
+            # Fallback: Use a workaround - encode options in URL params or use FormData
+            console.warn("[DEBUG] Using JSON.stringify workaround for fetch init")
+            
+            # Try using eval through JavaScript to create the object
+            try:
+                from js import eval as js_eval  # type: ignore
+                # This is a last resort - use JS eval to create proper object
+                # Escape the body_json string for safe embedding in JS code
+                escaped_body = body_json.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+                js_code = f'''({{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: "{escaped_body}"
+                }})'''
+                options = js_eval(js_code)
+                console.log("[DEBUG] Created options via JS eval")
+            except:
+                # Final fallback - just return error
+                console.error("[DEBUG] All fetch options creation methods failed")
+                return
+        
+        console.log(f"[DEBUG] About to call fetch")
+        
+        # POST to backend
+        response = await fetch_func("/api/export", options)
+        
+        console.log(f"[DEBUG] Flask response status: {response.status}")
+        response_text = await response.text()
+        console.log(f"[DEBUG] Flask response: {response_text[:200]}")
+        
+        if response.status == 200:
+            console.log(f"✓ {proposed_filename} successfully written to disk")
             _LAST_AUTO_EXPORT_SNAPSHOT = payload
             _LAST_AUTO_EXPORT_DATE = datetime.now().strftime("%Y%m%d")
-            if auto:
-                console.log(f"PySheet: auto-exported character JSON (download) to {proposed_filename}")
-            else:
-                console.log(f"PySheet: exported character JSON to {proposed_filename}")
-        except Exception as exc:
-            console.error(f"PySheet: export failed - {exc}")
+        else:
+            console.error(f"PySheet: backend export failed with status {response.status}")
+            
+    except Exception as exc:
+        console.error(f"PySheet: export failed - {exc}")
+        import traceback
+        console.error(f"[DEBUG] Traceback: {traceback.format_exc()}")
     
     fade_indicator()
 
 
 def reset_character(_event=None):
     """Reset character to default state."""
+    console.log("DEBUG: reset_character() called")
     storage = _resolve_local_storage()
     if window is None or storage is None or document is None:
         return
@@ -932,10 +1140,18 @@ def handle_import(event):
                 import traceback
                 traceback.print_exc()
         
-        # Attach the callback
-        load_proxy = create_proxy(on_load)
-        _EVENT_PROXIES.append(load_proxy)
-        reader.onload = load_proxy
+        # Attach the callback using proper JavaScript event listener
+        # Instead of creating a proxy, we'll use a wrapper approach
+        def _attach_reader_callback():
+            try:
+                # Create a persistent wrapper that won't be destroyed
+                callback_wrapper = create_proxy(on_load)
+                _EVENT_PROXIES.append(callback_wrapper)
+                reader.onload = callback_wrapper
+            except Exception as e:
+                console.error(f"[IMPORT] Failed to attach reader callback: {e}")
+        
+        _attach_reader_callback()
         console.log("[IMPORT] Callback attached, reading file...")
         reader.readAsText(file_obj)
         
@@ -946,7 +1162,11 @@ def handle_import(event):
 
 
 def schedule_auto_export():
-    """Schedule automatic character export with debouncing.
+    """Schedule automatic character export with debouncing using asyncio.
+    
+    Instead of using JavaScript's setTimeout (which destroys Python proxies),
+    we schedule a Python async task that waits with asyncio.sleep().
+    This keeps everything on the Python side and avoids proxy lifecycle issues.
     
     Always saves to localStorage immediately to preserve data across page refreshes.
     Also schedules an async export if browser supports File System API and user configured it.
@@ -958,14 +1178,10 @@ def schedule_auto_export():
     # executed in PyScript, try to re-hydrate the browser globals before bailing.
     if window is None or document is None:
         try:  # noqa: SIM105 - explicit rebind of globals is intentional
-            from js import window as js_window, document as js_document, setTimeout as js_setTimeout, clearTimeout as js_clearTimeout  # type: ignore
+            from js import window as js_window, document as js_document  # type: ignore
 
             globals()["window"] = js_window
             globals()["document"] = js_document
-            if setTimeout is None:
-                globals()["setTimeout"] = js_setTimeout
-            if clearTimeout is None:
-                globals()["clearTimeout"] = js_clearTimeout
             console.log("[DEBUG][auto-export] rehydrated window/document from js import")
         except Exception as exc:  # pragma: no cover - defensive logging for PyScript
             console.warn(f"[DEBUG][auto-export] failed to rehydrate window/document: {exc}")
@@ -1038,17 +1254,171 @@ def schedule_auto_export():
     
     console.log(f"DEBUG: schedule_auto_export called! Event count: {_AUTO_EXPORT_EVENT_COUNT}")
     
-    proxy = _ensure_auto_export_proxy()
-
-    timer_set, timer_clear = _resolve_timers()
-    if timer_set is None:
-        console.warn("[DEBUG][auto-export] setTimeout unavailable; skipping schedule")
-        return
-
-    if _AUTO_EXPORT_TIMER_ID is not None and timer_clear is not None:
-        timer_clear(_AUTO_EXPORT_TIMER_ID)
+    # Cancel any pending export task
+    if _AUTO_EXPORT_TIMER_ID is not None:
+        try:
+            _AUTO_EXPORT_TIMER_ID.cancel()
+        except Exception:
+            pass
+        _AUTO_EXPORT_TIMER_ID = None
+    
+    # Calculate delay based on remaining event count
     remaining = AUTO_EXPORT_MAX_EVENTS - _AUTO_EXPORT_EVENT_COUNT
-    interval = AUTO_EXPORT_DELAY_MS
+    interval_seconds = AUTO_EXPORT_DELAY_MS / 1000.0
     if remaining <= 0:
-        interval = int(AUTO_EXPORT_DELAY_MS * 0.25)
-    _AUTO_EXPORT_TIMER_ID = timer_set(proxy, interval)
+        interval_seconds = (AUTO_EXPORT_DELAY_MS * 0.25) / 1000.0
+    
+    # Schedule the export using asyncio instead of JavaScript setTimeout
+    # This keeps the callback in Python and avoids proxy destruction
+    async def _delayed_export():
+        global _AUTO_EXPORT_TIMER_ID, _AUTO_EXPORT_EVENT_COUNT
+        try:
+            await asyncio.sleep(interval_seconds)
+            _AUTO_EXPORT_TIMER_ID = None
+            await export_character(auto=True)
+        except Exception as exc:
+            console.error(f"PySheet: auto-export failed - {exc}")
+        finally:
+            _AUTO_EXPORT_EVENT_COUNT = 0
+    
+    try:
+        loop = asyncio.get_running_loop()
+        _AUTO_EXPORT_TIMER_ID = loop.create_task(_delayed_export())
+        console.log(f"DEBUG: Scheduled auto-export with asyncio.sleep({interval_seconds}s)")
+    except RuntimeError:
+        # No running loop, create a new one
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            _AUTO_EXPORT_TIMER_ID = loop.create_task(_delayed_export())
+            console.log(f"DEBUG: Created new event loop and scheduled auto-export")
+        except Exception as exc:
+            console.error(f"PySheet: failed to schedule auto-export with asyncio - {exc}")
+
+def prompt_for_auto_export_on_load_sync(api_available: bool = None, confirm_method = None, directory_picker_method = None):
+    """Prompt user to set up auto-export directory - synchronous version for preserving user gesture.
+    
+    This MUST be called from synchronous context (e.g., direct event handler) to preserve user gesture
+    for the File System API's showDirectoryPicker() which requires active user interaction.
+    
+    Args:
+        api_available: Whether File System API is available (captured before async task).
+        confirm_method: Pre-captured window.confirm method from synchronous context.
+        directory_picker_method: Pre-captured window.showDirectoryPicker method from synchronous context.
+    """
+    global _AUTO_EXPORT_SETUP_PROMPTED, _AUTO_EXPORT_DIRECTORY_HANDLE
+    
+    console.log(f"[DEBUG] prompt_for_auto_export_on_load_sync: checking preconditions")
+    console.log(f"[DEBUG] - api_available (captured): {api_available}")
+    console.log(f"[DEBUG] - confirm_method (captured): {confirm_method is not None}")
+    console.log(f"[DEBUG] - directory_picker_method (captured): {directory_picker_method is not None}")
+    
+    # Use captured flag if provided
+    supports_api = api_available if api_available is not None else False
+    console.log(f"[DEBUG] - supports_api={supports_api}")
+    console.log(f"[DEBUG] - _AUTO_EXPORT_SETUP_PROMPTED={_AUTO_EXPORT_SETUP_PROMPTED}")
+    console.log(f"[DEBUG] - _AUTO_EXPORT_DIRECTORY_HANDLE={_AUTO_EXPORT_DIRECTORY_HANDLE is not None}")
+    
+    if not supports_api:
+        console.log(f"[DEBUG] Returning early: File System API not supported")
+        return
+    
+    # Skip if already configured or already prompted
+    if _AUTO_EXPORT_SETUP_PROMPTED or _AUTO_EXPORT_DIRECTORY_HANDLE:
+        console.log("[DEBUG] Returning early: already configured or already prompted")
+        return
+    
+    console.log("[DEBUG] Showing confirm dialog...")
+    _AUTO_EXPORT_SETUP_PROMPTED = True
+    
+    wants_setup = False
+    try:
+        # Use captured confirm_method - this is in synchronous context, preserving user gesture
+        if confirm_method is not None:
+            console.log("[DEBUG] Using captured confirm_method")
+            wants_setup = confirm_method(
+                "Set up automatic character exports? Click OK to select a folder where your character will be auto-saved as you make changes."
+            )
+        console.log(f"[DEBUG] User response: {wants_setup}")
+    except JsException as e:
+        console.warn(f"[DEBUG] JS Exception during confirm: {e}")
+        wants_setup = False
+    
+    if wants_setup:
+        console.log("PySheet: User requested auto-export folder setup on page load")
+        # Call the sync version to pick directory while gesture is still active
+        _pick_auto_export_directory_sync(confirm_method, directory_picker_method)
+
+
+def _pick_auto_export_directory_sync(confirm_method = None, directory_picker_method = None):
+    """Pick auto-export directory using JavaScript handler to preserve user gesture.
+    
+    This delegates to window.handleAutoExportSetup which is a JavaScript function that
+    preserves gesture context throughout the entire confirm + picker flow.
+    
+    Args:
+        confirm_method: Pre-captured window.confirm method.
+        directory_picker_method: Pre-captured window.showDirectoryPicker method.
+    """
+    global _AUTO_EXPORT_DIRECTORY_HANDLE
+    
+    # Get the JS handler function
+    try:
+        from js import window
+        handler_func = getattr(window, "handleAutoExportSetup", None)
+        if handler_func is None:
+            console.warn("[DEBUG] window.handleAutoExportSetup not available")
+            return None
+    except Exception as e:
+        console.warn(f"[DEBUG] Failed to access window.handleAutoExportSetup: {e}")
+        return None
+    
+    try:
+        console.log("[DEBUG] Calling window.handleAutoExportSetup (JavaScript gesture-preserving handler)...")
+        # Call the JS handler with captured methods - the JS function will preserve gesture throughout
+        async def _handle_setup():
+            try:
+                # Call the JavaScript function which preserves gesture for both confirm and picker
+                handle = await handler_func(confirm_method, directory_picker_method)
+                
+                if handle is None:
+                    console.log("[DEBUG] User cancelled or error in JS handler")
+                    return None
+                
+                # Validate the handle
+                has_permission = await _ensure_directory_write_permission(handle)
+                if not has_permission:
+                    console.log("PySheet: directory lacks write permission; will try again on next change")
+                    return None
+                
+                if not hasattr(handle, "getFileHandle"):
+                    console.warn("PySheet: selected directory handle cannot create files; falling back to file picker")
+                    return None
+                
+                # Store the handle globally
+                global _AUTO_EXPORT_DIRECTORY_HANDLE
+                _AUTO_EXPORT_DIRECTORY_HANDLE = handle
+                console.log("PySheet: auto-export directory selected successfully")
+                return handle
+            except JsException as exc:
+                name = getattr(exc, "name", "")
+                if name == "AbortError":
+                    console.log("PySheet: auto-export directory not selected")
+                elif name in {"NotAllowedError", "SecurityError"}:
+                    console.warn("PySheet: directory picker error - gesture context may have been lost")
+                else:
+                    console.warn(f"PySheet: auto-export error - {exc}")
+                return None
+            except Exception as e:
+                console.warn(f"[DEBUG] Error in _handle_setup: {type(e).__name__}: {e}")
+                return None
+        
+        # Schedule the async handler
+        asyncio.create_task(_handle_setup())
+    except Exception as e:
+        console.warn(f"PySheet: failed to set up auto-export - {e}")
+
+
+async def prompt_for_auto_export_on_load(api_available: bool = None, confirm_method = None, directory_picker_method = None):
+    """Deprecated: Use prompt_for_auto_export_on_load_sync instead for proper user gesture handling."""
+    await asyncio.sleep(0.1)  # Placeholder for compatibility
