@@ -407,6 +407,7 @@ class InventoryManager:
             "category": category,
             "notes": notes,
             "source": source,
+            "equipped": False,
         }
         self.items.append(item)
         return item_id
@@ -427,7 +428,7 @@ class InventoryManager:
         for item in self.items:
             if item.get("id") == item_id:
                 for key, value in updates.items():
-                    if key in ("name", "cost", "weight", "qty", "category", "notes"):
+                    if key in ("name", "cost", "weight", "qty", "category", "notes", "equipped"):
                         item[key] = value
                 break
     
@@ -514,6 +515,13 @@ class InventoryManager:
                 except:
                     pass
                 
+                # Get bonus for weapons and armor
+                bonus = extra_props.get("bonus", 0)
+                display_name = name
+                if bonus and bonus != 0:
+                    bonus_str = f"+{bonus}" if bonus > 0 else str(bonus)
+                    display_name = f"{name} {bonus_str}"
+                
                 # Build cost/weight display
                 details_html = ""
                 if cost:
@@ -534,14 +542,18 @@ class InventoryManager:
                 if extra_props.get("properties"):
                     body_html += f'<div class="inventory-item-field"><label>Properties/Contents</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("properties")))}</div></div>'
                 
-                # For armor items, show editable AC field
-                if category == "Armor" and extra_props.get("armor_class"):
+                # For armor items, show ONLY editable AC field
+                if category == "Armor":
                     ac_val = extra_props.get("armor_class", "")
                     body_html += f'<div class="inventory-item-field"><label>AC</label><input type="number" data-item-armor-ac="{item_id}" value="{ac_val}" placeholder="Base AC" style="width: 100%;"></div>'
-                elif extra_props.get("armor_class"):
-                    body_html += f'<div class="inventory-item-field"><label>AC</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("armor_class")))}</div></div>'
-                if extra_props.get("ac_string"):
-                    body_html += f'<div class="inventory-item-field"><label>AC String</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("ac_string")))}</div></div>'
+                    # Add bonus spinner for armor
+                    bonus_val = extra_props.get("bonus", 0)
+                    body_html += f'<div class="inventory-item-field"><label>Bonus</label><input type="number" data-item-bonus="{item_id}" value="{bonus_val}" placeholder="0" style="width: 80px;"></div>'
+                
+                # For weapon items, add bonus spinner
+                if category == "Weapons":
+                    bonus_val = extra_props.get("bonus", 0)
+                    body_html += f'<div class="inventory-item-field"><label>Bonus</label><input type="number" data-item-bonus="{item_id}" value="{bonus_val}" placeholder="0" style="width: 80px;"></div>'
                 
                 # Show notes if present (after we cleared it for prop parsing)
                 if notes:
@@ -555,21 +567,7 @@ class InventoryManager:
                     body_html += f'<button id="magic-item-fetch-{item_id}" type="button" style="width: 100%; padding: 8px; margin-top: 8px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">Fetch Data</button>'
                     body_html += f'</div>'
                 
-                # Get modifier fields
-                custom_props = extra_props.get("custom_properties", "")
-                ac_mod = extra_props.get("ac_modifier", "")
-                saves_mod = extra_props.get("saves_modifier", "")
-                armor_only = extra_props.get("armor_only", False)
-                
-                # Only show modifier fields if there are values, OR if this is armor (might need modifiers)
-                if custom_props or ac_mod or saves_mod or category == "Armor":
-                    # Add editable custom properties field for things like "+1 AC and saves"
-                    body_html += f'<div class="inventory-item-field"><label>Item Effects/Properties</label><input type="text" data-item-custom-props="{item_id}" value="{escape(str(custom_props))}" placeholder="e.g., +1 AC and saves" style="width: 100%;"></div>'
-                    
-                    # Add modifier fields for AC and Saves
-                    body_html += f'<div class="inventory-item-field" style="display: flex; gap: 10px;"><div style="flex: 1;"><label>AC Modifier</label><input type="number" data-item-ac-mod="{item_id}" value="{ac_mod}" placeholder="0" style="width: 100%;"></div><div style="flex: 1;"><label>Saves Modifier</label><input type="number" data-item-saves-mod="{item_id}" value="{saves_mod}" placeholder="0" style="width: 100%;"></div></div>'
-                    body_html += f'<div class="inventory-item-field"><label><input type="checkbox" data-item-armor-only="{item_id}" {"checked" if armor_only else ""} style="margin-right: 0.5rem;">Magic Armor/Shield Only (AC modifier affects AC only)</label></div>'
-                
+                # Quantity field - useful for all items
                 body_html += f'<div class="inventory-item-field"><label>Quantity</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" style="width: 80px;"></div>'
                 
                 # Build category dropdown with current category selected
@@ -596,21 +594,26 @@ class InventoryManager:
                 is_weapon = category == "Weapons"
                 equipable = is_armor
                 equipped_checked = "checked" if item.get("equipped") else ""
-                equipped_html = ""
+                equipped_decorator = "⭐ " if item.get("equipped") else ""
+                
+                # DEBUG: Log which item is being marked as equipped
+                if equipped_decorator:
+                    console.log(f"[DEBUG] Rendering equipped item: id={item_id}, name={name}, category={category}")
+                
+                # Add equipped checkbox to body_html (visible only when details expanded)
                 if equipable:
-                    equipped_html = f'<label class="inventory-item-equipped" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;"><input type="checkbox" data-item-equipped="{item_id}" {equipped_checked} class="equipment-equipped-check" style="cursor: pointer;"><span style="font-size: 0.9rem;">Equipped</span></label>'
+                    body_html += f'<div class="inventory-item-field"><label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;"><input type="checkbox" data-item-equipped="{item_id}" {equipped_checked} class="equipment-equipped-check" style="cursor: pointer;"><span>Equipped</span></label></div>'
                 
                 category_html += f'''<li class="inventory-item" data-item-id="{escape(item_id)}">
                     <div class="inventory-item-summary" data-toggle-item="{escape(item_id)}">
                         <div class="inventory-item-main">
-                            <span class="inventory-item-name">{escape(name)}</span>
+                            <span class="inventory-item-name">{equipped_decorator}{escape(display_name)}</span>
                             <span class="inventory-item-qty">×{qty}</span>
                         </div>
                         <div class="inventory-item-details">
                             {details_html}
                         </div>
                         <div class="inventory-item-actions">
-                            {equipped_html}
                             <button class="inventory-item-remove" data-remove-item="{escape(item_id)}" type="button">Remove</button>
                         </div>
                     </div>
@@ -711,6 +714,14 @@ class InventoryManager:
             ac_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
+        # Bonus value changes (for weapons and armor)
+        bonus_inputs = inventory_list.querySelectorAll("[data-item-bonus]")
+        for bonus_input in bonus_inputs:
+            item_id = bonus_input.getAttribute("data-item-bonus")
+            proxy = create_proxy(lambda event, iid=item_id: self._handle_bonus_change(event, iid))
+            bonus_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
         # Equipped checkboxes
         equipped_checkboxes = inventory_list.querySelectorAll("[data-item-equipped]")
         for checkbox in equipped_checkboxes:
@@ -739,14 +750,20 @@ class InventoryManager:
     
     def _handle_item_toggle(self, event, item_id: str):
         """Toggle item details visibility."""
+        console.log(f"[DEBUG] _handle_item_toggle called with item_id={item_id}")
         if document is None:
             return
         body = document.querySelector(f"[data-item-body='{item_id}']")
+        console.log(f"[DEBUG] Looking for body with data-item-body='{item_id}', found: {body is not None}")
         if body:
             if body.classList.contains("open"):
                 body.classList.remove("open")
+                console.log(f"[DEBUG] Closed item {item_id}")
             else:
                 body.classList.add("open")
+                console.log(f"[DEBUG] Opened item {item_id}")
+        else:
+            console.error(f"[ERROR] Could not find body element for item {item_id}")
     
     def _handle_item_remove(self, event, item_id: str):
         """Remove an item."""
@@ -903,6 +920,45 @@ class InventoryManager:
             
             # Update calculations (which will recalculate AC with new armor base)
             update_calculations()
+    
+    def _handle_bonus_change(self, event, item_id: str):
+        """Handle weapon/armor bonus changes."""
+        bonus_input = event.target
+        bonus_val_str = bonus_input.value.strip()
+        
+        # Parse bonus value
+        try:
+            bonus_val = int(bonus_val_str) if bonus_val_str else 0
+        except:
+            bonus_val = 0
+        
+        # Update the item's notes field with the bonus value
+        item = self.get_item(item_id)
+        if item:
+            try:
+                # Parse existing notes to preserve other properties
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    extra_props = json.loads(notes_str)
+                else:
+                    extra_props = {}
+            except:
+                extra_props = {}
+            
+            # Update bonus value
+            if bonus_val != 0:
+                extra_props["bonus"] = bonus_val
+            elif "bonus" in extra_props:
+                del extra_props["bonus"]
+            
+            # Save back to notes
+            notes = json.dumps(extra_props) if extra_props else ""
+            self.update_item(item_id, {"notes": notes})
+            self.render_inventory()  # Update display to show new name with bonus
+            
+            # Update calculations if needed
+            update_calculations()
+    
     def _handle_equipped_toggle(self, event, item_id: str):
         """Handle equipped checkbox toggle."""
         try:
@@ -914,6 +970,9 @@ class InventoryManager:
             if item:
                 self.update_item(item_id, {"equipped": equipped})
                 console.log(f"PySheet: Equipment {item.get('name')} equipped={equipped}")
+                
+                # Re-render inventory to update decorator
+                self.render_inventory()
                 
                 # Ensure module references are initialized (lazy initialization for export_management)
                 initialize_module_references()
