@@ -1254,69 +1254,139 @@ def render_weapons_grid():
     scores = gather_scores()
     level = get_numeric_value("level", 1)
     proficiency = compute_proficiency(level)
+    race_bonuses = get_race_ability_bonuses(get_text_value("race"))
     
     weapons_grid.innerHTML = ""
     
     for weapon in equipped_weapons:
         tr = document.createElement("tr")
         
-        # Column 1: Weapon name (with bonus if applicable)
-        name_td = document.createElement("td")
-        name_text = weapon.get("name", "Unknown")
-        bonus = 0
+        # Extract weapon properties - handle both Open5e API format and custom format
+        weapon_bonus = 0
+        weapon_damage = None
+        weapon_damage_type = weapon.get("damage_type", "")
+        weapon_range = "Melee"
+        weapon_properties_list = []
+        weapon_properties_str = ""
+        
+        # Try to get damage from multiple possible fields (Open5e uses damage_dice, custom might use damage)
+        if weapon.get("damage_dice"):
+            weapon_damage = weapon.get("damage_dice")
+        elif weapon.get("damage"):
+            weapon_damage = weapon.get("damage")
+        
+        # Try to parse properties from notes JSON (custom items)
         try:
             notes_str = weapon.get("notes", "")
             if notes_str and notes_str.startswith("{"):
                 extra_props = json.loads(notes_str)
-                bonus = extra_props.get("bonus", 0)
+                # Override with values from notes if they exist
+                if "bonus" in extra_props:
+                    weapon_bonus = extra_props["bonus"]
+                if "damage" in extra_props and not weapon_damage:
+                    weapon_damage = extra_props["damage"]
+                if "damage_type" in extra_props:
+                    weapon_damage_type = extra_props["damage_type"]
+                if "range" in extra_props:
+                    weapon_range = extra_props["range"]
+                if "properties" in extra_props:
+                    weapon_properties_str = extra_props["properties"]
         except:
-            bonus = 0
+            pass
         
-        if bonus and bonus > 0:
-            name_text = f"{name_text} +{bonus}"
+        # Parse properties from Open5e format (list)
+        props = weapon.get("properties", [])
+        if isinstance(props, list) and props:
+            weapon_properties_list = props
+            # Look for range in properties (e.g., "ammunition (range 30/120)")
+            for prop in props:
+                if isinstance(prop, str):
+                    prop_lower = prop.lower()
+                    if "range" in prop_lower or "ammunition" in prop_lower:
+                        # Extract range if it exists in the property
+                        if "(" in prop and ")" in prop:
+                            weapon_range = prop[prop.find("(")+1:prop.find(")")]
+                        else:
+                            weapon_range = prop
+                        break
+        
+        # Convert properties list to string
+        if weapon_properties_list and not weapon_properties_str:
+            weapon_properties_str = ", ".join(weapon_properties_list)
+        
+        # Determine if ranged weapon
+        is_ranged = False
+        if weapon_properties_list:
+            for prop in weapon_properties_list:
+                if isinstance(prop, str) and ("ranged" in prop.lower() or "ammunition" in prop.lower()):
+                    is_ranged = True
+                    break
+        
+        # If no range info found and it's not ranged, keep as Melee
+        if not is_ranged and weapon_range == "Melee":
+            # Check if it's a ranged weapon by category
+            weapon_category = weapon.get("category", "").lower()
+            if "ranged" in weapon_category or "bow" in weapon_category or "crossbow" in weapon_category:
+                is_ranged = True
+        
+        # Default damage if not found
+        if not weapon_damage:
+            weapon_damage = "1d4"
+        
+        # Column 1: Weapon name (with bonus if applicable)
+        name_td = document.createElement("td")
+        name_text = weapon.get("name", "Unknown")
+        
+        if weapon_bonus and weapon_bonus > 0:
+            name_text = f"{name_text} +{weapon_bonus}"
         name_td.textContent = name_text
         tr.appendChild(name_td)
         
         # Column 2: To Hit bonus
         to_hit_td = document.createElement("td")
-        # Try to calculate based on weapon properties
-        # For now, use DEX or STR based on weapon properties
-        weapon_properties = weapon.get("properties", "").lower()
-        use_finesse = "finesse" in weapon_properties
-        str_score = scores.get("str", 10) + get_race_ability_bonuses(get_text_value("race")).get("str", 0)
-        dex_score = scores.get("dex", 10) + get_race_ability_bonuses(get_text_value("race")).get("dex", 0)
+        # Determine ability based on weapon properties
+        use_finesse = False
+        if weapon_properties_list:
+            for prop in weapon_properties_list:
+                if isinstance(prop, str) and "finesse" in prop.lower():
+                    use_finesse = True
+                    break
+        elif weapon_properties_str:
+            use_finesse = "finesse" in weapon_properties_str.lower()
         
-        # Default to STR, but use DEX if finesse and DEX is higher
-        if use_finesse and dex_score > str_score:
+        str_score = scores.get("str", 10) + race_bonuses.get("str", 0)
+        dex_score = scores.get("dex", 10) + race_bonuses.get("dex", 0)
+        
+        # For ranged weapons, use DEX if higher; for melee, use STR unless finesse
+        if is_ranged:
+            ability_mod = ability_modifier(dex_score)
+        elif use_finesse and dex_score > str_score:
             ability_mod = ability_modifier(dex_score)
         else:
             ability_mod = ability_modifier(str_score)
         
-        to_hit = ability_mod + proficiency + bonus
+        to_hit = ability_mod + proficiency + weapon_bonus
         to_hit_td.textContent = format_bonus(to_hit)
         tr.appendChild(to_hit_td)
         
         # Column 3: Damage
         damage_td = document.createElement("td")
-        damage_dice = weapon.get("damage", "1d4")
-        damage_type = weapon.get("damage_type", "bludgeoning")
-        damage_text = f"{damage_dice} {damage_type}"
-        if bonus and bonus > 0:
-            damage_text += f" +{bonus}"
+        damage_text = f"{weapon_damage}"
+        if weapon_damage_type:
+            damage_text += f" {weapon_damage_type}"
+        if weapon_bonus and weapon_bonus > 0:
+            damage_text += f" +{weapon_bonus}"
         damage_td.textContent = damage_text
         tr.appendChild(damage_td)
         
         # Column 4: Range
         range_td = document.createElement("td")
-        range_text = weapon.get("range_text", "Melee")
-        range_td.textContent = range_text
+        range_td.textContent = weapon_range
         tr.appendChild(range_td)
         
         # Column 5: Properties
         props_td = document.createElement("td")
-        properties_text = weapon.get("properties", "")
-        if not properties_text:
-            properties_text = "—"
+        properties_text = weapon_properties_str if weapon_properties_str else "—"
         props_td.textContent = properties_text
         tr.appendChild(props_td)
         
