@@ -1227,8 +1227,100 @@ def render_weapons_grid():
     # Get all equipped weapons from inventory
     equipped_weapons = []
     for item in INVENTORY_MANAGER.items:
-        if item.get("equipped") and item.get("category", "").lower() == "weapon":
+        category = item.get("category", "")
+        # Check if weapon - "Weapons" is the primary category, but also check for "weapon" just in case
+        is_weapon = category in ["Weapons", "weapon", "weapons"]
+        if item.get("equipped") and is_weapon:
             equipped_weapons.append(item)
+    
+    weapons_grid = get_element("weapons-grid")
+    empty_state = get_element("weapons-empty-state")
+    
+    if not weapons_grid:
+        return
+    
+    if not equipped_weapons:
+        # Show empty state
+        weapons_grid.innerHTML = ""
+        if empty_state:
+            empty_state.style.display = "table-row"
+        return
+    
+    # Hide empty state
+    if empty_state:
+        empty_state.style.display = "none"
+    
+    # Get character stats for to-hit calculation
+    scores = gather_scores()
+    level = get_numeric_value("level", 1)
+    proficiency = compute_proficiency(level)
+    
+    weapons_grid.innerHTML = ""
+    
+    for weapon in equipped_weapons:
+        tr = document.createElement("tr")
+        
+        # Column 1: Weapon name (with bonus if applicable)
+        name_td = document.createElement("td")
+        name_text = weapon.get("name", "Unknown")
+        bonus = 0
+        try:
+            notes_str = weapon.get("notes", "")
+            if notes_str and notes_str.startswith("{"):
+                extra_props = json.loads(notes_str)
+                bonus = extra_props.get("bonus", 0)
+        except:
+            bonus = 0
+        
+        if bonus and bonus > 0:
+            name_text = f"{name_text} +{bonus}"
+        name_td.textContent = name_text
+        tr.appendChild(name_td)
+        
+        # Column 2: To Hit bonus
+        to_hit_td = document.createElement("td")
+        # Try to calculate based on weapon properties
+        # For now, use DEX or STR based on weapon properties
+        weapon_properties = weapon.get("properties", "").lower()
+        use_finesse = "finesse" in weapon_properties
+        str_score = scores.get("str", 10) + get_race_ability_bonuses(get_text_value("race")).get("str", 0)
+        dex_score = scores.get("dex", 10) + get_race_ability_bonuses(get_text_value("race")).get("dex", 0)
+        
+        # Default to STR, but use DEX if finesse and DEX is higher
+        if use_finesse and dex_score > str_score:
+            ability_mod = ability_modifier(dex_score)
+        else:
+            ability_mod = ability_modifier(str_score)
+        
+        to_hit = ability_mod + proficiency + bonus
+        to_hit_td.textContent = format_bonus(to_hit)
+        tr.appendChild(to_hit_td)
+        
+        # Column 3: Damage
+        damage_td = document.createElement("td")
+        damage_dice = weapon.get("damage", "1d4")
+        damage_type = weapon.get("damage_type", "bludgeoning")
+        damage_text = f"{damage_dice} {damage_type}"
+        if bonus and bonus > 0:
+            damage_text += f" +{bonus}"
+        damage_td.textContent = damage_text
+        tr.appendChild(damage_td)
+        
+        # Column 4: Range
+        range_td = document.createElement("td")
+        range_text = weapon.get("range_text", "Melee")
+        range_td.textContent = range_text
+        tr.appendChild(range_td)
+        
+        # Column 5: Properties
+        props_td = document.createElement("td")
+        properties_text = weapon.get("properties", "")
+        if not properties_text:
+            properties_text = "—"
+        props_td.textContent = properties_text
+        tr.appendChild(props_td)
+        
+        weapons_grid.appendChild(tr)
     
     weapons_grid = get_element("weapons-grid")
     empty_state = get_element("weapons-empty-state")
