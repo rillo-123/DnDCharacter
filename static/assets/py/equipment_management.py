@@ -788,10 +788,15 @@ class InventoryManager:
         self.remove_item(item_id)
         self.render_inventory()
         update_calculations()
+        
+        # Ensure module references are initialized
+        initialize_module_references()
+        
         # Re-render weapons grid in case the removed item was a weapon
         if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'render_equipped_weapons'):
             try:
                 _CHAR_MODULE_REF.render_equipped_weapons()
+                console.log(f"DEBUG: Called render_equipped_weapons() - item removal handler for {item_id}")
             except Exception as e:
                 console.error(f"ERROR in render_equipped_weapons(): {e}")
     def _handle_qty_change(self, event, item_id: str):
