@@ -1270,14 +1270,15 @@ def render_weapons_grid():
         weapon_properties_str = ""
         
         # DEBUG: Log what we're working with
-        console.log(f"DEBUG: render_weapons_grid processing weapon: {weapon.get('name')} - notes={weapon.get('notes')}")
+        console.log(f"DEBUG render_weapons_grid: Processing '{weapon.get('name')}'")
+        console.log(f"  - notes field content: {weapon.get('notes')}")
         
         # First, always try to parse properties from notes JSON (this is where they're stored)
         try:
             notes_str = weapon.get("notes", "")
             if notes_str and notes_str.startswith("{"):
                 extra_props = json.loads(notes_str)
-                console.log(f"DEBUG: parsed extra_props from notes: {extra_props}")
+                console.log(f"  ✓ Successfully parsed notes JSON: {extra_props}")
                 # Get all values from notes
                 if "damage" in extra_props:
                     weapon_damage = extra_props["damage"]
@@ -1289,8 +1290,9 @@ def render_weapons_grid():
                     weapon_properties_str = extra_props["properties"]
                 if "bonus" in extra_props:
                     weapon_bonus = extra_props["bonus"]
+                console.log(f"  ✓ FINAL VALUES: damage={weapon_damage}, type={weapon_damage_type}, range={weapon_range}, properties={weapon_properties_str}")
         except Exception as e:
-            console.error(f"DEBUG: Failed to parse notes JSON: {e}")
+            console.error(f"  ✗ Failed to parse notes JSON: {e}")
             pass
         
         # Fallback: Try to get damage from direct properties (backward compat)
@@ -3939,7 +3941,7 @@ def get_equipped_weapons() -> list[dict]:
 
 def render_equipped_weapons():
     """Render equipped weapons as cards."""
-    equipped_list = get_element("weapons-list")
+    equipped_list = get_element("weapons-grid")
     empty_state = get_element("weapons-empty-state")
     
     if equipped_list is None or empty_state is None:
@@ -4223,9 +4225,9 @@ def render_equipped_attack_grid():
             equipped_items.append(item)
     
     # Find or create container in right pane
-    weapons_section = get_element("weapons-list")
+    weapons_section = get_element("weapons-grid")
     if weapons_section is None:
-        console.log("DEBUG: weapons-list container not found")
+        console.log("DEBUG: weapons-grid container not found")
         return
     
     # Clear existing content
@@ -5181,6 +5183,7 @@ def build_equipment_card_html(item: Union[dict, 'Equipment']) -> str:
                 notes_str = item.get("notes", "")
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
+                    console.log(f"DEBUG build_equipment_card: {name} - parsed notes: {notes_data}")
                     if not damage and "damage" in notes_data:
                         damage = notes_data["damage"]
                     if not damage_type and "damage_type" in notes_data:
@@ -5193,7 +5196,9 @@ def build_equipment_card_html(item: Union[dict, 'Equipment']) -> str:
                             properties = ", ".join(str(p) for p in props if p)
                         else:
                             properties = props
-            except:
+                    console.log(f"DEBUG build_equipment_card: {name} - extracted damage={damage}, type={damage_type}, range={range_text}")
+            except Exception as e:
+                console.error(f"DEBUG build_equipment_card: Failed to parse notes for {name}: {e}")
                 pass
     else:
         # Equipment object
