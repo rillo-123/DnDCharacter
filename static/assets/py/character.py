@@ -4132,13 +4132,19 @@ def render_equipped_attack_grid():
         console.log("[RENDER WEAPONS] ERROR: weapons-grid container not found")
         return
     
-    # Clear existing content
-    weapons_section.innerHTML = ""
+    # Clear existing weapon rows (but NOT the empty state row)
+    # Remove all rows except the empty state row
+    rows_to_remove = []
+    for row in weapons_section.querySelectorAll("tr"):
+        if row.id != "weapons-empty-state":
+            rows_to_remove.append(row)
+    for row in rows_to_remove:
+        row.remove()
     
     if not equipped_items:
         empty_state = get_element("weapons-empty-state")
         if empty_state:
-            empty_state.style.display = "block"
+            empty_state.style.display = "table-row"
         return
     
     # Hide empty state
