@@ -4256,16 +4256,7 @@ def render_equipped_attack_grid():
         prop_td.textContent = props if props else "—"
         tr.appendChild(prop_td)
         
-        # Column 6: Action - unequip button
-        action_td = document.createElement("td")
-        action_td.style.textAlign = "center"
-        btn = document.createElement("button")
-        btn.textContent = "Unequip"
-        btn.style.padding = "0.25rem 0.5rem"
-        btn.style.fontSize = "0.875rem"
-        btn.onclick = create_unequip_handler(item.get("id"), item.get("name", "Weapon"))
-        action_td.appendChild(btn)
-        tr.appendChild(action_td)
+        weapons_section.appendChild(tr)
         
         weapons_section.appendChild(tr)
 
