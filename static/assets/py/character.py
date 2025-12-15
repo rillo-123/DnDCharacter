@@ -4201,23 +4201,9 @@ def calculate_weapon_tohit(item: dict) -> int:
     ability_score = get_numeric_value(f"{ability_key}-score", 10)
     ability_mod = ability_modifier(ability_score)
     
-    # Check weapon proficiency
-    # Simple weapons: club, dagger, greatclub, handaxe, javelin, light hammer, mace, quarterstaff, sickle, spear
-    # Martial weapons: everything else
-    simple_weapons = ["club", "dagger", "greatclub", "handaxe", "javelin", "light hammer", "mace", "quarterstaff", "sickle", "spear"]
-    is_simple = any(weapon in item_name for weapon in simple_weapons)
-    
-    # Check if character has proficiency with this weapon
-    proficiency_bonus = 0
-    if is_simple:
-        # All characters have proficiency with simple weapons
-        proficiency_bonus = proficiency
-    else:
-        # For martial weapons, would need to check character class/features
-        # For now, add proficiency if it's in the name as a hint
-        proficiency_bonus = 0
-    
-    to_hit = ability_mod + proficiency_bonus
+    # Add proficiency bonus - all equipped weapons get proficiency
+    # (in a full implementation, would check class proficiencies)
+    to_hit = ability_mod + proficiency
     
     # Add any enchantment bonus (parse from name like "+1 Sword")
     import re
