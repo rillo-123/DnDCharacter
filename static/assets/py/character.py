@@ -4278,6 +4278,13 @@ def render_equipped_attack_grid():
             except:
                 pass
         
+        # If still no bonus, check weapon name for "+X" pattern (handles "+1 Mace" or "Sword +1")
+        if not dmg_bonus or dmg_bonus == 0:
+            import re
+            match = re.search(r'\+(\d+)', item.get("name", ""))
+            if match:
+                dmg_bonus = int(match.group(1))
+        
         dmg_text = dmg
         if dmg_text and dmg_type:
             dmg_text = f"{dmg_text} {dmg_type}"
