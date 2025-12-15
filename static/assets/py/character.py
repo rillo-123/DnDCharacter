@@ -3939,116 +3939,9 @@ def get_equipped_weapons() -> list[dict]:
 
 
 def render_equipped_weapons():
-    """Render equipped weapons as cards."""
-    equipped_list = get_element("weapons-grid")
-    empty_state = get_element("weapons-empty-state")
+    """Render equipped weapons as table rows - delegates to render_equipped_attack_grid."""
+    render_equipped_attack_grid()
     
-    if equipped_list is None or empty_state is None:
-        return
-    
-    weapons = get_equipped_weapons()
-    
-    if not weapons:
-        equipped_list.innerHTML = ""
-        empty_state.style.display = "block"
-        return
-    
-    empty_state.style.display = "none"
-    equipped_list.innerHTML = ""
-    
-    for weapon in weapons:
-        weapon_id = weapon.get("name", "").replace(" ", "_").replace("/", "_")
-        
-        card = document.createElement("div")
-        card.classList.add("weapon-card")
-        card.setAttribute("id", f"weapon-card-{weapon_id}")
-        
-        name = weapon.get("name", "Unknown")
-        damage = weapon.get("damage", "")
-        to_hit = weapon.get("to_hit", "")
-        damage_type = weapon.get("damage_type", "")
-        weapon_type = weapon.get("weapon_type", "")
-        weight = weapon.get("weight", "")
-        cost = weapon.get("cost", "")
-        
-        # Main display: to-hit and damage
-        # Format to-hit - show only if available, otherwise show damage bonus if available
-        if to_hit:
-            to_hit_str = f"+{to_hit}" if isinstance(to_hit, (int, float)) else str(to_hit)
-        else:
-            bonus = weapon.get("bonus", "") or weapon.get("attack_bonus", "")
-            to_hit_str = f"+{bonus}" if bonus else "-"
-        
-        damage_str = damage if damage else "-"
-        
-        card.innerHTML = f'''
-        <div class="weapon-card-header">
-            <strong>{escape(name)}</strong>
-            <span class="weapon-stat-compact">{escape(damage_str)}</span>
-            <button class="weapon-card-edit" data-weapon-id="{escape(weapon_id)}" type="button">✎</button>
-            <button class="weapon-card-remove" data-weapon-id="{escape(weapon_id)}" type="button">✕</button>
-        </div>
-        '''
-        
-        # Create details div separately
-        details_div = document.createElement("div")
-        details_div.classList.add("weapon-card-details")
-        details_div.setAttribute("id", f"details-{escape(weapon_id)}")
-        
-        # Build details - shows additional info when expanded
-        details_lines = []
-        details_lines.append(f"<div class='weapon-detail-row'><strong>Type:</strong> {escape(weapon_type)}</div>")
-        if damage_type:
-            details_lines.append(f"<div class='weapon-detail-row'><strong>Damage Type:</strong> {escape(damage_type)}</div>")
-        if weight:
-            details_lines.append(f"<div class='weapon-detail-row'><strong>Weight:</strong> {escape(weight)} lbs</div>")
-        if cost:
-            details_lines.append(f"<div class='weapon-detail-row'><strong>Cost:</strong> {escape(cost)}</div>")
-        
-        details_html = "".join(details_lines)
-        details_div.innerHTML = details_html
-        card.appendChild(details_div)
-        # Click to expand/collapse details
-        def make_expand_handler(wid):
-            def on_click(evt):
-                details = get_element(f"details-{wid}")
-                if details:
-                    details.classList.toggle("expanded")
-            return on_click
-        
-        card_element = card
-        handler = create_proxy(make_expand_handler(weapon_id))
-        card_element.addEventListener("click", handler)
-        _EVENT_PROXIES.append(handler)
-        
-        # Edit button
-        edit_btn = card.querySelector(".weapon-card-edit")
-        if edit_btn is not None:
-            def make_edit_handler(w):
-                def on_click(evt):
-                    evt.stopPropagation()  # Don't trigger expand/collapse
-                    edit_equipped_weapon(w)
-                return on_click
-            # Use create_proxy to wrap the handler
-            edit_handler = create_proxy(make_edit_handler(weapon))
-            edit_btn.addEventListener("click", edit_handler)
-            _EVENT_PROXIES.append(edit_handler)
-        
-        # Remove button
-        remove_btn = card.querySelector(".weapon-card-remove")
-        if remove_btn is not None:
-            def make_remove_handler(wid):
-                def on_click(evt):
-                    evt.stopPropagation()  # Don't trigger expand/collapse
-                    remove_equipped_weapon(wid)
-                    render_equipped_weapons()
-                return on_click
-            # Use create_proxy to wrap the handler
-            remove_handler = create_proxy(make_remove_handler(weapon_id))
-            remove_btn.addEventListener("click", remove_handler)
-            _EVENT_PROXIES.append(remove_handler)
-        
-        equipped_list.appendChild(card)
 
 
 def add_equipped_weapon(weapon: dict):
@@ -4215,7 +4108,10 @@ def calculate_weapon_tohit(item: dict) -> int:
 
 def render_equipped_attack_grid():
     """Render grid of equipped weapons and armor in Skills tab right pane."""
+    console.log("[RENDER WEAPONS] render_equipped_attack_grid() called")
+    
     if INVENTORY_MANAGER is None:
+        console.log("[RENDER WEAPONS] INVENTORY_MANAGER is None, returning")
         return
     
     # Get equipped WEAPONS only (not armor) from inventory
@@ -4226,11 +4122,14 @@ def render_equipped_attack_grid():
         is_weapon = category.lower() in ["weapons", "weapon"]
         if item.get("equipped") and is_weapon:
             equipped_items.append(item)
+            console.log(f"[RENDER WEAPONS] Found equipped weapon: {item.get('name')} (category={category})")
+    
+    console.log(f"[RENDER WEAPONS] Total equipped weapons: {len(equipped_items)}")
     
     # Find or create container in right pane
     weapons_section = get_element("weapons-grid")
     if weapons_section is None:
-        console.log("DEBUG: weapons-grid container not found")
+        console.log("[RENDER WEAPONS] ERROR: weapons-grid container not found")
         return
     
     # Clear existing content
