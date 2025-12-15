@@ -1264,26 +1264,22 @@ def render_weapons_grid():
         # Extract weapon properties - handle both Open5e API format and custom format
         weapon_bonus = 0
         weapon_damage = None
-        weapon_damage_type = weapon.get("damage_type", "")
+        weapon_damage_type = ""
         weapon_range = "Melee"
         weapon_properties_list = []
         weapon_properties_str = ""
         
-        # Try to get damage from multiple possible fields (Open5e uses damage_dice, custom might use damage)
-        if weapon.get("damage_dice"):
-            weapon_damage = weapon.get("damage_dice")
-        elif weapon.get("damage"):
-            weapon_damage = weapon.get("damage")
+        # DEBUG: Log what we're working with
+        console.log(f"DEBUG: render_weapons_grid processing weapon: {weapon.get('name')} - notes={weapon.get('notes')}")
         
-        # Try to parse properties from notes JSON (custom items)
+        # First, always try to parse properties from notes JSON (this is where they're stored)
         try:
             notes_str = weapon.get("notes", "")
             if notes_str and notes_str.startswith("{"):
                 extra_props = json.loads(notes_str)
-                # Override with values from notes if they exist
-                if "bonus" in extra_props:
-                    weapon_bonus = extra_props["bonus"]
-                if "damage" in extra_props and not weapon_damage:
+                console.log(f"DEBUG: parsed extra_props from notes: {extra_props}")
+                # Get all values from notes
+                if "damage" in extra_props:
                     weapon_damage = extra_props["damage"]
                 if "damage_type" in extra_props:
                     weapon_damage_type = extra_props["damage_type"]
@@ -1291,13 +1287,24 @@ def render_weapons_grid():
                     weapon_range = extra_props["range"]
                 if "properties" in extra_props:
                     weapon_properties_str = extra_props["properties"]
-        except:
+                if "bonus" in extra_props:
+                    weapon_bonus = extra_props["bonus"]
+        except Exception as e:
+            console.error(f"DEBUG: Failed to parse notes JSON: {e}")
             pass
         
-        # Parse properties from Open5e format (list)
-        props = weapon.get("properties", [])
-        if isinstance(props, list) and props:
-            weapon_properties_list = props
+        # Fallback: Try to get damage from direct properties (backward compat)
+        if not weapon_damage:
+            if weapon.get("damage_dice"):
+                weapon_damage = weapon.get("damage_dice")
+            elif weapon.get("damage"):
+                weapon_damage = weapon.get("damage")
+        
+        # Parse properties from Open5e format (list) if we still don't have them
+        if not weapon_properties_str:
+            props = weapon.get("properties", [])
+            if isinstance(props, list) and props:
+                weapon_properties_list = props
             # Look for range in properties (e.g., "ammunition (range 30/120)")
             for prop in props:
                 if isinstance(prop, str):
