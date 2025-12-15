@@ -262,11 +262,12 @@ class Weapon(Item):
     
     def __init__(self, name: str, cost: str = "", weight: str = "", qty: int = 1, category: str = "Weapons", 
                  notes: str = "", source: str = "custom", damage: str = "", damage_type: str = "", 
-                 damage_range: str = ""):
+                 range_text: str = "", properties: str = ""):
         super().__init__(name, cost, weight, qty, category, notes, source)
         self.damage = damage
         self.damage_type = damage_type
-        self.damage_range = damage_range
+        self.range_text = range_text
+        self.properties = properties
     
     def to_dict(self) -> dict:
         d = super().to_dict()
@@ -275,8 +276,10 @@ class Weapon(Item):
             extra_props["damage"] = self.damage
         if self.damage_type:
             extra_props["damage_type"] = self.damage_type
-        if self.damage_range:
-            extra_props["range"] = self.damage_range
+        if self.range_text:
+            extra_props["range"] = self.range_text
+        if self.properties:
+            extra_props["properties"] = self.properties
         if extra_props:
             d["notes"] = json.dumps(extra_props) if not d["notes"] else d["notes"]
         return d
