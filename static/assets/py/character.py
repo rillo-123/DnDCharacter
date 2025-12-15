@@ -4296,25 +4296,54 @@ def render_equipped_attack_grid():
         to_hit_cell.style.color = "#a7f3d0"
         row.appendChild(to_hit_cell)
         
-        # Damage
+        # Damage - check notes JSON for weapon properties
         dmg_cell = document.createElement("div")
-        dmg = item.get("damage", "—")
-        dmg_cell.textContent = dmg if dmg else "—"
+        dmg = item.get("damage", "")
+        dmg_type = item.get("damage_type", "")
+        if not dmg:
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    dmg = notes_data.get("damage", "")
+                    dmg_type = notes_data.get("damage_type", "")
+            except:
+                pass
+        dmg_text = dmg
+        if dmg_text and dmg_type:
+            dmg_text = f"{dmg_text} {dmg_type}"
+        dmg_cell.textContent = dmg_text if dmg_text else "—"
         dmg_cell.style.textAlign = "center"
         dmg_cell.style.color = "#fca5a5"
         row.appendChild(dmg_cell)
         
-        # Range
+        # Range - check notes JSON
         range_cell = document.createElement("div")
-        range_text = item.get("range_text", "—")
+        range_text = item.get("range_text", "")
+        if not range_text:
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    range_text = notes_data.get("range", "")
+            except:
+                pass
         range_cell.textContent = range_text if range_text else "—"
         range_cell.style.textAlign = "center"
         range_cell.style.color = "#fbbf24"
         row.appendChild(range_cell)
         
-        # Properties
+        # Properties - check notes JSON
         prop_cell = document.createElement("div")
-        props = item.get("properties", "—")
+        props = item.get("weapon_properties", "")
+        if not props:
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    props = notes_data.get("properties", "")
+            except:
+                pass
         prop_cell.textContent = props if props else "—"
         prop_cell.style.textAlign = "center"
         prop_cell.style.color = "#c084fc"
