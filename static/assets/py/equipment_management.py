@@ -267,7 +267,7 @@ class Weapon(Item):
         self.damage = damage
         self.damage_type = damage_type
         self.range_text = range_text
-        self.properties = properties
+        self.weapon_properties = properties  # Changed from self.properties to avoid conflict with Entity.properties
     
     def to_dict(self) -> dict:
         d = super().to_dict()
@@ -278,8 +278,8 @@ class Weapon(Item):
             extra_props["damage_type"] = self.damage_type
         if self.range_text:
             extra_props["range"] = self.range_text
-        if self.properties:
-            extra_props["properties"] = self.properties
+        if self.weapon_properties:
+            extra_props["properties"] = self.weapon_properties
         if extra_props:
             d["notes"] = json.dumps(extra_props) if not d["notes"] else d["notes"]
         return d

@@ -442,6 +442,73 @@ class TestWeaponsGridIntegration:
         assert parsed["damage"] == "1d10"
         assert parsed["bonus"] == 2
         assert "finesse" in parsed["properties"]
+    
+    def test_weapon_notes_field_populated_after_submit(self):
+        """Verify that when a weapon is submitted, notes field contains all properties."""
+        from static.assets.py.equipment_management import InventoryManager
+        
+        # Create inventory manager
+        inventory = InventoryManager()
+        
+        # Simulate submit_open5e_item parameters
+        name = "Light Crossbow"
+        cost = "25 gp"
+        weight = "5 lb."
+        damage = "1d8"
+        damage_type = "piercing"
+        range_text = "range 80/320"
+        properties = "ammunition (range 80/320), loading"
+        
+        # Build the notes JSON as submit_open5e_item does
+        extra_props = {}
+        if damage:
+            extra_props["damage"] = damage
+        if damage_type:
+            extra_props["damage_type"] = damage_type
+        if range_text:
+            extra_props["range"] = range_text
+        if properties:
+            extra_props["properties"] = properties
+        
+        notes = json.dumps(extra_props) if extra_props else ""
+        
+        # Add item to inventory
+        item_id = inventory.add_item(name, cost=cost, weight=weight, qty=1, category="", notes=notes, source="open5e")
+        
+        # Get the item back
+        item = inventory.get_item(item_id)
+        
+        # Verify notes are stored
+        assert item is not None
+        assert item["notes"] != ""
+        
+        # Verify we can parse the notes
+        parsed_notes = json.loads(item["notes"])
+        assert parsed_notes["damage"] == "1d8"
+        assert parsed_notes["damage_type"] == "piercing"
+        assert parsed_notes["range"] == "range 80/320"
+    
+    def test_weapon_from_fallback_list_has_correct_damage(self):
+        """Verify fallback weapon definitions have correct damage in to_dict()."""
+        from static.assets.py.equipment_management import Weapon
+        
+        # Create a crossbow like in the fallback list
+        crossbow = Weapon("Crossbow, light", damage="1d8", damage_type="piercing", 
+                         range_text="80/320 ft.", cost="25 gp", weight="5 lb.", 
+                         properties="ammunition, loading")
+        
+        # Convert to dict (this is what happens in fetch_equipment_from_open5e)
+        weapon_dict = crossbow.to_dict()
+        
+        # Verify notes are populated
+        assert weapon_dict["notes"] != ""
+        
+        # Verify we can parse the notes
+        parsed = json.loads(weapon_dict["notes"])
+        assert parsed["damage"] == "1d8", f"Expected 1d8 but got {parsed['damage']}"
+        assert parsed["damage_type"] == "piercing"
+        assert parsed["range"] == "80/320 ft."
+        assert "ammunition" in parsed["properties"]
 
 
 if __name__ == "__main__":
