@@ -5174,6 +5174,27 @@ def build_equipment_card_html(item: Union[dict, 'Equipment']) -> str:
         
         ac_string = item.get("ac", "") or item.get("ac_string", "")
         armor_class = item.get("armor_class", "")
+        
+        # If data not found in direct properties, check the notes JSON (from Weapon.to_dict())
+        if not damage or not damage_type or not range_text:
+            try:
+                notes_str = item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    if not damage and "damage" in notes_data:
+                        damage = notes_data["damage"]
+                    if not damage_type and "damage_type" in notes_data:
+                        damage_type = notes_data["damage_type"]
+                    if not range_text and "range" in notes_data:
+                        range_text = notes_data["range"]
+                    if not properties and "properties" in notes_data:
+                        props = notes_data["properties"]
+                        if isinstance(props, list):
+                            properties = ", ".join(str(p) for p in props if p)
+                        else:
+                            properties = props
+            except:
+                pass
     else:
         # Equipment object
         name = item.name
