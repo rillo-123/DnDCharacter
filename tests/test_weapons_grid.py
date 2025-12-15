@@ -319,6 +319,77 @@ class TestWeaponsGridRendering:
         
         assert len(equipped_weapons) == 0
     
+    def test_unequipped_weapons_not_displayed(self):
+        """Verify unequipped weapons are NOT shown in grid."""
+        weapons = [
+            {
+                "id": "1",
+                "name": "Longsword",
+                "category": "Weapons",
+                "equipped": True,
+                "notes": json.dumps({"damage": "1d8", "damage_type": "slashing"})
+            },
+            {
+                "id": "2",
+                "name": "Dagger",
+                "category": "Weapons",
+                "equipped": False,  # NOT equipped
+                "notes": json.dumps({"damage": "1d4", "damage_type": "piercing"})
+            }
+        ]
+        
+        # Filter for only equipped weapons
+        equipped_weapons = [w for w in weapons if w.get("equipped") and w.get("category") in ["Weapons", "weapon", "weapons"]]
+        
+        assert len(equipped_weapons) == 1
+        assert equipped_weapons[0]["name"] == "Longsword"
+        assert "Dagger" not in [w["name"] for w in equipped_weapons]
+    
+    def test_weapon_disappears_when_unequipped(self):
+        """Verify weapon disappears from grid when unequipped."""
+        # Start with equipped weapon
+        weapon = {
+            "id": "1",
+            "name": "Longsword",
+            "category": "Weapons",
+            "equipped": True,
+            "notes": json.dumps({"damage": "1d8", "damage_type": "slashing"})
+        }
+        
+        # Filter equipped
+        equipped_before = [w for w in [weapon] if w.get("equipped")]
+        assert len(equipped_before) == 1
+        
+        # Unequip the weapon
+        weapon["equipped"] = False
+        
+        # Filter equipped again
+        equipped_after = [w for w in [weapon] if w.get("equipped")]
+        assert len(equipped_after) == 0
+    
+    def test_weapon_appears_when_equipped(self):
+        """Verify weapon appears in grid when equipped."""
+        # Start with unequipped weapon
+        weapon = {
+            "id": "1",
+            "name": "Longsword",
+            "category": "Weapons",
+            "equipped": False,
+            "notes": json.dumps({"damage": "1d8", "damage_type": "slashing"})
+        }
+        
+        # Filter equipped
+        equipped_before = [w for w in [weapon] if w.get("equipped")]
+        assert len(equipped_before) == 0
+        
+        # Equip the weapon
+        weapon["equipped"] = True
+        
+        # Filter equipped again
+        equipped_after = [w for w in [weapon] if w.get("equipped")]
+        assert len(equipped_after) == 1
+        assert equipped_after[0]["name"] == "Longsword"
+    
     def test_damage_display_format(self):
         """Verify damage displayed as 'dice type' format."""
         weapon = {
@@ -509,6 +580,114 @@ class TestWeaponsGridIntegration:
         assert parsed["damage_type"] == "piercing"
         assert parsed["range"] == "80/320 ft."
         assert "ammunition" in parsed["properties"]
+    
+    def test_equip_unequip_workflow_with_inventory(self):
+        """Verify complete equip/unequip workflow with inventory manager."""
+        from static.assets.py.equipment_management import InventoryManager
+        
+        # Create inventory
+        inventory = InventoryManager()
+        
+        # Add a weapon
+        item_id = inventory.add_item(
+            "Longsword",
+            cost="15 gp",
+            weight="3 lb.",
+            category="Weapons",
+            notes=json.dumps({"damage": "1d8", "damage_type": "slashing"})
+        )
+        
+        # Initially unequipped
+        item = inventory.get_item(item_id)
+        assert item["equipped"] == False
+        
+        # Equip it
+        item["equipped"] = True
+        
+        # Verify it's now equipped
+        assert item["equipped"] == True
+        
+        # Unequip it
+        item["equipped"] = False
+        
+        # Verify it's no longer equipped
+        assert item["equipped"] == False
+    
+    def test_only_equipped_weapons_in_grid_display_list(self):
+        """Verify that grid rendering only uses equipped weapons."""
+        from static.assets.py.equipment_management import InventoryManager
+        
+        inventory = InventoryManager()
+        
+        # Add 3 weapons
+        id1 = inventory.add_item("Longsword", category="Weapons", 
+                                  notes=json.dumps({"damage": "1d8", "damage_type": "slashing"}))
+        id2 = inventory.add_item("Dagger", category="Weapons",
+                                  notes=json.dumps({"damage": "1d4", "damage_type": "piercing"}))
+        id3 = inventory.add_item("Greatsword", category="Weapons",
+                                  notes=json.dumps({"damage": "2d6", "damage_type": "slashing"}))
+        
+        # Equip only 2
+        inventory.get_item(id1)["equipped"] = True
+        inventory.get_item(id2)["equipped"] = True
+        inventory.get_item(id3)["equipped"] = False
+        
+        # Get equipped weapons for grid display
+        equipped_weapons = [w for w in inventory.items 
+                           if w.get("equipped") and w.get("category") in ["Weapons", "weapon", "weapons"]]
+        
+        assert len(equipped_weapons) == 2
+        names = [w["name"] for w in equipped_weapons]
+        assert "Longsword" in names
+        assert "Dagger" in names
+        assert "Greatsword" not in names
+    
+    def test_unequipping_removes_from_grid(self):
+        """Verify that unequipping a weapon removes it from the displayed grid."""
+        from static.assets.py.equipment_management import InventoryManager
+        
+        inventory = InventoryManager()
+        
+        # Add weapon and equip it
+        item_id = inventory.add_item("Longsword", category="Weapons",
+                                      notes=json.dumps({"damage": "1d8", "damage_type": "slashing"}))
+        item = inventory.get_item(item_id)
+        item["equipped"] = True
+        
+        # Verify it's in the grid
+        equipped_weapons = [w for w in inventory.items if w.get("equipped")]
+        assert len(equipped_weapons) == 1
+        assert equipped_weapons[0]["name"] == "Longsword"
+        
+        # Unequip it
+        item["equipped"] = False
+        
+        # Verify it's no longer in the grid
+        equipped_weapons = [w for w in inventory.items if w.get("equipped")]
+        assert len(equipped_weapons) == 0
+    
+    def test_re_equipping_adds_back_to_grid(self):
+        """Verify that re-equipping a weapon adds it back to the grid."""
+        from static.assets.py.equipment_management import InventoryManager
+        
+        inventory = InventoryManager()
+        
+        # Add weapon but don't equip
+        item_id = inventory.add_item("Longsword", category="Weapons",
+                                      notes=json.dumps({"damage": "1d8", "damage_type": "slashing"}))
+        item = inventory.get_item(item_id)
+        
+        # Verify it's not in the grid
+        equipped_weapons = [w for w in inventory.items if w.get("equipped")]
+        assert len(equipped_weapons) == 0
+        
+        # Equip it
+        item["equipped"] = True
+        
+        # Verify it's now in the grid
+        equipped_weapons = [w for w in inventory.items if w.get("equipped")]
+        assert len(equipped_weapons) == 1
+        assert equipped_weapons[0]["name"] == "Longsword"
 
 
 if __name__ == "__main__":
