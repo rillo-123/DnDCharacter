@@ -5139,11 +5139,33 @@ def build_equipment_card_html(item: Union[dict, 'Equipment']) -> str:
         name = item.get("name", "Unknown")
         cost = item.get("cost", "Unknown")
         weight = item.get("weight", "Unknown")
-        damage = item.get("damage", "")
+        
+        # Handle both custom format (damage, damage_type) and Open5e format (damage_dice)
+        damage = item.get("damage", "") or item.get("damage_dice", "")
         damage_type = item.get("damage_type", "")
+        
+        # Handle both custom format (range) and Open5e format (properties array with range in it)
         range_text = item.get("range", "")
+        if not range_text:
+            # Try to extract range from properties array
+            props = item.get("properties", [])
+            if isinstance(props, list):
+                for prop in props:
+                    if isinstance(prop, str) and ("range" in prop.lower() or "ammunition" in prop.lower()):
+                        # Extract range info from property
+                        if "(" in prop and ")" in prop:
+                            range_text = prop[prop.find("(")+1:prop.find(")")]
+                        else:
+                            range_text = prop
+                        break
+        
+        # Format properties
         properties = item.get("properties", "")
-        ac_string = item.get("ac", "")
+        if isinstance(properties, list):
+            # Convert list to comma-separated string
+            properties = ", ".join(str(p) for p in properties if p)
+        
+        ac_string = item.get("ac", "") or item.get("ac_string", "")
         armor_class = item.get("armor_class", "")
     else:
         # Equipment object
