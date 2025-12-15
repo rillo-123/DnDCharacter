@@ -788,6 +788,11 @@ class InventoryManager:
         self.remove_item(item_id)
         self.render_inventory()
         update_calculations()
+        # Re-render weapons grid in case the removed item was a weapon
+        try:
+            render_equipped_weapons()
+        except:
+            pass  # render_equipped_weapons may not be available in all contexts
     def _handle_qty_change(self, event, item_id: str):
         """Handle quantity changes."""
         qty_input = event.target
