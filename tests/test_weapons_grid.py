@@ -516,7 +516,9 @@ class TestWeaponsGridIntegration:
     
     def test_weapon_notes_field_populated_after_submit(self):
         """Verify that when a weapon is submitted, notes field contains all properties."""
-        from static.assets.py.equipment_management import InventoryManager
+        import sys
+        sys.path.insert(0, 'static/assets/py')
+        from equipment_management import InventoryManager
         
         # Create inventory manager
         inventory = InventoryManager()
@@ -561,7 +563,9 @@ class TestWeaponsGridIntegration:
     
     def test_weapon_from_fallback_list_has_correct_damage(self):
         """Verify fallback weapon definitions have correct damage in to_dict()."""
-        from static.assets.py.equipment_management import Weapon
+        import sys
+        sys.path.insert(0, 'static/assets/py')
+        from equipment_management import Weapon
         
         # Create a crossbow like in the fallback list
         crossbow = Weapon("Crossbow, light", damage="1d8", damage_type="piercing", 
@@ -583,7 +587,9 @@ class TestWeaponsGridIntegration:
     
     def test_equip_unequip_workflow_with_inventory(self):
         """Verify complete equip/unequip workflow with inventory manager."""
-        from static.assets.py.equipment_management import InventoryManager
+        import sys
+        sys.path.insert(0, 'static/assets/py')
+        from equipment_management import InventoryManager
         
         # Create inventory
         inventory = InventoryManager()
@@ -615,7 +621,9 @@ class TestWeaponsGridIntegration:
     
     def test_only_equipped_weapons_in_grid_display_list(self):
         """Verify that grid rendering only uses equipped weapons."""
-        from static.assets.py.equipment_management import InventoryManager
+        import sys
+        sys.path.insert(0, 'static/assets/py')
+        from equipment_management import InventoryManager
         
         inventory = InventoryManager()
         
@@ -644,7 +652,9 @@ class TestWeaponsGridIntegration:
     
     def test_unequipping_removes_from_grid(self):
         """Verify that unequipping a weapon removes it from the displayed grid."""
-        from static.assets.py.equipment_management import InventoryManager
+        import sys
+        sys.path.insert(0, 'static/assets/py')
+        from equipment_management import InventoryManager
         
         inventory = InventoryManager()
         
@@ -668,7 +678,9 @@ class TestWeaponsGridIntegration:
     
     def test_re_equipping_adds_back_to_grid(self):
         """Verify that re-equipping a weapon adds it back to the grid."""
-        from static.assets.py.equipment_management import InventoryManager
+        import sys
+        sys.path.insert(0, 'static/assets/py')
+        from equipment_management import InventoryManager
         
         inventory = InventoryManager()
         

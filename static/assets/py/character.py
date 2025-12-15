@@ -2694,7 +2694,6 @@ def update_calculations(*_args):
         compute_spellcasting_profile()
     )
     render_spell_slots(slot_summary)
-    render_weapons_grid()
     update_header_display()
     
     # Render class features and feats
@@ -4219,10 +4218,13 @@ def render_equipped_attack_grid():
     if INVENTORY_MANAGER is None:
         return
     
-    # Get equipped items from inventory
+    # Get equipped WEAPONS only (not armor) from inventory
     equipped_items = []
     for item in INVENTORY_MANAGER.items:
-        if item.get("equipped") and is_equipable(item):
+        category = item.get("category", "").lower()
+        # Only show weapons, not armor or other equipment
+        is_weapon = category in ["weapons", "weapon"]
+        if item.get("equipped") and is_weapon:
             equipped_items.append(item)
     
     # Find or create container in right pane
