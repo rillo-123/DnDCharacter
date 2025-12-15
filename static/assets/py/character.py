@@ -4244,60 +4244,23 @@ def render_equipped_attack_grid():
     if empty_state:
         empty_state.style.display = "none"
     
-    # Build grid header
-    header_div = document.createElement("div")
-    header_div.className = "attack-grid-header"
-    header_div.style.display = "grid"
-    header_div.style.gridTemplateColumns = "1fr 0.8fr 1fr 0.8fr 1fr"
-    header_div.style.gap = "0.5rem"
-    header_div.style.padding = "0.5rem"
-    header_div.style.fontSize = "0.75rem"
-    header_div.style.fontWeight = "bold"
-    header_div.style.color = "#94a3b8"
-    header_div.style.borderBottom = "1px solid rgba(148, 163, 184, 0.2)"
-    header_div.style.marginBottom = "0.5rem"
-    
-    headers = ["Type", "To Hit", "Dmg", "Range", "Prop."]
-    for h in headers:
-        col = document.createElement("div")
-        col.textContent = h
-        col.style.textAlign = "center"
-        header_div.appendChild(col)
-    
-    weapons_section.appendChild(header_div)
-    
-    # Build grid rows
+    # Build table rows (weapons_section is the tbody)
     for item in equipped_items:
-        row = document.createElement("div")
-        row.className = "attack-grid-row"
-        row.style.display = "grid"
-        row.style.gridTemplateColumns = "1fr 0.8fr 1fr 0.8fr 1fr"
-        row.style.gap = "0.5rem"
-        row.style.padding = "0.5rem"
-        row.style.borderRadius = "0.375rem"
-        row.style.backgroundColor = "rgba(30, 41, 59, 0.5)"
-        row.style.fontSize = "0.85rem"
-        row.style.marginBottom = "0.5rem"
-        row.style.alignItems = "center"
+        tr = document.createElement("tr")
         
-        # Type (weapon or armor)
-        type_cell = document.createElement("div")
-        type_cell.textContent = item.get("name", "Unknown")
-        type_cell.style.textAlign = "left"
-        type_cell.style.fontWeight = "600"
-        type_cell.style.color = "#cbd5f5"
-        row.appendChild(type_cell)
+        # Column 1: Weapon name
+        name_td = document.createElement("td")
+        name_td.textContent = item.get("name", "Unknown")
+        tr.appendChild(name_td)
         
-        # To Hit (attack bonus)
-        to_hit_cell = document.createElement("div")
+        # Column 2: To Hit bonus
+        to_hit_td = document.createElement("td")
         to_hit = calculate_weapon_tohit(item)
-        to_hit_cell.textContent = format_bonus(to_hit)
-        to_hit_cell.style.textAlign = "center"
-        to_hit_cell.style.color = "#a7f3d0"
-        row.appendChild(to_hit_cell)
+        to_hit_td.textContent = format_bonus(to_hit)
+        tr.appendChild(to_hit_td)
         
-        # Damage - check notes JSON for weapon properties
-        dmg_cell = document.createElement("div")
+        # Column 3: Damage - check notes JSON for weapon properties
+        dmg_td = document.createElement("td")
         dmg = item.get("damage", "")
         dmg_type = item.get("damage_type", "")
         if not dmg:
@@ -4312,13 +4275,11 @@ def render_equipped_attack_grid():
         dmg_text = dmg
         if dmg_text and dmg_type:
             dmg_text = f"{dmg_text} {dmg_type}"
-        dmg_cell.textContent = dmg_text if dmg_text else "—"
-        dmg_cell.style.textAlign = "center"
-        dmg_cell.style.color = "#fca5a5"
-        row.appendChild(dmg_cell)
+        dmg_td.textContent = dmg_text if dmg_text else "—"
+        tr.appendChild(dmg_td)
         
-        # Range - check notes JSON
-        range_cell = document.createElement("div")
+        # Column 4: Range - check notes JSON
+        range_td = document.createElement("td")
         range_text = item.get("range_text", "")
         if not range_text:
             try:
@@ -4328,13 +4289,11 @@ def render_equipped_attack_grid():
                     range_text = notes_data.get("range", "")
             except:
                 pass
-        range_cell.textContent = range_text if range_text else "—"
-        range_cell.style.textAlign = "center"
-        range_cell.style.color = "#fbbf24"
-        row.appendChild(range_cell)
+        range_td.textContent = range_text if range_text else "—"
+        tr.appendChild(range_td)
         
-        # Properties - check notes JSON
-        prop_cell = document.createElement("div")
+        # Column 5: Properties - check notes JSON
+        prop_td = document.createElement("td")
         props = item.get("weapon_properties", "")
         if not props:
             try:
@@ -4344,13 +4303,10 @@ def render_equipped_attack_grid():
                     props = notes_data.get("properties", "")
             except:
                 pass
-        prop_cell.textContent = props if props else "—"
-        prop_cell.style.textAlign = "center"
-        prop_cell.style.color = "#c084fc"
-        prop_cell.style.fontSize = "0.8rem"
-        row.appendChild(prop_cell)
+        prop_td.textContent = props if props else "—"
+        tr.appendChild(prop_td)
         
-        weapons_section.appendChild(row)
+        weapons_section.appendChild(tr)
 
 
 def _create_equipment_row(item: dict) -> any:
