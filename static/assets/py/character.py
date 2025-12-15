@@ -4106,6 +4106,32 @@ def calculate_weapon_tohit(item: dict) -> int:
     return to_hit
 
 
+def create_unequip_handler(item_id, weapon_name):
+    """Create a closure for unequip button that remembers the item_id."""
+    def unequip_weapon():
+        """Unequip a weapon from inventory."""
+        if INVENTORY_MANAGER is None:
+            console.log("[UNEQUIP] INVENTORY_MANAGER is None")
+            return
+        
+        # Find and unequip the item
+        for item in INVENTORY_MANAGER.items:
+            if item.get("id") == item_id:
+                item["equipped"] = False
+                console.log(f"[UNEQUIP] Unequipped: {weapon_name}")
+                # Re-render the weapons grid
+                render_equipped_attack_grid()
+                # Update calculations
+                update_calculations()
+                # Auto-export
+                save_to_localstorage()
+                return
+        
+        console.log(f"[UNEQUIP] Item not found: id={item_id}")
+    
+    return unequip_weapon
+
+
 def render_equipped_attack_grid():
     """Render grid of equipped weapons and armor in Skills tab right pane."""
     console.log("[RENDER WEAPONS] render_equipped_attack_grid() called")
@@ -4229,6 +4255,17 @@ def render_equipped_attack_grid():
                 pass
         prop_td.textContent = props if props else "—"
         tr.appendChild(prop_td)
+        
+        # Column 6: Action - unequip button
+        action_td = document.createElement("td")
+        action_td.style.textAlign = "center"
+        btn = document.createElement("button")
+        btn.textContent = "Unequip"
+        btn.style.padding = "0.25rem 0.5rem"
+        btn.style.fontSize = "0.875rem"
+        btn.onclick = create_unequip_handler(item.get("id"), item.get("name", "Weapon"))
+        action_td.appendChild(btn)
+        tr.appendChild(action_td)
         
         weapons_section.appendChild(tr)
 
