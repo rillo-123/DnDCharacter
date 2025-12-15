@@ -4260,10 +4260,12 @@ def render_equipped_attack_grid():
         to_hit_td.textContent = format_bonus(to_hit)
         tr.appendChild(to_hit_td)
         
-        # Column 3: Damage - check notes JSON for weapon properties
+        # Column 3: Damage - check notes JSON for weapon properties and bonus
         dmg_td = document.createElement("td")
         dmg = item.get("damage", "")
         dmg_type = item.get("damage_type", "")
+        dmg_bonus = item.get("bonus", 0)
+        
         if not dmg:
             try:
                 notes_str = item.get("notes", "")
@@ -4271,15 +4273,20 @@ def render_equipped_attack_grid():
                     notes_data = json.loads(notes_str)
                     dmg = notes_data.get("damage", "")
                     dmg_type = notes_data.get("damage_type", "")
+                    if not dmg_bonus or dmg_bonus == 0:
+                        dmg_bonus = notes_data.get("bonus", 0)
             except:
                 pass
+        
         dmg_text = dmg
         if dmg_text and dmg_type:
             dmg_text = f"{dmg_text} {dmg_type}"
+        if dmg_bonus and dmg_bonus > 0:
+            dmg_text = f"{dmg_text} +{dmg_bonus}"
         dmg_td.textContent = dmg_text if dmg_text else "—"
         tr.appendChild(dmg_td)
         
-        # Column 4: Range - check notes JSON
+        # Column 4: Range - check notes JSON and direct field
         range_td = document.createElement("td")
         range_text = item.get("range_text", "")
         if not range_text:
@@ -4288,6 +4295,8 @@ def render_equipped_attack_grid():
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     range_text = notes_data.get("range", "")
+                    if not range_text:
+                        range_text = notes_data.get("range_text", "")
             except:
                 pass
         range_td.textContent = range_text if range_text else "—"
