@@ -783,22 +783,34 @@ class InventoryManager:
     
     def _handle_item_remove(self, event, item_id: str):
         """Remove an item."""
+        console.log(f"[REMOVE] _handle_item_remove called for item_id={item_id}")
         event.stopPropagation()
         event.preventDefault()
         self.remove_item(item_id)
+        console.log(f"[REMOVE] Item removed from inventory, total items: {len(self.items)}")
         self.render_inventory()
+        console.log(f"[REMOVE] Inventory re-rendered")
         update_calculations()
+        console.log(f"[REMOVE] Calculations updated")
         
         # Ensure module references are initialized
         initialize_module_references()
+        console.log(f"[REMOVE] Module references initialized, _CHAR_MODULE_REF={_CHAR_MODULE_REF is not None}")
         
         # Re-render weapons grid in case the removed item was a weapon
-        if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'render_equipped_weapons'):
-            try:
-                _CHAR_MODULE_REF.render_equipped_weapons()
-                console.log(f"DEBUG: Called render_equipped_weapons() - item removal handler for {item_id}")
-            except Exception as e:
-                console.error(f"ERROR in render_equipped_weapons(): {e}")
+        if _CHAR_MODULE_REF is not None:
+            console.log(f"[REMOVE] _CHAR_MODULE_REF is available, checking for render_equipped_weapons")
+            if hasattr(_CHAR_MODULE_REF, 'render_equipped_weapons'):
+                try:
+                    console.log(f"[REMOVE] Calling render_equipped_weapons()")
+                    _CHAR_MODULE_REF.render_equipped_weapons()
+                    console.log(f"[REMOVE] Successfully called render_equipped_weapons()")
+                except Exception as e:
+                    console.error(f"[REMOVE] ERROR calling render_equipped_weapons(): {e}")
+            else:
+                console.log(f"[REMOVE] render_equipped_weapons not found in _CHAR_MODULE_REF")
+        else:
+            console.log(f"[REMOVE] _CHAR_MODULE_REF is None, cannot render weapons")
     def _handle_qty_change(self, event, item_id: str):
         """Handle quantity changes."""
         qty_input = event.target
