@@ -6140,8 +6140,20 @@ if document is not None:
     load_initial_state()
     console.log("[DEBUG] Calling update_calculations()")
     update_calculations()
-    console.log("[DEBUG] Calling render_equipped_weapons()")
-    render_equipped_weapons()
+    
+    # Initialize weapons manager
+    try:
+        from weapons_manager import initialize_weapons_manager
+        console.log("[DEBUG] Initializing weapons manager")
+        weapons_mgr = initialize_weapons_manager(INVENTORY_MANAGER)
+        weapons_mgr.render()
+        console.log("[DEBUG] Weapons manager initialized and rendered")
+    except Exception as e:
+        console.error(f"[DEBUG] Error initializing weapons manager: {e}")
+        # Fallback to old method
+        console.log("[DEBUG] Falling back to render_equipped_weapons()")
+        render_equipped_weapons()
+    
     # Populate spell class filter with fallback spells on startup
     console.log("[DEBUG] Populating spell class filter")
     populate_spell_class_filter(SPELL_LIBRARY_STATE.get("spells"))
