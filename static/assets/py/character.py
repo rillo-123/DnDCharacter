@@ -4221,9 +4221,9 @@ def render_equipped_attack_grid():
     # Get equipped WEAPONS only (not armor) from inventory
     equipped_items = []
     for item in INVENTORY_MANAGER.items:
-        category = item.get("category", "").lower()
-        # Only show weapons, not armor or other equipment
-        is_weapon = category in ["weapons", "weapon"]
+        category = item.get("category", "")
+        # Only show weapons, not armor or other equipment (case-insensitive)
+        is_weapon = category.lower() in ["weapons", "weapon"]
         if item.get("equipped") and is_weapon:
             equipped_items.append(item)
     
