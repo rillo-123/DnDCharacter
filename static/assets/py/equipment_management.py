@@ -789,10 +789,11 @@ class InventoryManager:
         self.render_inventory()
         update_calculations()
         # Re-render weapons grid in case the removed item was a weapon
-        try:
-            render_equipped_weapons()
-        except:
-            pass  # render_equipped_weapons may not be available in all contexts
+        if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'render_equipped_weapons'):
+            try:
+                _CHAR_MODULE_REF.render_equipped_weapons()
+            except Exception as e:
+                console.error(f"ERROR in render_equipped_weapons(): {e}")
     def _handle_qty_change(self, event, item_id: str):
         """Handle quantity changes."""
         qty_input = event.target
