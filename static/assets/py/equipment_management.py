@@ -137,7 +137,11 @@ def get_element(element_id: str):
     if document is None:
         return None
     try:
-        return document.getElementById(element_id)
+        # Defensive wrapper for test environments with minimal MockDocument
+        getter = getattr(document, 'getElementById', None)
+        if not getter:
+            return None
+        return getter(element_id)
     except:
         return None
 
@@ -793,17 +797,22 @@ class InventoryManager:
         # Ensure module references are initialized
         initialize_module_references()
         
-        # Sync weapons grid if removed item was a weapon
+        # Sync weapons and armor grids if removed item was a weapon or armor
         try:
             from weapons_manager import get_weapons_manager
+            from armor_manager import get_armor_manager
+            
             weapons_mgr = get_weapons_manager()
             if weapons_mgr:
                 console.log(f"[EQUIPMENT] Re-rendering weapons grid after removal")
                 weapons_mgr.render()
-            else:
-                console.log(f"[EQUIPMENT] Weapons manager not available")
+            
+            armor_mgr = get_armor_manager()
+            if armor_mgr:
+                console.log(f"[EQUIPMENT] Re-rendering armor grid after removal")
+                armor_mgr.render()
         except Exception as e:
-            console.error(f"[EQUIPMENT] Error syncing weapons grid: {e}")
+            console.error(f"[EQUIPMENT] Error syncing grids: {e}")
     def _handle_qty_change(self, event, item_id: str):
         """Handle quantity changes."""
         qty_input = event.target
@@ -1018,15 +1027,26 @@ class InventoryManager:
                         console.error(f"ERROR in update_calculations(): {calc_err}")
                         raise  # Re-raise so the outer handler catches it
                 
-                # Sync weapons grid if this is a weapon
+                # Sync weapons and armor grids if item category matches
                 try:
                     from weapons_manager import get_weapons_manager
-                    weapons_mgr = get_weapons_manager()
-                    if weapons_mgr and item.get("category", "").lower() in ["weapons", "weapon"]:
-                        console.log(f"[EQUIPMENT] Re-rendering weapons grid after equip toggle")
-                        weapons_mgr.render()
+                    from armor_manager import get_armor_manager
+                    
+                    item_category = item.get("category", "").lower()
+                    
+                    if item_category in ["weapons", "weapon"]:
+                        weapons_mgr = get_weapons_manager()
+                        if weapons_mgr:
+                            console.log(f"[EQUIPMENT] Re-rendering weapons grid after equip toggle")
+                            weapons_mgr.render()
+                    
+                    if item_category in ["armor", "shield"]:
+                        armor_mgr = get_armor_manager()
+                        if armor_mgr:
+                            console.log(f"[EQUIPMENT] Re-rendering armor grid after equip toggle")
+                            armor_mgr.render()
                 except Exception as e:
-                    console.log(f"[EQUIPMENT] Weapons grid sync not available: {e}")
+                    console.log(f"[EQUIPMENT] Grid sync not available: {e}")
                 
                 # Auto-save character data through export_management module reference
                 # Call directly through module to avoid PyScript proxy lifecycle issues

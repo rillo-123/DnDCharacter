@@ -144,7 +144,6 @@ class TestFlaskConfiguration:
     
     def test_export_dir_writable(self):
         """Test that export directory is writable"""
-        import tempfile
         import os
         
         test_file = EXPORT_DIR / 'test_write.txt'

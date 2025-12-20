@@ -75,6 +75,7 @@ except ImportError:
     apply_spell_corrections = lambda spell: spell
     is_spell_source_allowed = lambda source: True
     STANDARD_SLOT_TABLE = {}
+    PACT_MAGIC_TABLE = {}
     SUPPORTED_SPELL_CLASSES = {"artificer", "bard", "cleric", "druid", "paladin", "ranger", "sorcerer", "warlock", "wizard"}
     SPELL_LIBRARY_STORAGE_KEY = "pysheet_spell_cache"
     SPELL_CACHE_VERSION = 1
@@ -155,9 +156,13 @@ def normalize_class_token(token: Optional[str]) -> Union[str, None]:
 
 def get_element(element_id):
     """Get an element from the DOM."""
+    # Defensive wrapper for test environments with minimal MockDocument
     if document is None:
         return None
-    return document.getElementById(element_id)
+    getter = getattr(document, 'getElementById', None)
+    if not getter:
+        return None
+    return getter(element_id)
 
 
 def get_text_value(element_id: str) -> str:

@@ -66,3 +66,4 @@ offline_data/
 *.tmp
 ~*
 *.bak
+vulture_report*.txt

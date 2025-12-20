@@ -5,7 +5,6 @@ Tests the /api/export POST endpoint and /api/exports GET endpoint
 
 import pytest
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import sys

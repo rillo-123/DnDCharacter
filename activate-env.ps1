@@ -68,13 +68,98 @@ if (-not (Test-Path $activateScript)) {
 Write-Host "`n🔌 Activating virtual environment..."
 & $activateScript
 
+# Prompt helper: show git branch and dirty marker in the prompt
+# Implements a lightweight cache to avoid calling git on every prompt when directory doesn't change.
+# Shows branch name and '*' when working tree has unstaged/uncommitted changes.
+function Get-GitBranch {
+    try {
+        $branch = git rev-parse --abbrev-ref HEAD 2>$null | ForEach-Object { $_.Trim() }
+        if ($LASTEXITCODE -eq 0 -and $branch) { return $branch }
+        return $null
+    } catch {
+        return $null
+    }
+}
+
+function Get-GitDirtyMarker {
+    try {
+        $status = git status --porcelain 2>$null
+        if ($LASTEXITCODE -eq 0 -and $status -and $status.Trim()) { return '*' }
+        return ''
+    } catch {
+        return ''
+    }
+}
+
+# Cache structure to reduce git calls
+if (-not (Test-Path Variable:GitPromptCache)) {
+    Set-Variable -Name GitPromptCache -Value @{ Path = $null; Branch = $null; Dirty = $null; Timestamp = [datetime]::MinValue } -Scope Global
+}
+
+function Update-GitPromptCache {
+    param([string]$path)
+    $cache = Get-Variable -Name GitPromptCache -Scope Global -ValueOnly
+    if ($cache.Path -eq $path -and ((Get-Date) - $cache.Timestamp).TotalSeconds -lt 1) {
+        return $cache
+    }
+
+    $branch = Get-GitBranch
+    $dirty = Get-GitDirtyMarker
+    $cache.Path = $path
+    $cache.Branch = $branch
+    $cache.Dirty = $dirty
+    $cache.Timestamp = Get-Date
+    Set-Variable -Name GitPromptCache -Value $cache -Scope Global
+    return $cache
+}
+
+function global:prompt {
+    try {
+        $path = (Get-Location).Path
+
+        # Virtualenv prefix
+        $venvPart = ""
+        if ($env:VIRTUAL_ENV) {
+            $venvName = Split-Path -Leaf $env:VIRTUAL_ENV
+            $venvPart = "($venvName) "
+        }
+
+        # Git branch + dirty marker (if git available and in a repo)
+        $branchPartRaw = ""
+        if (Get-Command git -ErrorAction SilentlyContinue) {
+            $cache = Update-GitPromptCache -path $path
+            if ($cache.Branch) {
+                $marker = $cache.Dirty ? "*" : ""
+                $branchPartRaw = "($($cache.Branch)$marker) "
+            }
+        }
+
+        # Color support
+        $useColor = $false
+        try { $useColor = $Host.UI.SupportsVirtualTerminal } catch { $useColor = $false }
+
+        if ($useColor) {
+            $esc = "`e"
+            $c_venv = ""
+            $c_branch = ""
+            if ($venvPart) { $c_venv = "${esc}[36m$venvPart${esc}[0m" }
+            if ($branchPartRaw) { $c_branch = "${esc}[33m$branchPartRaw${esc}[0m" }
+            return "$c_venv$c_branch$path> "
+        } else {
+            return "$venvPart$branchPartRaw$path> "
+        }
+    } catch {
+        return "PS> "
+    }
+}
+
 # Step 3: Install/check dependencies
 if (Test-Path $reqFile) {
     Write-Host "`n📋 Checking dependencies from requirements.txt..."
     
-    # Skip pip version check - it's too slow (makes network calls to PyPI)
-    # Pip in venv is fresh enough and doesn't need frequent upgrades
-    
+    # Pip upgrade disabled to speed up setup (removed per user request)
+    Write-Host "ℹ️  Skipping pip upgrade (disabled to speed up setup)."
+
     # Check installed packages
     Write-Host "📥 Checking installed packages..."
     try {
@@ -139,9 +224,18 @@ if (Test-Path $reqFile) {
                 $pkgNames += ($m -replace '==.*', '' -replace '>=.*', '' -replace '<=.*', '' -replace '>.*', '' -replace '<.*', '').Trim()
             }
             Write-Host "📥 Installing $($missing.Count) missing package(s): $($pkgNames -join ', ')..."
+
+            # Install all missing packages in a single pip call (fast) and stream output
+            $pkgArg = $missing -join ' '
             try {
-                & python -m pip install $missing
-                Write-Host "✓ Installed $($missing.Count) package(s)"
+                Write-Host "📦 Running: python -m pip install $pkgArg"
+                & python -m pip install $pkgArg
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "✗ Some packages failed to install (see pip output above)"
+                    exit 1
+                } else {
+                    Write-Host "✓ Installed $($missing.Count) package(s)"
+                }
             } catch {
                 Write-Host "✗ Failed to install packages: $_"
                 exit 1

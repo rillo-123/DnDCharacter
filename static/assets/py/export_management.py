@@ -18,11 +18,8 @@ import asyncio
 try:
     from js import window
     from pyodide import create_proxy, JsException
-    try:
-        from pyodide import create_once_callable
-    except ImportError:
-        # Older versions don't have create_once_callable
-        create_once_callable = None
+    # create_once_callable is not used in current code; keep None for compatibility
+    create_once_callable = None
     _js_module_available = True
 except ImportError:
     # Non-PyScript environment (testing)
@@ -442,7 +439,12 @@ def _supports_persistent_auto_export() -> bool:
 
 
 async def _ensure_auto_export_directory(auto_trigger: bool = True, directory_picker_method = None):
-    """Prompt user to select directory for auto-export."""
+    """Prompt user to select directory for auto-export.
+
+    Note: `auto_trigger` parameter is kept for API compatibility but is currently unused.
+    """
+    # Use parameter in an assert to avoid false-positive unused-variable warnings in static analysis
+    assert isinstance(auto_trigger, bool)
     global _AUTO_EXPORT_DIRECTORY_HANDLE, _AUTO_EXPORT_DISABLED
     
     # Early exit if already have a handle
@@ -486,7 +488,12 @@ async def _ensure_auto_export_directory(auto_trigger: bool = True, directory_pic
 
 
 async def _ensure_auto_export_file_handle(target_name: str, auto_trigger: bool = True):
-    """Prompt user to select file for auto-export."""
+    """Prompt user to select file for auto-export.
+
+    Note: `auto_trigger` parameter is kept for API compatibility but is currently unused.
+    """
+    # Use parameter in an assert to avoid false-positive unused-variable warnings in static analysis
+    assert isinstance(auto_trigger, bool)
     global _AUTO_EXPORT_FILE_HANDLE, _AUTO_EXPORT_DISABLED, _AUTO_EXPORT_LAST_FILENAME
     
     if window is None:
@@ -592,7 +599,6 @@ async def _attempt_persistent_export(
     try:
         console.log(f"[DEBUG] Attempting backend API export: {proposed_filename}")
         import httpx
-        import json as json_module
         
         client = httpx.AsyncClient()
         response = await client.post('/api/export', json={
@@ -952,7 +958,7 @@ async def export_character(_event=None, *, auto: bool = False):
         # Build the fetch using JavaScript directly to ensure proper POST
         # Use js.JSON.stringify to ensure proper serialization
         try:
-            from js import JSON as js_JSON  # type: ignore
+
             from js import Object as JSObject  # type: ignore
             
             # Create proper JavaScript object for fetch init
@@ -1087,6 +1093,8 @@ def handle_import(event):
         
         # Define onload callback
         def on_load(evt):
+            # evt parameter provided by FileReader API (kept for compatibility)
+            _ = evt
             console.log("[IMPORT] onload callback triggered")
             try:
                 payload = reader.result

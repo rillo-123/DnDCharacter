@@ -9,12 +9,12 @@ import sys
 import uuid
 from datetime import datetime, timedelta
 from html import escape
-from math import ceil, floor
+from math import floor
 from pathlib import Path
 from typing import Union, Optional
 
 try:
-    from js import Blob, URL, console, document, window
+    from js import console, document, window
 except ImportError:
     # Mock for testing environments
     class _MockConsole:
@@ -25,12 +25,9 @@ except ImportError:
         @staticmethod
         def error(*args): pass
     
-    Blob = None
-    URL = None
     console = _MockConsole()
     document = None
     window = None
-
 # VERY FIRST DEBUG MESSAGE - if this doesn't appear, Python didn't load
 if document is not None:
     try:
@@ -1671,7 +1668,11 @@ def clone_default_state() -> dict:
 
 
 def get_element(element_id):
-    return document.getElementById(element_id)
+    # Defensive wrapper: test environments may provide a minimal MockDocument
+    getter = getattr(document, 'getElementById', None)
+    if not getter:
+        return None
+    return getter(element_id)
 
 
 def get_text_value(element_id: str) -> str:
@@ -5956,6 +5957,11 @@ def handle_adjust_button(event=None):
 
 def register_event_listeners():
     console.log("[DEBUG] register_event_listeners() called - starting event registration")
+    # In test environments document is often a lightweight mock; be defensive
+    if not hasattr(document, 'querySelectorAll'):
+        console.warn("[DEBUG] document.querySelectorAll not available - skipping event registration in non-PyScript environment")
+        return
+
     nodes = document.querySelectorAll("[data-character-input]")
     console.log(f"[DEBUG] Found {len(nodes)} character input elements")
     for element in nodes:
@@ -6045,7 +6051,14 @@ def register_event_listeners():
 
 def load_initial_state():
     console.log("[DEBUG] load_initial_state() called")
-    stored = window.localStorage.getItem(LOCAL_STORAGE_KEY)
+    # Be defensive: in tests window may be a minimal mock without localStorage
+    stored = None
+    if hasattr(window, 'localStorage') and hasattr(window.localStorage, 'getItem'):
+        try:
+            stored = window.localStorage.getItem(LOCAL_STORAGE_KEY)
+        except Exception as exc:
+            console.warn(f"DEBUG: window.localStorage.getItem raised an exception: {exc}")
+
     if stored:
         try:
             data = json.loads(stored)
@@ -6141,15 +6154,25 @@ if document is not None:
     console.log("[DEBUG] Calling update_calculations()")
     update_calculations()
     
-    # Initialize weapons manager
+    # Initialize weapons and armor managers
     try:
         from weapons_manager import initialize_weapons_manager
-        console.log("[DEBUG] Initializing weapons manager")
-        weapons_mgr = initialize_weapons_manager(INVENTORY_MANAGER)
+        from armor_manager import initialize_armor_manager
+        console.log("[DEBUG] Initializing weapons and armor managers")
+        # Get character stats for managers
+        level = get_numeric_value("level", 1)
+        char_stats = {
+            "str": get_numeric_value("str", 10),
+            "dex": get_numeric_value("dex", 10),
+            "proficiency": compute_proficiency(level)
+        }
+        weapons_mgr = initialize_weapons_manager(INVENTORY_MANAGER, char_stats)
         weapons_mgr.render()
-        console.log("[DEBUG] Weapons manager initialized and rendered")
+        armor_mgr = initialize_armor_manager(INVENTORY_MANAGER, char_stats)
+        armor_mgr.render()
+        console.log("[DEBUG] Weapons and armor managers initialized and rendered")
     except Exception as e:
-        console.error(f"[DEBUG] Error initializing weapons manager: {e}")
+        console.error(f"[DEBUG] Error initializing managers: {e}")
         # Fallback to old method
         console.log("[DEBUG] Falling back to render_equipped_weapons()")
         render_equipped_weapons()
@@ -6175,8 +6198,16 @@ async def _auto_load_weapons():
 if document is not None:
     try:
         console.log("DEBUG: Creating async task for _auto_load_weapons")
-        asyncio.create_task(_auto_load_weapons())
-    except RuntimeError as e:
-        # No event loop available (e.g., in test environment)
-        console.warn(f"DEBUG: Could not create async task: {e}")
-        pass
+        # Only create the coroutine and schedule it if an event loop is running.
+        # Creating the coroutine first and then calling create_task() can raise
+        # RuntimeError and leave the coroutine un-awaited, which yields the
+        # "coroutine was never awaited" RuntimeWarning. Use get_running_loop()
+        # to check for an active loop before creating/scheduling the coroutine.
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            console.warn("DEBUG: No running event loop; skipping _auto_load_weapons scheduling")
+        else:
+            loop.create_task(_auto_load_weapons())
+    except Exception as e:
+        console.warn(f"DEBUG: Could not schedule _auto_load_weapons: {e}")
