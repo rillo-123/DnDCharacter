@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 # Add assets/py to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "assets" / "py"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
 import pytest
 
@@ -229,3 +229,158 @@ class TestDomainSpellPopulation:
             assert spell.get("source"), f"'{slug}' has empty source field"
             
         print(f"OK: Level 1 domain spells have valid source fields")
+
+
+class TestLevel9ClericDomainSpells:
+    """Test domain spell population for a Level 9 Cleric with Life Domain."""
+
+    def test_level_9_has_10_domain_spells(self):
+        """Test that level 9 Life cleric has exactly 10 domain spells."""
+        domain_key = "life"
+        spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+        
+        # Accumulate all spells up to level 9
+        bonus_spells = []
+        for level in sorted(spells_by_level.keys()):
+            if level <= 9:
+                bonus_spells.extend(spells_by_level[level])
+        
+        assert len(bonus_spells) == 10, f"Expected 10 domain spells for level 9, got {len(bonus_spells)}: {bonus_spells}"
+        print(f"✓ Level 9 Life cleric has exactly 10 domain spells")
+
+    def test_level_9_domain_spells_complete_list(self):
+        """Test that level 9 has all expected domain spells."""
+        domain_key = "life"
+        spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+        
+        bonus_spells = []
+        for level in sorted(spells_by_level.keys()):
+            if level <= 9:
+                bonus_spells.extend(spells_by_level[level])
+        
+        expected = {
+            # Level 1
+            "cure-wounds": 1,
+            "bless": 1,
+            # Level 3
+            "lesser-restoration": 3,
+            "spiritual-weapon": 3,
+            # Level 5
+            "beacon-of-hope": 5,
+            "revivify": 5,
+            # Level 7
+            "guardian-of-faith": 7,
+            "death-ward": 7,
+            # Level 9
+            "mass-cure-wounds": 9,
+            "raise-dead": 9,
+        }
+        
+        for spell_slug, spell_level in expected.items():
+            assert spell_slug in bonus_spells, f"'{spell_slug}' (level {spell_level}) missing from level 9 domain spells"
+        
+        print(f"✓ Level 9 has all 10 expected domain spells from levels 1, 3, 5, 7, 9")
+
+    def test_level_9_domain_spells_in_fallback(self):
+        """Test that all 10 level 9 domain spells exist in fallback library."""
+        domain_key = "life"
+        spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+        
+        bonus_spells = []
+        for level in sorted(spells_by_level.keys()):
+            if level <= 9:
+                bonus_spells.extend(spells_by_level[level])
+        
+        fallback_slugs = {s.get("slug") for s in LOCAL_SPELLS_FALLBACK}
+        
+        missing = []
+        for spell_slug in bonus_spells:
+            if spell_slug not in fallback_slugs:
+                missing.append(spell_slug)
+        
+        assert not missing, f"These domain spells are missing from fallback: {missing}"
+        print(f"✓ All 10 level 9 domain spells found in fallback library")
+
+    def test_level_9_domain_spell_progression(self):
+        """Test that domain spells accumulate correctly from levels 1-9."""
+        domain_key = "life"
+        spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+        
+        # Test each level to ensure proper accumulation
+        level_counts = {}
+        accumulated_spells = []
+        
+        for level in [1, 3, 5, 7, 9]:
+            level_spells = spells_by_level.get(level, [])
+            accumulated_spells.extend(level_spells)
+            level_counts[level] = len(accumulated_spells)
+        
+        expected_counts = {1: 2, 3: 4, 5: 6, 7: 8, 9: 10}
+        
+        for level, expected_count in expected_counts.items():
+            actual_count = level_counts[level]
+            assert actual_count == expected_count, \
+                f"At level {level}, expected {expected_count} accumulated spells, got {actual_count}"
+        
+        print(f"✓ Domain spells accumulate correctly:")
+        print(f"  Level 1: 2 spells")
+        print(f"  Level 3: 4 spells (2 new)")
+        print(f"  Level 5: 6 spells (2 new)")
+        print(f"  Level 7: 8 spells (2 new)")
+        print(f"  Level 9: 10 spells (2 new)")
+
+    def test_level_9_no_high_level_domain_spells(self):
+        """Test that no spells above level 9 are included."""
+        domain_key = "life"
+        spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+        
+        # Check that there are no levels > 9
+        high_levels = [level for level in spells_by_level.keys() if level > 9]
+        assert not high_levels, f"Found domain spells above level 9: {high_levels}"
+        
+        print(f"✓ No domain spells above level 9")
+
+    def test_level_9_spells_accessible_by_slug(self):
+        """Test that each level 9 domain spell can be found by its slug."""
+        domain_key = "life"
+        spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+        
+        # Get all spells up to level 9
+        level_9_spells = []
+        for level in sorted(spells_by_level.keys()):
+            if level <= 9:
+                level_9_spells.extend(spells_by_level[level])
+        
+        # Verify each spell has fallback data
+        for spell_slug in level_9_spells:
+            spell = next((s for s in LOCAL_SPELLS_FALLBACK if s.get("slug") == spell_slug), None)
+            assert spell is not None, f"Spell '{spell_slug}' not found in fallback library"
+            assert spell.get("name"), f"Spell '{spell_slug}' missing 'name'"
+            assert spell.get("level") is not None, f"Spell '{spell_slug}' missing 'level'"
+            assert spell.get("school"), f"Spell '{spell_slug}' missing 'school'"
+        
+        print(f"✓ All 10 level 9 domain spells have complete fallback data")
+
+    def test_level_9_domain_spell_summary(self):
+        """Print a summary of level 9 domain spells for verification."""
+        domain_key = "life"
+        spells_by_level = DOMAIN_BONUS_SPELLS.get(domain_key, {})
+        
+        print("\n" + "="*60)
+        print("LEVEL 9 CLERIC - LIFE DOMAIN - BONUS SPELLS SUMMARY")
+        print("="*60)
+        
+        for level in sorted(spells_by_level.keys()):
+            if level <= 9:
+                spells = spells_by_level[level]
+                print(f"\nCleric Level {level} Domain Spells:")
+                for spell_slug in spells:
+                    spell = next((s for s in LOCAL_SPELLS_FALLBACK if s.get("slug") == spell_slug), {})
+                    spell_name = spell.get("name", spell_slug.title())
+                    spell_level = spell.get("level", "?")
+                    print(f"  - {spell_name} (Level {spell_level} spell)")
+        
+        total_spells = sum(len(spells_by_level.get(level, [])) for level in sorted(spells_by_level.keys()) if level <= 9)
+        print(f"\nTotal: {total_spells} domain bonus spells available")
+        print("="*60 + "\n")
+

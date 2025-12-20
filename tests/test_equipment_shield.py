@@ -93,7 +93,7 @@ class TestShieldEquipment(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Load the equipment fallback from character.py source"""
-        char_file = Path(__file__).parent.parent / "assets" / "py" / "character.py"
+        char_file = Path(__file__).parent.parent / "static" / "assets" / "py" / "character.py"
         cls.shield_line = check_shield_in_file(char_file)
         cls.char_file = char_file
     

@@ -35,7 +35,6 @@ htmlcov/
 # -------------------------------------------
 # Editor & IDE settings
 # -------------------------------------------
-.vscode/
 .idea/
 *.code-workspace
 *.sublime-project
@@ -66,3 +65,4 @@ offline_data/
 *.tmp
 ~*
 *.bak
+vulture_report*.txt

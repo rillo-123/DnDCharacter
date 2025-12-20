@@ -1,0 +1,20 @@
+{
+  "exports": {
+    "dir": "./exports"
+  },
+  "autoexport": {
+    "enabled": true,
+    "autosave_dir": "./exports/autosaves",
+    "watch_interval_seconds": 5,
+    "export_format": "json"
+  },
+  "logging": {
+    "level": "INFO",
+    "log_dir": "./logs"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "debug": false
+  }
+}

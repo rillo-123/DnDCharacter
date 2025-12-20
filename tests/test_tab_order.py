@@ -12,7 +12,7 @@ class TestTabOrder(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Load index.html once for all tests."""
-        html_path = Path(__file__).parent.parent / "index.html"
+        html_path = Path(__file__).parent.parent / "static" / "index.html"
         with open(html_path, 'r', encoding='utf-8') as f:
             cls.html_content = f.read()
     
@@ -42,7 +42,7 @@ class TestTabOrder(unittest.TestCase):
         expected_order = ['overview', 'skills', 'inventory', 'combat', 'spells', 'feats', 'manage']
         
         # Force fresh read from disk
-        html_path = Path(__file__).parent.parent / "index.html"
+        html_path = Path(__file__).parent.parent / "static" / "index.html"
         with open(html_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
@@ -119,7 +119,7 @@ class TestTabContent(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Load index.html once for all tests."""
-        html_path = Path(__file__).parent.parent / "index.html"
+        html_path = Path(__file__).parent.parent / "static" / "index.html"
         with open(html_path, 'r', encoding='utf-8') as f:
             cls.html_content = f.read()
     
@@ -139,9 +139,9 @@ class TestTabContent(unittest.TestCase):
         self.assertIn('Acrobatics', self.html_content)
     
     def test_skills_has_weapons(self):
-        """Test that Skills tab contains Weapons section."""
-        self.assertIn('weapons-list', self.html_content)
-        self.assertIn('Equipped', self.html_content)
+        """Test that Skills tab contains Weapons grid."""
+        self.assertIn('weapons-grid', self.html_content)
+        self.assertIn('weapons-table', self.html_content)
     
     def test_combat_has_armor_class(self):
         """Test that Combat tab contains Armor Class."""

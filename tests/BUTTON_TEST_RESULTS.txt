@@ -1,0 +1,53 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.4, pytest-8.4.2, pluggy-1.6.0 -- G:\My Drive\DnDCharacter\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: G:\My Drive\DnDCharacter
+collecting ... collected 24 items
+
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_reset_spell_slots_exists PASSED [  4%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_save_character_exists PASSED [  8%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_reset_character_exists PASSED [ 12%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_export_character_exists PASSED [ 16%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_show_storage_info_exists PASSED [ 20%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_cleanup_exports_exists PASSED [ 25%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_setup_auto_export_directory_exists PASSED [ 29%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_setup_auto_export_button_click_exists PASSED [ 33%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_button_signatures PASSED [ 37%]
+tests/test_manage_tab_buttons.py::TestManageTabButtons::test_export_management_imports PASSED [ 41%]
+tests/test_manage_tab_buttons.py::TestManageTabButtonHTML::test_buttons_have_handlers PASSED [ 45%]
+tests/test_manage_tab_buttons.py::TestManageTabButtonHTML::test_import_button_exists PASSED [ 50%]
+tests/test_manage_tab_buttons.py::TestManageTabButtonStyling::test_buttons_in_actions_row PASSED [ 54%]
+tests/test_manage_tab_buttons.py::TestManageTabButtonStyling::test_storage_cleanup_buttons_styled PASSED [ 58%]
+tests/test_manage_tab_buttons.py::TestButtonFunctionality::test_save_character_can_be_called PASSED [ 62%]
+tests/test_manage_tab_buttons.py::TestButtonFunctionality::test_reset_spell_slots_can_be_called PASSED [ 66%]
+tests/test_manage_tab_button_binding.py::TestManageTabButtonBinding::test_all_py_click_handlers_are_sync FAILED [ 70%]
+tests/test_manage_tab_button_binding.py::TestManageTabButtonBinding::test_button_has_py_click_attribute PASSED [ 75%]
+tests/test_manage_tab_button_binding.py::TestManageTabButtonBinding::test_no_orphaned_event_parameters PASSED [ 79%]
+tests/test_manage_tab_button_binding.py::TestManageTabButtonBinding::test_wrapper_function_for_async_setup PASSED [ 83%]
+tests/test_manage_tab_button_binding.py::TestManageTabButtonErrorHandling::test_handlers_have_error_context FAILED [ 87%]
+tests/test_manage_tab_button_binding.py::TestManageTabButtonErrorHandling::test_export_character_has_auto_parameter PASSED [ 91%]
+tests/test_manage_tab_button_binding.py::TestManageTabButtonDocumentation::test_handlers_have_docstrings FAILED [ 95%]
+tests/test_manage_tab_button_binding.py::TestManageTabConsoleMessages::test_setup_auto_export_has_debug_output PASSED [100%]
+
+================================== FAILURES ===================================
+_______ TestManageTabButtonBinding.test_all_py_click_handlers_are_sync ________
+tests\test_manage_tab_button_binding.py:41: in test_all_py_click_handlers_are_sync
+    assert handler is not None, f"Handler {handler_name} not found in character module"
+E   AssertionError: Handler add_resource not found in character module
+E   assert None is not None
+______ TestManageTabButtonErrorHandling.test_handlers_have_error_context ______
+tests\test_manage_tab_button_binding.py:113: in test_handlers_have_error_context
+    assert 'except Exception' in source or 'except' in source or 'try' in source, \
+E   AssertionError: reset_spell_slots should have error handling
+E   assert ('except Exception' in 'def reset_spell_slots(_event=None):\n    if SPELLCASTING_MANAGER is not None:\n        SPELLCASTING_MANAGER.reset_spell_slots()\n    reset_channel_divinity()\n' or 'except' in 'def reset_spell_slots(_event=None):\n    if SPELLCASTING_MANAGER is not None:\n        SPELLCASTING_MANAGER.reset_spell_slots()\n    reset_channel_divinity()\n' or 'try' in 'def reset_spell_slots(_event=None):\n    if SPELLCASTING_MANAGER is not None:\n        SPELLCASTING_MANAGER.reset_spell_slots()\n    reset_channel_divinity()\n')
+_______ TestManageTabButtonDocumentation.test_handlers_have_docstrings ________
+tests\test_manage_tab_button_binding.py:148: in test_handlers_have_docstrings
+    assert handler.__doc__ is not None, \
+E   AssertionError: reset_spell_slots should have a docstring explaining its purpose
+E   assert None is not None
+E    +  where None = <function reset_spell_slots at 0x00000268C63644A0>.__doc__
+=========================== short test summary info ===========================
+FAILED tests/test_manage_tab_button_binding.py::TestManageTabButtonBinding::test_all_py_click_handlers_are_sync
+FAILED tests/test_manage_tab_button_binding.py::TestManageTabButtonErrorHandling::test_handlers_have_error_context
+FAILED tests/test_manage_tab_button_binding.py::TestManageTabButtonDocumentation::test_handlers_have_docstrings
+======================== 3 failed, 21 passed in 3.66s =========================

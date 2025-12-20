@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-and-vulture:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        shell: pwsh
+
+      - name: Run vulture + tests
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -Command ".\run_vulture.ps1 -RunTests -ExtraArgs '--exclude static/assets/js' -OutFile vulture_report.txt"
+        shell: pwsh
+
+      - name: Upload vulture reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulture-reports
+          path: |
+            vulture_report.before.txt
+            vulture_report.after.txt
+            vulture_report.txt
+
+      - name: Show vulture report
+        if: failure() || success()
+        run: |
+          Write-Host "=== Vulture report (before) ==="
+          if (Test-Path vulture_report.before.txt) { Get-Content vulture_report.before.txt | Select-Object -First 100 | ForEach-Object { Write-Host $_ } }
+          Write-Host "=== Vulture report (after) ==="
+          if (Test-Path vulture_report.after.txt) { Get-Content vulture_report.after.txt | Select-Object -First 100 | ForEach-Object { Write-Host $_ } }
+        shell: pwsh

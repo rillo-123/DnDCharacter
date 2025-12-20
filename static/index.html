@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PySheet · D&D 5e Character Sheet</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.7.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.7.1/core.js"></script>
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-content">
+            <h1 id="character-header-name">Unnamed Hero</h1>
+            <p id="character-header-summary">Ready for adventure</p>
+        </div>
+    </header>
+
+    <!-- Main content starts here -->
+
+
+        <nav class="tabs">
+            <button class="tab active" data-tab="overview" type="button">Overview</button>
+            <button class="tab" data-tab="inventory" type="button">Inventory</button>
+            <button class="tab" data-tab="skills" type="button">Skills</button>
+            <button class="tab" data-tab="combat" type="button">Combat</button>
+            <button class="tab" data-tab="spells" type="button">Spells</button>
+            <button class="tab" data-tab="feats" type="button">Feats</button>
+            <button class="tab" data-tab="manage" type="button">Manage</button>
+            <div class="tabs-spacer"></div>
+            <div class="saving-indicator" id="saving-indicator">
+                <span class="saving-lamp"></span>
+                <span class="saving-text">Saving</span>
+            </div>
+        </nav>
+
+        <section id="tab-overview" class="tab-panel active">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Character</h2>
+                    <div class="grid grid-3 compact-grid">
+                        <label class="field compact-field">
+                            <span>Name</span>
+                            <input data-character-input type="text" id="name" placeholder="Rill the Bold">
+                        </label>
+                        <label class="field compact-field">
+                            <span>Class</span>
+                            <select data-character-input id="class">
+                                <option value="">Select Class</option>
+                                <option value="Barbarian">Barbarian</option>
+                                <option value="Bard">Bard</option>
+                                <option value="Cleric">Cleric</option>
+                                <option value="Druid">Druid</option>
+                                <option value="Fighter">Fighter</option>
+                                <option value="Monk">Monk</option>
+                                <option value="Paladin">Paladin</option>
+                                <option value="Ranger">Ranger</option>
+                                <option value="Rogue">Rogue</option>
+                                <option value="Sorcerer">Sorcerer</option>
+                                <option value="Warlock">Warlock</option>
+                                <option value="Wizard">Wizard</option>
+                            </select>
+                        </label>
+                        <label class="field compact-field">
+                            <span>Race</span>
+                            <select data-character-input id="race">
+                                <option value="">Select Race</option>
+                                <option value="Human">Human</option>
+                                <option value="Elf">Elf</option>
+                                <option value="High Elf">High Elf</option>
+                                <option value="Wood Elf">Wood Elf</option>
+                                <option value="Dark Elf">Dark Elf</option>
+                                <option value="Dwarf">Dwarf</option>
+                                <option value="Mountain Dwarf">Mountain Dwarf</option>
+                                <option value="Hill Dwarf">Hill Dwarf</option>
+                                <option value="Halfling">Halfling</option>
+                                <option value="Lightfoot Halfling">Lightfoot Halfling</option>
+                                <option value="Stout Halfling">Stout Halfling</option>
+                                <option value="Dragonborn">Dragonborn</option>
+                                <option value="Gnome">Gnome</option>
+                                <option value="Forest Gnome">Forest Gnome</option>
+                                <option value="Rock Gnome">Rock Gnome</option>
+                                <option value="Half-Elf">Half-Elf</option>
+                                <option value="Half-Orc">Half-Orc</option>
+                                <option value="Tiefling">Tiefling</option>
+                            </select>
+                        </label>
+                        <label class="field compact-field">
+                            <span>Background</span>
+                            <select data-character-input id="background">
+                                <option value="">Select Background</option>
+                                <option value="Acolyte">Acolyte</option>
+                                <option value="Charlatan">Charlatan</option>
+                                <option value="Criminal">Criminal</option>
+                                <option value="Entertainer">Entertainer</option>
+                                <option value="Folk Hero">Folk Hero</option>
+                                <option value="Gladiator">Gladiator</option>
+                                <option value="Guild Artisan">Guild Artisan</option>
+                                <option value="Hermit">Hermit</option>
+                                <option value="Knight">Knight</option>
+                                <option value="Mercenary Captain">Mercenary Captain</option>
+                                <option value="Noble">Noble</option>
+                                <option value="Outlander">Outlander</option>
+                                <option value="Sage">Sage</option>
+                                <option value="Sailor">Sailor</option>
+                                <option value="Soldier">Soldier</option>
+                                <option value="Urchin">Urchin</option>
+                            </select>
+                        </label>
+                        <label class="field compact-field">
+                            <span>Domain</span>
+                            <select data-character-input id="domain">
+                                <option value="">Select Domain</option>
+                                <option value="Arcana">Arcana</option>
+                                <option value="City">City</option>
+                                <option value="Death">Death</option>
+                                <option value="Forge">Forge</option>
+                                <option value="Grave">Grave</option>
+                                <option value="Knowledge">Knowledge</option>
+                                <option value="Life">Life</option>
+                                <option value="Light">Light</option>
+                                <option value="Nature">Nature</option>
+                                <option value="Order">Order</option>
+                                <option value="Peace">Peace</option>
+                                <option value="Tempest">Tempest</option>
+                                <option value="Trickery">Trickery</option>
+                                <option value="War">War</option>
+                            </select>
+                        </label>
+                        <label class="field compact-field">
+                            <span>Alignment</span>
+                            <select data-character-input id="alignment">
+                                <option value="">Select Alignment</option>
+                                <option value="Lawful Good">Lawful Good</option>
+                                <option value="Neutral Good">Neutral Good</option>
+                                <option value="Chaotic Good">Chaotic Good</option>
+                                <option value="Lawful Neutral">Lawful Neutral</option>
+                                <option value="Neutral">Neutral</option>
+                                <option value="Chaotic Neutral">Chaotic Neutral</option>
+                                <option value="Lawful Evil">Lawful Evil</option>
+                                <option value="Neutral Evil">Neutral Evil</option>
+                                <option value="Chaotic Evil">Chaotic Evil</option>
+                            </select>
+                        </label>
+                        <label class="field compact-field">
+                            <span>Player Name</span>
+                            <input data-character-input type="text" id="player_name" placeholder="Carl">
+                        </label>
+                        <label class="field compact-field">
+                            <span>Level</span>
+                            <input data-character-input type="number" min="1" max="20" id="level" value="1">
+                        </label>
+                        <div class="field readonly compact-field">
+                            <span>Proficiency Bonus</span>
+                            <output id="proficiency-bonus">+2</output>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card abilities">
+                    <h2>Ability Scores</h2>
+                    <div class="abilities-table-wrapper">
+                        <table class="abilities-table">
+                            <thead>
+                                <tr>
+                                    <th>Ability</th>
+                                    <th>Score</th>
+                                    <th>Race</th>
+                                    <th>Total</th>
+                                    <th>Bonus</th>
+                                    <th>Save</th>
+                                    <th>Prof</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="ability-row" data-ability="str">
+                                    <td class="ability-label">STR</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="str-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="str-race">—</span></td>
+                                    <td class="ability-total"><span id="str-total">10</span></td>
+                                    <td class="ability-bonus"><span id="str-mod">+0</span></td>
+                                    <td class="ability-save"><span id="str-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="str-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="dex">
+                                    <td class="ability-label">DEX</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="dex-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="dex-race">—</span></td>
+                                    <td class="ability-total"><span id="dex-total">10</span></td>
+                                    <td class="ability-bonus"><span id="dex-mod">+0</span></td>
+                                    <td class="ability-save"><span id="dex-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="dex-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="con">
+                                    <td class="ability-label">CON</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="con-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="con-race">—</span></td>
+                                    <td class="ability-total"><span id="con-total">10</span></td>
+                                    <td class="ability-bonus"><span id="con-mod">+0</span></td>
+                                    <td class="ability-save"><span id="con-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="con-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="int">
+                                    <td class="ability-label">INT</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="int-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="int-race">—</span></td>
+                                    <td class="ability-total"><span id="int-total">10</span></td>
+                                    <td class="ability-bonus"><span id="int-mod">+0</span></td>
+                                    <td class="ability-save"><span id="int-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="int-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="wis">
+                                    <td class="ability-label">WIS</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="wis-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="wis-race">—</span></td>
+                                    <td class="ability-total"><span id="wis-total">10</span></td>
+                                    <td class="ability-bonus"><span id="wis-mod">+0</span></td>
+                                    <td class="ability-save"><span id="wis-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="wis-save-prof">
+                                    </td>
+                                </tr>
+                                <tr class="ability-row" data-ability="cha">
+                                    <td class="ability-label">CHA</td>
+                                    <td class="ability-input">
+                                        <input data-character-input type="number" min="1" max="30" id="cha-score" value="10">
+                                    </td>
+                                    <td class="ability-race"><span id="cha-race">—</span></td>
+                                    <td class="ability-total"><span id="cha-total">10</span></td>
+                                    <td class="ability-bonus"><span id="cha-mod">+0</span></td>
+                                    <td class="ability-save"><span id="cha-save">+0</span></td>
+                                    <td class="ability-prof">
+                                        <input data-character-input type="checkbox" id="cha-save-prof">
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-inventory" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card equipment-left-column">
+                    <div class="equipment-chooser-section">
+                        <h2>Equipment Library</h2>
+                        <p class="hint">Search and select equipment to add to your inventory, or add custom items.</p>
+                        <div class="equipment-library-controls">
+                            <button id="equipment-load-btn" type="button" py-click="load_equipment_library">Load Items</button>
+                            <button id="equipment-add-btn" type="button" py-click="add_equipment_item">Add Item</button>
+                            <button id="equipment-custom-btn" type="button" py-click="add_custom_item">Custom Item</button>
+                            <input type="search" id="equipment-search-input" placeholder="Search equipment (e.g., sword, armor, rope)">
+                        </div>
+                        <div class="equipment-library-status" id="equipment-library-status">Search for items or add custom items.</div>
+                        <div class="equipment-library-results" id="equipment-library-results"></div>
+                    </div>
+                </section>
+                <section class="card equipment-right-column" style="grid-column: 2 / -1;">
+                    <div class="inventory-section">
+                        <div class="inventory-title-bar">
+                            <h2>Equipment &amp; Wealth</h2>
+                            <div class="inventory-counter-wrapper">
+                                <button id="equipment-clear-btn" type="button" py-click="clear_equipment_list" class="outline">Clear</button>
+                            </div>
+                        </div>
+                        <div class="equipment-totals">
+                            <span>Total Weight: <strong id="equipment-total-weight">0</strong> lb</span>
+                            <span>Total Cost: <strong id="equipment-total-cost">0</strong> gp</span>
+                        </div>
+                        <div id="equipment-table" class="inventory-container">
+                            <ul id="inventory-list" class="inventory-list"></ul>
+                            <div class="inventory-empty" id="inventory-empty-state">No items yet. Use the Equipment Library to add items to your inventory.</div>
+                        </div>
+                        <div class="currency-card">
+                            <h3>Coin Pouch</h3>
+                            <div class="currency-grid">
+                                <label class="currency-field">
+                                    <span>PP</span>
+                                    <input data-character-input data-currency-field="pp" type="number" min="0" id="currency-pp" value="0">
+                                </label>
+                                <label class="currency-field">
+                                    <span>GP</span>
+                                    <input data-character-input data-currency-field="gp" type="number" min="0" id="currency-gp" value="0">
+                                </label>
+                                <label class="currency-field">
+                                    <span>EP</span>
+                                    <input data-character-input data-currency-field="ep" type="number" min="0" id="currency-ep" value="0">
+                                </label>
+                                <label class="currency-field">
+                                    <span>SP</span>
+                                    <input data-character-input data-currency-field="sp" type="number" min="0" id="currency-sp" value="0">
+                                </label>
+                                <label class="currency-field">
+                                    <span>CP</span>
+                                    <input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-skills" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Skills</h2>
+                    <table class="skills-table">
+                        <thead>
+                            <tr>
+                                <th>Skill</th>
+                                <th>Total</th>
+                                <th>Proficient</th>
+                                <th>Expertise</th>
+                                <th>Ability</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-skill="acrobatics">
+                                <td>Acrobatics</td>
+                                <td><span id="acrobatics-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="acrobatics-prof"></td>
+                                <td><input data-character-input type="checkbox" id="acrobatics-exp"></td>
+                                <td>DEX</td>
+                            </tr>
+                            <tr data-skill="animal_handling">
+                                <td>Animal Handling</td>
+                                <td><span id="animal_handling-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="animal_handling-prof"></td>
+                                <td><input data-character-input type="checkbox" id="animal_handling-exp"></td>
+                                <td>WIS</td>
+                            </tr>
+                            <tr data-skill="arcana">
+                                <td>Arcana</td>
+                                <td><span id="arcana-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="arcana-prof"></td>
+                                <td><input data-character-input type="checkbox" id="arcana-exp"></td>
+                                <td>INT</td>
+                            </tr>
+                            <tr data-skill="athletics">
+                                <td>Athletics</td>
+                                <td><span id="athletics-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="athletics-prof"></td>
+                                <td><input data-character-input type="checkbox" id="athletics-exp"></td>
+                                <td>STR</td>
+                            </tr>
+                            <tr data-skill="deception">
+                                <td>Deception</td>
+                                <td><span id="deception-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="deception-prof"></td>
+                                <td><input data-character-input type="checkbox" id="deception-exp"></td>
+                                <td>CHA</td>
+                            </tr>
+                            <tr data-skill="history">
+                                <td>History</td>
+                                <td><span id="history-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="history-prof"></td>
+                                <td><input data-character-input type="checkbox" id="history-exp"></td>
+                                <td>INT</td>
+                            </tr>
+                            <tr data-skill="insight">
+                                <td>Insight</td>
+                                <td><span id="insight-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="insight-prof"></td>
+                                <td><input data-character-input type="checkbox" id="insight-exp"></td>
+                                <td>WIS</td>
+                            </tr>
+                            <tr data-skill="intimidation">
+                                <td>Intimidation</td>
+                                <td><span id="intimidation-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="intimidation-prof"></td>
+                                <td><input data-character-input type="checkbox" id="intimidation-exp"></td>
+                                <td>CHA</td>
+                            </tr>
+                            <tr data-skill="investigation">
+                                <td>Investigation</td>
+                                <td><span id="investigation-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="investigation-prof"></td>
+                                <td><input data-character-input type="checkbox" id="investigation-exp"></td>
+                                <td>INT</td>
+                            </tr>
+                            <tr data-skill="medicine">
+                                <td>Medicine</td>
+                                <td><span id="medicine-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="medicine-prof"></td>
+                                <td><input data-character-input type="checkbox" id="medicine-exp"></td>
+                                <td>WIS</td>
+                            </tr>
+                            <tr data-skill="nature">
+                                <td>Nature</td>
+                                <td><span id="nature-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="nature-prof"></td>
+                                <td><input data-character-input type="checkbox" id="nature-exp"></td>
+                                <td>INT</td>
+                            </tr>
+                            <tr data-skill="perception">
+                                <td>Perception</td>
+                                <td><span id="perception-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="perception-prof"></td>
+                                <td><input data-character-input type="checkbox" id="perception-exp"></td>
+                                <td>WIS</td>
+                            </tr>
+                            <tr data-skill="performance">
+                                <td>Performance</td>
+                                <td><span id="performance-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="performance-prof"></td>
+                                <td><input data-character-input type="checkbox" id="performance-exp"></td>
+                                <td>CHA</td>
+                            </tr>
+                            <tr data-skill="persuasion">
+                                <td>Persuasion</td>
+                                <td><span id="persuasion-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="persuasion-prof"></td>
+                                <td><input data-character-input type="checkbox" id="persuasion-exp"></td>
+                                <td>CHA</td>
+                            </tr>
+                            <tr data-skill="religion">
+                                <td>Religion</td>
+                                <td><span id="religion-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="religion-prof"></td>
+                                <td><input data-character-input type="checkbox" id="religion-exp"></td>
+                                <td>INT</td>
+                            </tr>
+                            <tr data-skill="sleight_of_hand">
+                                <td>Sleight of Hand</td>
+                                <td><span id="sleight_of_hand-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="sleight_of_hand-prof"></td>
+                                <td><input data-character-input type="checkbox" id="sleight_of_hand-exp"></td>
+                                <td>DEX</td>
+                            </tr>
+                            <tr data-skill="stealth">
+                                <td>Stealth</td>
+                                <td><span id="stealth-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="stealth-prof"></td>
+                                <td><input data-character-input type="checkbox" id="stealth-exp"></td>
+                                <td>DEX</td>
+                            </tr>
+                            <tr data-skill="survival">
+                                <td>Survival</td>
+                                <td><span id="survival-total">+0</span></td>
+                                <td><input data-character-input type="checkbox" id="survival-prof"></td>
+                                <td><input data-character-input type="checkbox" id="survival-exp"></td>
+                                <td>WIS</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="derived-metrics">
+                        <div>
+                            <span>Passive Perception</span>
+                            <strong id="passive-perception">10</strong>
+                        </div>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>Weapons</h2>
+                    <table class="weapons-table">
+                        <thead>
+                            <tr>
+                                <th>Weapon</th>
+                                <th>To Hit</th>
+                                <th>Damage</th>
+                                <th>Range</th>
+                                <th>Properties</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weapons-grid">
+                            <tr id="weapons-empty-state">
+                                <td colspan="5" style="text-align: center; padding: 1rem;">No weapons equipped. Add weapons from your equipment inventory.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-combat" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Combat</h2>
+                    <div class="grid grid-2">
+                        <!-- Left column: Combat stats table -->
+                        <div class="combat-stats-wrapper">
+                            <table class="combat-stats-table">
+                                <tbody>
+                                    <tr>
+                                        <td class="combat-label">Armor Class</td>
+                                        <td class="combat-readonly"><span id="armor_class">10</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Initiative</td>
+                                        <td class="combat-readonly"><span id="initiative">+0</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Speed</td>
+                                        <td class="combat-input"><input data-character-input type="number" min="0" id="speed" value="30"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Max Hit Points</td>
+                                        <td class="combat-input"><input data-character-input type="number" min="1" id="max_hp" value="8"></td>
+                                    </tr>
+                                    <tr style="display: none;">
+                                        <td><input data-character-input type="hidden" id="current_hp" value="8"></td>
+                                        <td><input data-character-input type="hidden" id="hit_dice_available" value="0"></td>
+                                        <td><input data-character-input type="hidden" id="temp_hp" value="0"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Hit Dice</td>
+                                        <td class="combat-readonly"><span id="hit_dice">1d8</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Concentration Save</td>
+                                        <td class="combat-readonly"><span id="concentration-save">1d20 + 0 vs DC 10</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Spell Save DC</td>
+                                        <td class="combat-readonly"><span id="spell-save-dc">8</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Spell Attack Bonus</td>
+                                        <td class="combat-readonly"><span id="spell-attack">+0</span></td>
+                                    </tr>
+
+                                    <tr>
+                                        <td class="combat-label">Death Saves (Success)</td>
+                                        <td class="combat-input" style="display: flex; gap: 0.5rem; justify-content: center;">
+                                            <input data-character-input type="checkbox" id="death_saves_success_1" style="cursor: pointer;">
+                                            <input data-character-input type="checkbox" id="death_saves_success_2" style="cursor: pointer;">
+                                            <input data-character-input type="checkbox" id="death_saves_success_3" style="cursor: pointer;">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="combat-label">Death Saves (Failure)</td>
+                                        <td class="combat-input" style="display: flex; gap: 0.5rem; justify-content: center;">
+                                            <input data-character-input type="checkbox" id="death_saves_failure_1" style="cursor: pointer;">
+                                            <input data-character-input type="checkbox" id="death_saves_failure_2" style="cursor: pointer;">
+                                            <input data-character-input type="checkbox" id="death_saves_failure_3" style="cursor: pointer;">
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <tr style="display: none;">
+                                <td><input data-character-input type="hidden" id="channel_divinity_available" value="0"></td>
+                            </tr>
+                        </tbody>
+                            </table>
+                            
+                            <!-- Channel Divinity Counter -->
+                            <div class="channel-divinity-counter">
+                                <div class="counter-header">
+                                    <h3>Channel Divinity</h3>
+                                </div>
+                                <div class="counter-display">
+                                    <div id="cd-pips-container" class="cd-pips-container"></div>
+                                </div>
+                                <div class="counter-buttons">
+                                    <button type="button" data-adjust-target="channel_divinity_available" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-by="proficiency">Use 1</button>
+                                    <button type="button" class="outline" id="reset-channel-divinity">Reset</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right column: Controls and Proficiencies -->
+                        <div>
+                            <div class="health-controls" id="health-controls">
+                                <section class="health-group">
+                                    <div class="health-group-header">
+                                        <h3>Hit Points</h3>
+                                    </div>
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar-wrapper">
+                                            <div class="progress-bar-fill" id="hp-bar-fill"></div>
+                                            <div class="progress-bar-fill-temp" id="hp-bar-temp"></div>
+                                        </div>
+                                        <span class="progress-bar-label" id="hp-bar-label">(0 / 0)</span>
+                                    </div>
+                                    <div class="health-buttons">
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="-10" data-adjust-min="0" data-adjust-max-id="max_hp">-10</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="-5" data-adjust-min="0" data-adjust-max-id="max_hp">-5</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="max_hp">-1</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="1" data-adjust-min="0" data-adjust-max-id="max_hp">+1</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="5" data-adjust-min="0" data-adjust-max-id="max_hp">+5</button>
+                                        <button type="button" data-adjust-target="current_hp" data-adjust-delta="10" data-adjust-min="0" data-adjust-max-id="max_hp">+10</button>
+                                        <button type="button" class="outline" data-adjust-target="current_hp" data-adjust-set-id="max_hp">Set to Max</button>
+                                    </div>
+                                    <div class="health-buttons">
+                                        <button type="button" data-adjust-target="temp_hp" data-adjust-delta="1" data-adjust-min="0">+1 Temp</button>
+                                        <button type="button" data-adjust-target="temp_hp" data-adjust-delta="5" data-adjust-min="0">+5 Temp</button>
+                                        <button type="button" class="outline" data-adjust-target="temp_hp" data-adjust-set="0">Clear Temp</button>
+                                    </div>
+                                    <p class="hint">Use these buttons to apply damage or healing quickly. Hit points are clamped between 0 and your maximum.</p>
+                                </section>
+                                <section class="health-group">
+                                    <div class="health-group-header">
+                                        <h3>Hit Dice</h3>
+                                    </div>
+                                    <div class="hit-dice-pips">
+                                        <div id="hd-pips-container" class="hd-pips-container"></div>
+                                        <span class="progress-bar-label" id="hd-bar-label">1d8 (0 / 0)</span>
+                                    </div>
+                                    <div class="health-buttons">
+                                        <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="-1" data-adjust-min="0" data-adjust-max-id="level">Spend 1</button>
+                                        <button type="button" data-adjust-target="hit_dice_available" data-adjust-delta="1" data-adjust-min="0" data-adjust-max-id="level">Recover 1</button>
+                                        <button type="button" class="outline" data-adjust-target="hit_dice_available" data-adjust-set-id="level">Refill to Level</button>
+                                    </div>
+                                    <p class="hint">Track hit dice spent during short rests. Values are limited between 0 and your character level.</p>
+                                </section>
+                            </div>
+                            
+                            <div class="proficiency-grid-wrapper">
+                                <h3>Armor Proficiencies</h3>
+                                <table class="proficiency-table" id="armor-proficiencies-table">
+                                    <tbody id="armor-proficiencies"></tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="proficiency-grid-wrapper">
+                                <h3>Weapon Proficiencies</h3>
+                                <table class="proficiency-table" id="weapon-proficiencies-table">
+                                    <tbody id="weapon-proficiencies"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+        </section>
+
+        <section id="tab-spells" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card spell-left-column">
+                    <div class="spell-chooser-section">
+                        <h2>Spell Library</h2>
+                        <p class="hint">Load the Bard and Cleric portions of the 5e SRD spell list, filter it to your class and level, then use the buttons to add or remove spells.</p>
+                        <div class="spell-library-controls">
+                            <button id="spells-load-btn" type="button" py-click="_load_spell_library_wrapper">Load Spells</button>
+                            <button id="long-rest-spell-btn" type="button" py-click="reset_spell_slots">Long Rest</button>
+                            <input type="search" id="spell-search" placeholder="Search spell name or text">
+                            <select id="spell-level-filter">
+                                <option value="">Any level</option>
+                                <option value="0">Cantrip (0)</option>
+                                <option value="1">Level 1</option>
+                                <option value="2">Level 2</option>
+                                <option value="3">Level 3</option>
+                                <option value="4">Level 4</option>
+                                <option value="5">Level 5</option>
+                                <option value="6">Level 6</option>
+                                <option value="7">Level 7</option>
+                                <option value="8">Level 8</option>
+                                <option value="9">Level 9</option>
+                            </select>
+                            <select id="spell-class-filter">
+                                <option value="">Any class</option>
+                            </select>
+                        </div>
+                        <div class="spell-library-status" id="spell-library-status">Spells not loaded yet. Click "Load Spells" to fetch the Bard and Cleric list from Open5e (or use the built-in fallback).</div>
+                        <div class="spell-library-results" id="spell-library-results"></div>
+                    </div>
+                </section>
+                <section class="card spell-right-column" style="grid-column: 2 / -1;">
+                    <div class="spellbook-section">
+                        <div class="spellbook-title-bar">
+                            <h2>Prepared Spellbook</h2>
+                            <div class="spellbook-counter-wrapper">
+                                <span class="spellbook-counter-label">Prepared:</span>
+                                <span class="spellbook-title-counter" id="spellbook-prepared-count">0 / 0</span>
+                            </div>
+                        </div>
+                        <p class="hint">Spells you add from the library appear here. Track spell slots as you cast.<br><small id="prepared-calc-hint" style="color: #94a3b8; font-size: 0.85em;"></small></p>
+                        <div class="spellbook-slots-summary" id="spellbook-slots-summary"></div>
+                        <div class="spellbook-prepared">
+                            <header class="spellbook-header">
+                                <h3>Your Spells</h3>
+                            </header>
+                            <div id="spellbook-empty-state" class="spellbook-empty">No spells prepared yet. Use the Spell Library to add spells.</div>
+                            <div id="spellbook-levels" class="spellbook-levels"></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-feats" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card">
+                    <h2>Class Features & Traits</h2>
+                    <p class="hint">Your class and subclass grant features at specific levels. Scroll down to add additional feats or custom abilities.</p>
+                    <div id="class-features-container" class="class-features-container"></div>
+                </section>
+                <section class="card">
+                    <h2>Feats & Custom Abilities</h2>
+                    <p class="hint">Track feats you've chosen or other custom abilities you've gained. Include the level at which you gained them.</p>
+                    <div class="feat-form" style="margin-bottom: 1rem; padding: 1rem; background: rgba(30, 41, 59, 0.6); border-radius: 0.75rem; border: 1px solid rgba(148, 163, 184, 0.2);">
+                        <div class="grid grid-2">
+                            <label class="field">
+                                <span>Feat/Ability Name</span>
+                                <input type="text" id="feat-name-input" placeholder="e.g., Polearm Master, Heavy Armor Master">
+                            </label>
+                            <label class="field">
+                                <span>Level Gained</span>
+                                <input type="number" id="feat-level-input" placeholder="1" min="1" max="20" value="1">
+                            </label>
+                        </div>
+                        <label class="field">
+                            <span>Description (optional)</span>
+                            <textarea id="feat-description-input" rows="3" placeholder="What does this feat do? Any bonuses or special effects?"></textarea>
+                        </label>
+                        <button id="feat-add-btn" type="button" py-click="add_feat" style="margin-top: 0.75rem;">Add Feat</button>
+                    </div>
+                    <div id="feats-list" class="feats-list"></div>
+                </section>
+            </div>
+        </section>
+
+        <section id="tab-manage" class="tab-panel">
+            <div class="panel-grid">
+                <section class="card resources-card">
+                    <h2>Resource Trackers</h2>
+                    <p class="hint">Use these for class features like Rage, Ki, Channel Divinity, or any custom counters.</p>
+                    <div id="resource-list" class="resource-list"></div>
+                    <button id="resource-add-btn" type="button" py-click="add_resource">Add Resource</button>
+                </section>
+                <section class="card actions">
+                    <h2>Rest & Recovery</h2>
+                    <div class="actions-row">
+                        <button id="long-rest-btn" type="button" py-click="reset_spell_slots">Long Rest</button>
+                    </div>
+                    <p class="hint">Long Rest: Restores all spell slots, hit points, and recovers hit dice.</p>
+                    <h2>Manage Data</h2>
+                    <div class="actions-row">
+                        <button id="save-btn" py-click="save_character">Save to Browser</button>
+                        <button id="reset-btn" py-click="reset_character">Reset</button>
+                        <button id="export-btn" py-click="_export_character_wrapper">Export JSON</button>
+                        <label class="import-btn">
+                            <input type="file" id="import-file" accept="application/json">
+                            Import JSON
+                        </label>
+                    </div>
+                    <p class="hint">Data is stored locally in your browser using localStorage so it follows you on your Chromebook.</p>
+                    
+                    <div class="character-actions" style="margin-top: 1.5rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 1.5rem;">
+                        <h4 style="margin-top: 0; margin-bottom: 0.75rem; color: #cbd5f5;">Storage & Cleanup</h4>
+                        <div class="actions-row">
+                            <button id="storage-info-btn" type="button" py-click="show_storage_info">Storage Info</button>
+                            <button id="cleanup-btn" type="button" py-click="cleanup_exports">Cleanup Old Exports</button>
+                        </div>
+                        <p id="storage-message" class="hint"></p>
+                    </div>
+                    <p class="hint">The exports folder accumulates files over time. Use Cleanup to remove old backups. Configure autosave path in config.json.</p>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <!-- Spell Cast Confirmation Modal -->
+    <div id="spell-cast-modal" class="spell-cast-modal">
+        <div class="spell-cast-modal-content">
+            <div class="spell-cast-modal-header">
+                <h3 id="spell-cast-modal-title">Cast Spell</h3>
+                <button id="spell-cast-modal-close" class="spell-cast-modal-close">&times;</button>
+            </div>
+            <div class="spell-cast-modal-body">
+                <p id="spell-cast-modal-message"></p>
+            </div>
+            <div id="spell-cast-modal-boost-section" class="spell-cast-modal-boost-section" style="display: none;">
+                <label class="boost-section-label">Boost with higher slot:</label>
+                <div id="spell-cast-modal-boost-options" class="spell-cast-modal-boost-options"></div>
+            </div>
+            <div class="spell-cast-modal-footer">
+                <button id="spell-cast-modal-cancel" class="spell-cast-modal-btn spell-cast-modal-btn-cancel">Cancel</button>
+                <button id="spell-cast-modal-confirm" class="spell-cast-modal-btn spell-cast-modal-btn-confirm">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Item Modal -->
+    <div id="custom-item-modal" class="spell-cast-modal" style="display: none;">
+        <div class="spell-cast-modal-content">
+            <div class="spell-cast-modal-header">
+                <h3>Add Custom Item</h3>
+                <button id="custom-item-close" class="spell-cast-modal-close">&times;</button>
+            </div>
+            <div class="spell-cast-modal-body">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <!-- URL Import Section -->
+                    <div style="background-color: #1e293b; padding: 12px; border-radius: 4px; border: 2px solid #3b82f6;">
+                        <label style="display: flex; flex-direction: column; gap: 8px;">
+                            <strong style="color: #60a5fa;">📡 Fetch from URL (Roll20, D&D Beyond, etc.)</strong>
+                            <div style="display: flex; gap: 8px;">
+                                <input id="custom-item-url" type="text" placeholder="https://roll20.net/compendium/..." style="flex: 1; padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0; font-family: monospace; font-size: 0.9em;">
+                                <button id="custom-item-fetch-btn" type="button" py-click="fetch_custom_item_from_url_handler" style="padding: 8px 16px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Get Data</button>
+                            </div>
+                            <div id="custom-item-fetch-status" style="display: none; padding: 8px; border-radius: 4px; font-size: 0.85em; background-color: rgba(59, 130, 246, 0.1); color: #60a5fa;"></div>
+                        </label>
+                    </div>
+                    
+                    <!-- Manual Entry Section -->
+                    <hr style="border: none; border-top: 1px solid #334155;">
+                    
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Item Name *</strong>
+                        <input id="custom-item-name" type="text" placeholder="e.g., Bedroll, Rope, Healing Potion" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </label>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Category</strong>
+                        <select id="custom-item-category" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                            <option value="">Other (auto-detect)</option>
+                            <option value="Magic Items">Magic Items</option>
+                            <option value="Weapons">Weapons</option>
+                            <option value="Armor">Armor</option>
+                            <option value="Ammunition">Ammunition</option>
+                            <option value="Potions">Potions</option>
+                            <option value="Tools">Tools</option>
+                            <option value="Adventuring Gear">Adventuring Gear</option>
+                            <option value="Mounts & Vehicles">Mounts & Vehicles</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Cost</strong>
+                            <input id="custom-item-cost" type="text" placeholder="e.g., 5 gp, 1 cp" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Weight</strong>
+                            <input id="custom-item-weight" type="text" placeholder="e.g., 2 lb, 0.5 lb" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                    </div>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Quantity</strong>
+                        <input id="custom-item-qty" type="number" min="1" value="1" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Damage (optional)</strong>
+                            <input id="custom-item-damage" type="text" placeholder="e.g., 1d8, 2d6" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Damage Type (optional)</strong>
+                            <input id="custom-item-damage-type" type="text" placeholder="e.g., piercing, slashing" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>Range (optional)</strong>
+                            <input id="custom-item-range" type="text" placeholder="e.g., 30/120 ft, melee" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                        <label style="display: flex; flex-direction: column; gap: 4px;">
+                            <strong>AC (Armor)</strong>
+                            <input id="custom-item-ac" type="text" placeholder="e.g., 13, 10+Dex" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </label>
+                    </div>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Properties (optional)</strong>
+                        <input id="custom-item-properties" type="text" placeholder="e.g., ammunition, two-handed, finesse" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </label>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Notes</strong>
+                        <textarea id="custom-item-notes" placeholder="Optional notes (useful for Roll20/other source details)" rows="3" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></textarea>
+                    </label>
+                </div>
+            </div>
+            <div class="spell-cast-modal-footer">
+                <button id="custom-item-add" class="spell-cast-modal-btn spell-cast-modal-btn-confirm">Add Item</button>
+                <button id="custom-item-cancel" class="spell-cast-modal-btn spell-cast-modal-btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <span>Built with <a href="https://pyscript.net" target="_blank" rel="noreferrer">PyScript</a>.</span>
+        <span>Project source: <code>DnDCharacter</code></span>
+    </footer>
+
+    <py-config>
+        packages = []
+        paths = ["http://localhost:8080/assets/py"]
+    </py-config>
+
+    <!-- JavaScript handler for gesture-sensitive File System API operations -->
+    <script>
+        /**
+         * Handle auto-export directory selection with File System API.
+         * Called directly from user interaction (button click) to preserve gesture context.
+         * 
+         * @param {Function} pickerMethod - window.showDirectoryPicker method
+         * @returns {Promise<FileSystemDirectoryHandle|null>} Directory handle or null if user cancelled
+         */
+        window.setupAutoExportDirectory = async function(pickerMethod) {
+            console.log("[JS] setupAutoExportDirectory called - gesture should be active from button click");
+            
+            if (!pickerMethod) {
+                console.warn("[JS] showDirectoryPicker not available");
+                return null;
+            }
+            
+            try {
+                console.log("[JS] Calling showDirectoryPicker directly in response to user click...");
+                // This call happens synchronously in direct response to user gesture (button click)
+                const handle = await pickerMethod();
+                console.log("[JS] File picker succeeded, handle acquired");
+                return handle;
+            } catch (err) {
+                if (err.name === "AbortError") {
+                    console.log("[JS] User cancelled directory picker");
+                } else if (err.name === "SecurityError" || err.name === "NotAllowedError") {
+                    console.warn(`[JS] File System API blocked: ${err.name} - ${err.message}`);
+                } else {
+                    console.error(`[JS] Directory picker error: ${err.name} - ${err.message}`);
+                }
+                return null;
+            }
+        };
+        
+        console.log("[JS] Window.setupAutoExportDirectory registered and ready");
+    </script>
+
+    <py-script src="assets/py/character.py"></py-script>
+
+    <!-- Modal event handlers -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Custom Item Modal handlers
+            const customItemModal = document.getElementById('custom-item-modal');
+            const customItemAddBtn = document.getElementById('custom-item-add');
+            const customItemCancelBtn = document.getElementById('custom-item-cancel');
+            const customItemCloseBtn = document.getElementById('custom-item-close');
+
+            if (customItemAddBtn && typeof submit_custom_item !== 'undefined') {
+                // Wait for PyScript to be ready before setting up handler
+                function setupCustomItemBtn() {
+                    if (typeof PyScript !== 'undefined' && PyScript.interpreter && PyScript.interpreter.interface) {
+                        customItemAddBtn.addEventListener('click', () => {
+                            try {
+                                PyScript.interpreter.interface.submit_custom_item();
+                            } catch (e) {
+                                console.error("Failed to call submit_custom_item:", e);
+                            }
+                        });
+                    } else {
+                        // PyScript not ready yet, retry in 100ms
+                        setTimeout(setupCustomItemBtn, 100);
+                    }
+                }
+                setupCustomItemBtn();
+            }
+
+            if (customItemCancelBtn) {
+                customItemCancelBtn.addEventListener('click', () => {
+                    if (customItemModal) {
+                        customItemModal.style.display = 'none';
+                    }
+                });
+            }
+
+            if (customItemCloseBtn) {
+                customItemCloseBtn.addEventListener('click', () => {
+                    if (customItemModal) {
+                        customItemModal.style.display = 'none';
+                    }
+                });
+            }
+
+
+            // Equipment search is handled in Python with populate_equipment_results
+        });
+    </script>
+
+    <script>
+        // Fetch equipment from Open5e API and Roll20 and cache it
+        async function fetchEquipmentFromOpen5e() {
+            const cacheKey = "dnd_equipment_cache_v10";  // Bumped version to force cache rebuild
+            
+            // Check if we have cached data
+            try {
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    console.log("Using cached equipment data");
+                    const equipmentList = JSON.parse(cached);
+                    console.log(`Cache contains ${equipmentList.length} items`);
+                    return;
+                }
+            } catch (e) {
+                console.warn("Cache read failed:", e);
+            }
+            
+            // Fetch from Open5e
+            try {
+                console.log("Fetching equipment from multiple D&D APIs...");
+                const equipmentList = [];
+                const seenNames = new Set();
+                
+                // First try D&D 5e API - most comprehensive
+                try {
+                    console.log("Trying D&D 5e API...");
+                    const dnd5eResponse = await fetch("https://www.dnd5eapi.co/api/equipment");
+                    if (dnd5eResponse.ok) {
+                        const dnd5eData = await dnd5eResponse.json();
+                        if (dnd5eData.results && Array.isArray(dnd5eData.results)) {
+                            console.log(`D&D 5e API returned ${dnd5eData.results.length} items`);
+                            // D&D 5e API returns list of items with URLs, we need to fetch details for each
+                            for (const itemRef of dnd5eData.results.slice(0, 100)) {  // Limit to first 100 to avoid too many requests
+                                try {
+                                    const detailUrl = `https://www.dnd5eapi.co${itemRef.url}`;
+                                    const detailResponse = await fetch(detailUrl);
+                                    if (detailResponse.ok) {
+                                        const item = await detailResponse.json();
+                                        const name = item.name || itemRef.name || "Unknown";
+                                        if (!seenNames.has(name)) {
+                                            seenNames.add(name);
+                                            const costStr = item.cost ? `${item.cost.quantity} ${item.cost.unit}` : "Unknown";
+                                            const weightVal = item.weight || 0;
+                                            
+                                            // Extract properties/description - check multiple fields
+                                            let props = "";
+                                            if (item.contents && Array.isArray(item.contents)) {
+                                                // For equipment packs, list the contents
+                                                props = item.contents.map(c => `${c.item.name}${c.quantity > 1 ? ` (${c.quantity})` : ""}`).join(", ");
+                                            } else if (item.properties && Array.isArray(item.properties) && item.properties.length > 0) {
+                                                props = item.properties.join(", ");
+                                            } else if (item.desc && Array.isArray(item.desc) && item.desc.length > 0) {
+                                                props = item.desc.join(" ");
+                                            } else if (typeof item.desc === "string") {
+                                                props = item.desc;
+                                            }
+                                            
+                                            // Debug first few items
+                                            if (seenNames.size <= 5) {
+                                                console.log(`D&D 5e item: ${name}`, item);
+                                            }
+                                            
+                                            equipmentList.push({
+                                                name: name,
+                                                cost: costStr,
+                                                weight: weightVal > 0 ? `${weightVal} lb.` : "0 lb.",
+                                                properties: props,
+                                                source: "dnd5eapi"
+                                            });
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.log(`Failed to fetch details for ${itemRef.name}:`, e.message);
+                                }
+                            }
+                        }
+                        console.log(`D&D 5e API: Got ${equipmentList.length} items after recursion`);
+                    }
+                } catch (e) {
+                    console.log("D&D 5e API unavailable:", e.message);
+                }
+                
+                // Try Open5e as secondary source
+                try {
+                    if (equipmentList.length < 50) {
+                        console.log("Trying Open5e API for weapons...");
+                        const weaponsResponse = await fetch("https://api.open5e.com/weapons/");
+                        if (weaponsResponse.ok) {
+                            const weaponsData = await weaponsResponse.json();
+                            if (weaponsData.results) {
+                                for (const item of weaponsData.results) {
+                                    const name = item.name || "Unknown";
+                                    if (!seenNames.has(name)) {
+                                        seenNames.add(name);
+                                        equipmentList.push({
+                                            name: name,
+                                            cost: item.cost || "Unknown",
+                                            weight: item.weight || "Unknown",
+                                            damage: item.damage || "",
+                                            damage_type: item.damage_type || "",
+                                            range: item.range || "",
+                                            properties: item.properties || "",
+                                            ac: item.ac || "",
+                                            armor_class: item.armor_class || "",
+                                            source: "open5e"
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        
+                        console.log("Trying Open5e API for armor...");
+                        const armorResponse = await fetch("https://api.open5e.com/armor/");
+                        if (armorResponse.ok) {
+                            const armorData = await armorResponse.json();
+                            if (armorData.results) {
+                                for (const item of armorData.results) {
+                                    const name = item.name || "Unknown";
+                                    if (!seenNames.has(name)) {
+                                        seenNames.add(name);
+                                        equipmentList.push({
+                                            name: name,
+                                            cost: item.cost || "Unknown",
+                                            weight: item.weight || "Unknown",
+                                            damage: item.damage || "",
+                                            damage_type: item.damage_type || "",
+                                            range: item.range || "",
+                                            properties: item.properties || "",
+                                            ac: item.ac || "",
+                                            armor_class: item.armor_class || "",
+                                            source: "open5e"
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        console.log(`Open5e API: Now have ${equipmentList.length} items`);
+                    }
+                } catch (e) {
+                    console.log("Open5e API issue:", e.message);
+                }
+                
+                // Try Roll20 API (if available - they have a public compendium)
+                // Note: Roll20 doesn't expose a public API, so this is commented out for now
+                /*
+                try {
+                    console.log("Also checking Roll20 data...");
+                    // Roll20 has equipment data at their API endpoint
+                    const roll20Response = await fetch("https://app.roll20.net/compendium/", {
+                        headers: { "Accept": "application/json" }
+                    });
+                    if (roll20Response.ok) {
+                        const roll20Data = await roll20Response.json();
+                        // Roll20 data structure may vary - try to extract equipment
+                        if (roll20Data && Array.isArray(roll20Data)) {
+                            for (const item of roll20Data.slice(0, 100)) {
+                                const name = item.name || item.title || "Unknown";
+                                if (name && !seenNames.has(name) && 
+                                    (item.type === "equipment" || item.type === "weapon" || item.type === "armor")) {
+                                    seenNames.add(name);
+                                    equipmentList.push({
+                                        name: name,
+                                        cost: item.cost || item.price || "Unknown",
+                                        weight: item.weight || item.wt || "Unknown",
+                                        damage: item.damage || item.dmg1 || "",
+                                        damage_type: item.damage_type || item.dmgtype || "",
+                                        range: item.range || item.range_type || "",
+                                        properties: item.properties || "",
+                                        ac: item.ac || "",
+                                        armor_class: item.armor_class || "",
+                                        source: "roll20"
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log("Roll20 fetch not available:", e.message);
+                }
+                */
+                
+                
+                const commonItems = [
+                    // Melee Weapons (common PHB weapons)
+                    { name: "Mace", cost: "5 gp", weight: "4 lb.", damage: "1d6", damage_type: "bludgeoning", source: "phb" },
+                    { name: "Longsword", cost: "15 gp", weight: "3 lb.", damage: "1d8", damage_type: "slashing", source: "phb" },
+                    { name: "Shortsword", cost: "10 gp", weight: "2 lb.", damage: "1d6", damage_type: "piercing", source: "phb" },
+                    { name: "Rapier", cost: "25 gp", weight: "2 lb.", damage: "1d8", damage_type: "piercing", source: "phb" },
+                    { name: "Dagger", cost: "2 gp", weight: "1 lb.", damage: "1d4", damage_type: "piercing", source: "phb" },
+                    { name: "Greataxe", cost: "30 gp", weight: "7 lb.", damage: "1d12", damage_type: "slashing", source: "phb" },
+                    { name: "Greatsword", cost: "50 gp", weight: "6 lb.", damage: "2d6", damage_type: "slashing", source: "phb" },
+                    { name: "Warhammer", cost: "15 gp", weight: "2 lb.", damage: "1d8", damage_type: "bludgeoning", source: "phb" },
+                    { name: "Morningstar", cost: "15 gp", weight: "4 lb.", damage: "1d8", damage_type: "piercing", source: "phb" },
+                    { name: "Pike", cost: "5 gp", weight: "18 lb.", damage: "1d10", damage_type: "piercing", source: "phb" },
+                    { name: "Spear", cost: "1 gp", weight: "3 lb.", damage: "1d6", damage_type: "piercing", source: "phb" },
+                    { name: "Club", cost: "0.1 gp", weight: "2 lb.", damage: "1d4", damage_type: "bludgeoning", source: "phb" },
+                    { name: "Quarterstaff", cost: "0.2 gp", weight: "4 lb.", damage: "1d6", damage_type: "bludgeoning", source: "phb" },
+                    { name: "Falchion", cost: "20 gp", weight: "4 lb.", damage: "1d8", damage_type: "slashing", source: "phb" },
+                    
+                    // Ranged Weapons
+                    { name: "Longbow", cost: "50 gp", weight: "3 lb.", damage: "1d8", damage_type: "piercing", range: "150/600", source: "phb" },
+                    { name: "Shortbow", cost: "25 gp", weight: "2 lb.", damage: "1d6", damage_type: "piercing", range: "80/320", source: "phb" },
+                    { name: "Crossbow, light", cost: "25 gp", weight: "5 lb.", damage: "1d8", damage_type: "piercing", range: "80/320", source: "phb" },
+                    { name: "Crossbow, heavy", cost: "50 gp", weight: "18 lb.", damage: "1d10", damage_type: "piercing", range: "100/400", source: "phb" },
+                    { name: "Sling", cost: "0.1 gp", weight: "0 lb.", damage: "1d4", damage_type: "bludgeoning", range: "30/120", source: "phb" },
+                    
+                    // Armor
+                    { name: "Leather", cost: "5 gp", weight: "10 lb.", armor_class: 11, source: "phb" },
+                    { name: "Studded Leather", cost: "45 gp", weight: "13 lb.", armor_class: 12, source: "phb" },
+                    { name: "Hide", cost: "10 gp", weight: "12 lb.", armor_class: 12, source: "phb" },
+                    { name: "Chain Shirt", cost: "50 gp", weight: "20 lb.", armor_class: 13, source: "phb" },
+                    { name: "Scale Mail", cost: "50 gp", weight: "45 lb.", armor_class: 14, source: "phb" },
+                    { name: "Breastplate", cost: "400 gp", weight: "20 lb.", armor_class: 14, source: "phb" },
+                    { name: "Half Plate", cost: "750 gp", weight: "40 lb.", armor_class: 15, source: "phb" },
+                    { name: "Ring Mail", cost: "30 gp", weight: "40 lb.", armor_class: 14, source: "phb" },
+                    { name: "Chain Mail", cost: "75 gp", weight: "55 lb.", armor_class: 16, source: "phb" },
+                    { name: "Splint", cost: "200 gp", weight: "60 lb.", armor_class: 17, source: "phb" },
+                    { name: "Plate", cost: "1500 gp", weight: "65 lb.", armor_class: 18, source: "phb" },
+                    
+                    // Shields
+                    { name: "Shield", cost: "10 gp", weight: "6 lb.", ac: "+2", source: "phb" },
+                    
+                    // Starter Packs
+                    { name: "Explorer's Pack", cost: "10 gp", weight: "59 lb.", source: "phb" },
+                    { name: "Adventurer's Pack", cost: "5 gp", weight: "54 lb.", source: "phb" },
+                    { name: "Burglar's Pack", cost: "16 gp", weight: "44 lb.", source: "phb" },
+                    { name: "Diplomat's Pack", cost: "39 gp", weight: "46 lb.", source: "phb" },
+                    { name: "Dungeoneer's Pack", cost: "12 gp", weight: "61 lb.", source: "phb" },
+                    { name: "Entertainer's Pack", cost: "40 gp", weight: "38 lb.", source: "phb" },
+                    { name: "Priest's Pack", cost: "19 gp", weight: "24 lb.", source: "phb" },
+                    { name: "Scholar's Pack", cost: "40 gp", weight: "10 lb.", source: "phb" },
+                    
+                    // Adventuring Gear
+                    { name: "Rope (50 feet)", cost: "1 gp", weight: "10 lb.", source: "phb" },
+                    { name: "Torch", cost: "0.01 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Lantern (Bullseye)", cost: "12 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Lantern (Hooded)", cost: "5 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Backpack", cost: "2 gp", weight: "5 lb.", source: "phb" },
+                    { name: "Bedroll", cost: "0.1 gp", weight: "10 lb.", source: "phb" },
+                    { name: "Tent", cost: "2 gp", weight: "20 lb.", source: "phb" },
+                    { name: "Grappling Hook", cost: "2 gp", weight: "4 lb.", source: "phb" },
+                    { name: "Caltrops (20)", cost: "1 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Chalk (1 piece)", cost: "0.01 gp", weight: "0.01 lb.", source: "phb" },
+                    { name: "Waterskin", cost: "0.5 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Hempen Rope (50 feet)", cost: "1 gp", weight: "10 lb.", source: "phb" },
+                    { name: "Silk Rope (50 feet)", cost: "10 gp", weight: "5 lb.", source: "phb" },
+                    { name: "Crowbar", cost: "2 gp", weight: "5 lb.", source: "phb" },
+                    { name: "Hammer", cost: "1 gp", weight: "3 lb.", source: "phb" },
+                    { name: "Piton", cost: "0.05 gp", weight: "0.25 lb.", source: "phb" },
+                    { name: "Tinderbox", cost: "0.5 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Candle", cost: "0.01 gp", weight: "0.1 lb.", source: "phb" },
+                    { name: "Mess Kit", cost: "0.2 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Rope (50 feet, silk)", cost: "10 gp", weight: "5 lb.", source: "phb" },
+                    { name: "Component Pouch", cost: "25 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Spellcasting Focus", cost: "5-15 gp", weight: "varies", source: "phb" },
+                    { name: "Holy Water (Flask)", cost: "25 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Mirror (steel)", cost: "5 gp", weight: "0.5 lb.", source: "phb" },
+                    { name: "Rations (1 day)", cost: "0.5 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Trail Rations (1 day)", cost: "0.5 gp", weight: "2 lb.", source: "phb" },
+                    { name: "Pouch", cost: "0.5 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Map or Scroll Case", cost: "1 gp", weight: "0.5 lb.", source: "phb" },
+                    { name: "Magnifying Glass", cost: "100 gp", weight: "0 lb.", source: "phb" },
+                    { name: "Playing Cards", cost: "0.5 gp", weight: "0 lb.", source: "phb" },
+                    { name: "Dice Set", cost: "0.1 gp", weight: "0 lb.", source: "phb" },
+                    { name: "Thieves' Tools", cost: "25 gp", weight: "1 lb.", source: "phb" },
+                    { name: "Healer's Kit", cost: "5 gp", weight: "3 lb.", source: "phb" },
+                    { name: "Potion of Healing", cost: "50 gp", weight: "0.5 lb.", source: "phb" },
+                    { name: "Everburning Lantern", cost: "varies", weight: "2 lb.", source: "fgg" },
+                    
+                    // Magical Items (common)
+                    { name: "Ring of Protection +1", cost: "varies", weight: "0 lb.", source: "phb" },
+                    { name: "Amulet of Health", cost: "varies", weight: "0 lb.", source: "phb" },
+                    { name: "Cloak of Protection", cost: "varies", weight: "1 lb.", source: "phb" },
+                    { name: "Wand of Magic Missiles", cost: "varies", weight: "1 lb.", source: "phb" },
+                    { name: "Staff of Fire", cost: "varies", weight: "4 lb.", source: "phb" },
+                ];
+                
+                for (const item of commonItems) {
+                    if (!seenNames.has(item.name)) {
+                        seenNames.add(item.name);
+                        equipmentList.push(item);
+                    }
+                }
+                
+                console.log(`Fetched ${equipmentList.length} items total (Open5e + common)`);
+                console.log(`Common items added. Cache will have: ${equipmentList.length} items`);
+                
+                // Cache the results
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify(equipmentList));
+                    console.log(`Cached ${equipmentList.length} equipment items to localStorage`);
+                } catch (e) {
+                    console.warn("Cache write failed:", e);
+                }
+                
+                // Update Python state if PyScript is ready
+                // Note: The Python fetch_equipment_from_open5e will read from localStorage,
+                // so we don't strictly need to update it here
+                try {
+                    if (window.PyScript && window.PyScript.interpreter && window.PyScript.interpreter.interface) {
+                        window.PyScript.interpreter.interface.EQUIPMENT_LIBRARY_STATE = { equipment: equipmentList };
+                    }
+                } catch (e) {
+                    console.log("Could not update Python state:", e.message);
+                }
+            } catch (error) {
+                console.error("Failed to fetch equipment:", error);
+            }
+        }
+        
+        // Start fetching equipment in the background
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fetchEquipmentFromOpen5e);
+        } else {
+            fetchEquipmentFromOpen5e();
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabButtons = document.querySelectorAll('.tab');
+            const panels = document.querySelectorAll('.tab-panel');
+
+            tabButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const targetId = `tab-${button.dataset.tab}`;
+                    tabButtons.forEach((btn) => btn.classList.toggle('active', btn === button));
+                    panels.forEach((panel) => panel.classList.toggle('active', panel.id === targetId));
+                });
+            });
+        });
+    </script>
+</body>
+</html>
