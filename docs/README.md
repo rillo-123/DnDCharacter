@@ -39,6 +39,30 @@ DnDCharacter/
      ```
    - Then visit `http://localhost:8000` in your browser.
 
+
+### Developing in WSL or with a Dev Container ✅
+
+If you develop inside WSL2 or use a Dev Container, VS Code can attach directly to the Linux environment so terminals, tests, and extensions run inside the same system as your app.
+
+- WSL (recommended):
+  - Install the **Remote - WSL** extension in VS Code.
+  - From a WSL shell in the project folder:
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    code .  # opens VS Code attached to the WSL environment
+    ```
+  - Start the Flask server in WSL: `python backend.py` and open `http://localhost:5000` on your host browser (WSL2 forwards ports to localhost).
+
+- Dev Container (reproducible):
+  - A minimal devcontainer is included in `.devcontainer/devcontainer.json` which installs Python and your pip dependencies automatically (`pip install -r requirements.txt`).
+  - Recommended extensions are declared in `.vscode/extensions.json` and the devcontainer config so VS Code will prompt to install them when you open the workspace or the container.
+
+- Installing extensions in bulk: use `code --list-extensions > extensions.txt` to export and `cat extensions.txt | xargs -L 1 code --install-extension` to install from a file.
+
+These options ensure consistent tooling and make onboarding easier for future contributors.
+
 2. **Use the app**
    - Fill in your character details; totals update automatically.
    - Click **Save to Browser** to persist data in `localStorage`.
