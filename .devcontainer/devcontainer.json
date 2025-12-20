@@ -12,8 +12,16 @@
       ]
     }
   },
+  "build": {
+    "args": {
+      "DEBIAN_FRONTEND": "noninteractive"
+    }
+  },
   "forwardPorts": [5000],
-  "postCreateCommand": "pip install -r requirements.txt",
+  "containerEnv": {
+    "DEBIAN_FRONTEND": "noninteractive"
+  },
+  "postCreateCommand": "export DEBIAN_FRONTEND=noninteractive && pip install -r requirements.txt",
   "settings": {
     "python.pythonPath": "/usr/local/bin/python",
     "python.formatting.provider": "black"
