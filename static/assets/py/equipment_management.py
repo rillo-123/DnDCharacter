@@ -999,6 +999,19 @@ class InventoryManager:
             
             # Update calculations if needed
             update_calculations()
+
+            # Sync weapons and armor grids so changes to bonus are immediately visible
+            try:
+                from weapons_manager import get_weapons_manager
+                from armor_manager import get_armor_manager
+                weapons_mgr = get_weapons_manager()
+                if weapons_mgr:
+                    weapons_mgr.render()
+                armor_mgr = get_armor_manager()
+                if armor_mgr:
+                    armor_mgr.render()
+            except Exception as e:
+                console.log(f"[EQUIPMENT] Grid sync not available: {e}")
     
     def _handle_equipped_toggle(self, event, item_id: str):
         """Handle equipped checkbox toggle."""

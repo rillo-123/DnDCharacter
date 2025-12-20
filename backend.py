@@ -10,7 +10,7 @@ Optional arguments:
     --debug         Enable debug mode (default: False)
 """
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from pathlib import Path
 import json
 from datetime import datetime
@@ -72,6 +72,16 @@ EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 def index():
     """Serve index.html"""
     return send_from_directory('static', 'index.html')
+
+@app.route('/favicon.ico')
+def favicon():
+    """Return a tiny svg favicon to avoid 404"""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
+        '<rect width="16" height="16" fill="#2b6cb0"/>'
+        '</svg>'
+    )
+    return Response(svg, mimetype='image/svg+xml')
 
 @app.route('/<path:path>')
 def serve_static(path):

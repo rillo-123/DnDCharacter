@@ -100,7 +100,7 @@ class WeaponEntity(EntityManager):
         dmg_text = dmg if dmg else ""
         if dmg_text and dmg_type:
             dmg_text = f"{dmg_text} {dmg_type}"
-        if dmg_bonus and dmg_bonus > 0:
+        if dmg_bonus and dmg_bonus > 0 and dmg_text:
             dmg_text = f"{dmg_text} +{dmg_bonus}"
         
         return dmg_text if dmg_text else "—"

@@ -206,35 +206,65 @@ except ImportError as e:
     PACT_MAGIC_TABLE = {}
 
 # Manual HTTP fetch for spellcasting module (workaround for Pyodide path resolution)
-def _load_module_from_http_sync(module_name: str, url: str):
-    """Load a Python module from HTTP URL synchronously using open_url."""
+def _load_module_from_http_sync(module_name: str, url: str, _retry: bool = True):
+    """Load a Python module from HTTP URL synchronously using open_url.
+
+    This helper will attempt to auto-resolve simple missing-module errors by
+    fetching the missing dependency module from the assets HTTP path and retrying once.
+    """
     try:
         console.log(f"DEBUG: [HTTP] Starting load_module_from_http_sync")
         console.log(f"DEBUG: [HTTP] module_name = {module_name}")
         console.log(f"DEBUG: [HTTP] url = {url}")
         console.log(f"DEBUG: [HTTP] open_url available = {open_url is not None}")
-        
+
         if open_url is None:
             raise RuntimeError("open_url is None")
-        
+
         console.log(f"DEBUG: [HTTP] Calling open_url({url})")
         response = open_url(url)
         console.log(f"DEBUG: [HTTP] open_url returned")
-        
+
         source = response.read()
         console.log(f"DEBUG: [HTTP] Read {len(source)} bytes")
-        
+
         module = ModuleType(module_name)
         module.__file__ = url  # Help modules that log __file__
         # Register before exec so intra-module lookups (e.g., dataclasses __module__) succeed
         sys.modules[module_name] = module
         console.log(f"DEBUG: [HTTP] Created ModuleType and registered in sys.modules")
-        
-        exec(source, module.__dict__)
-        console.log(f"DEBUG: [HTTP] exec() completed")
-        console.log(f"DEBUG: [HTTP] SUCCESS")
-        
-        return module
+
+        try:
+            exec(source, module.__dict__)
+            console.log(f"DEBUG: [HTTP] exec() completed")
+            console.log(f"DEBUG: [HTTP] SUCCESS")
+            return module
+        except Exception as inner_exc:
+            # If a ModuleNotFoundError occurred during exec, attempt to fetch that missing module
+            msg = str(inner_exc)
+            console.error(f"DEBUG: [HTTP] exec() ERROR: {type(inner_exc).__name__}: {msg}")
+            import re
+            m = re.search(r"No module named '([^']+)'", msg)
+            if m and _retry:
+                missing = m.group(1)
+                console.log(f"DEBUG: [HTTP] Detected missing dependency: {missing}; attempting to fetch it and retry")
+                try:
+                    dep_url = f"http://localhost:8080/assets/py/{missing}.py"
+                    dep_mod = _load_module_from_http_sync(missing, dep_url, _retry=False)
+                    if dep_mod is not None:
+                        console.log(f"DEBUG: [HTTP] Successfully loaded dependency {missing}; retrying exec of {module_name}")
+                        # Retry exec now that dependency is registered
+                        exec(source, module.__dict__)
+                        console.log(f"DEBUG: [HTTP] exec() completed on retry")
+                        console.log(f"DEBUG: [HTTP] SUCCESS (after dependency fetch)")
+                        return module
+                    else:
+                        console.error(f"DEBUG: [HTTP] Failed to load dependency module: {missing}")
+                except Exception as e2:
+                    console.error(f"DEBUG: [HTTP] Error while fetching dependency {missing}: {e2}")
+            # If we get here, re-raise to be logged by the outer except
+            raise
+
     except Exception as e:
         console.error(f"DEBUG: [HTTP] EXCEPTION: {type(e).__name__}")
         console.error(f"DEBUG: [HTTP] Message: {str(e)}")
@@ -243,6 +273,39 @@ def _load_module_from_http_sync(module_name: str, url: str):
             if line.strip():
                 console.error(f"DEBUG: [HTTP] {line}")
         return None
+
+def _ensure_manager_loaded(module_name: str, attr_name: str, http_url: str | None = None):
+    """Attempt to import <module_name> and return the attribute <attr_name>.
+    On ImportError, retry by inserting static/assets/py into sys.path, and
+    finally attempt an HTTP fallback using _load_module_from_http_sync if
+    http_url is provided. Raises ImportError if all attempts fail.
+    """
+    try:
+        module = __import__(module_name)
+        if hasattr(module, attr_name):
+            return getattr(module, attr_name)
+    except Exception as e:
+        console.warn(f"DEBUG: {module_name} import failed: {e}")
+        # Retry by inserting assets/py into sys.path
+        try:
+            assets_py = Path.cwd() / "static" / "assets" / "py"
+            if str(assets_py) not in sys.path:
+                sys.path.insert(0, str(assets_py))
+                console.log(f"DEBUG: Added {assets_py} to sys.path[0]")
+            module = __import__(module_name)
+            if hasattr(module, attr_name):
+                console.log(f"DEBUG: {module_name} imported after path insertion")
+                return getattr(module, attr_name)
+        except Exception as e2:
+            console.warn(f"DEBUG: {module_name} retry failed: {e2}")
+            # Try HTTP fallback if a URL was provided
+            if http_url is not None:
+                console.log(f"DEBUG: Attempting HTTP fallback for {module_name}")
+                mod = _load_module_from_http_sync(module_name, http_url)
+                if mod is not None and hasattr(mod, attr_name):
+                    console.log(f"DEBUG: {module_name} loaded via HTTP fallback")
+                    return getattr(mod, attr_name)
+            raise ImportError(f"{module_name} could not be loaded")
 
 # Try standard import first
 try:
@@ -4098,12 +4161,22 @@ def calculate_weapon_tohit(item: dict) -> int:
     # (in a full implementation, would check class proficiencies)
     to_hit = ability_mod + proficiency
     
-    # Add any enchantment bonus (parse from name like "+1 Sword")
-    import re
-    match = re.search(r'\+(\d+)', item.get("name", ""))
-    if match:
-        to_hit += int(match.group(1))
+    # Detect bonus from notes JSON or equipment enrichment
+    weapon_bonus = 0
+    try:
+        enriched = _enrich_weapon_item(item)
+        weapon_bonus = enriched.get("bonus", 0) or 0
+    except Exception:
+        weapon_bonus = 0
     
+    # If no bonus yet, try to parse from name like "+1 Sword"
+    if not weapon_bonus:
+        import re
+        match = re.search(r'\+(\d+)', item.get("name", ""))
+        if match:
+            weapon_bonus = int(match.group(1))
+    
+    to_hit += weapon_bonus
     return to_hit
 
 
@@ -4131,6 +4204,170 @@ def create_unequip_handler(item_id, weapon_name):
         console.log(f"[UNEQUIP] Item not found: id={item_id}")
     
     return unequip_weapon
+
+
+def _enrich_weapon_item(item: dict) -> dict:
+    """Return a copy of item with damage/range/properties enriched from notes or equipment library."""
+    enriched = dict(item)
+    # Extract from explicit fields
+    dmg = enriched.get("damage", "")
+    dmg_type = enriched.get("damage_type", "")
+    range_text = enriched.get("range_text", "") or enriched.get("range", "")
+    props = enriched.get("weapon_properties", "") or enriched.get("properties", "")
+
+    # Try notes JSON
+    bonus = enriched.get("bonus", 0) or 0
+    try:
+        notes_str = enriched.get("notes", "")
+        if notes_str and isinstance(notes_str, str) and notes_str.startswith("{"):
+            notes_data = json.loads(notes_str)
+            if not dmg and notes_data.get("damage"):
+                dmg = notes_data.get("damage")
+            if not dmg_type and notes_data.get("damage_type"):
+                dmg_type = notes_data.get("damage_type")
+            if not range_text and notes_data.get("range"):
+                range_text = notes_data.get("range")
+            if not props and notes_data.get("properties"):
+                p = notes_data.get("properties")
+                if isinstance(p, list):
+                    props = ", ".join(str(x) for x in p)
+                else:
+                    props = p
+            # Extract bonus if present in notes JSON
+            if not bonus and notes_data.get("bonus"):
+                try:
+                    bonus = int(notes_data.get("bonus"))
+                except Exception:
+                    bonus = notes_data.get("bonus")
+    except Exception:
+        pass
+
+    # If still missing fields, try to look up in equipment library by normalized name
+    if (not dmg or not dmg_type or not range_text or not props) and EQUIPMENT_LIBRARY_STATE.get("equipment"):
+        try:
+            name_norm = (enriched.get("name", "") or "").lower().replace(',', '').strip()
+            import re
+            for eq in EQUIPMENT_LIBRARY_STATE.get("equipment", []):
+                eq_name_raw = (eq.get("name", "") or "")
+                eq_name = eq_name_raw.lower().replace(',', '').strip()
+                # Tokenize names to allow matching 'Light Crossbow' <-> 'Crossbow, light'
+                name_tokens = set(re.findall(r"\w+", name_norm))
+                eq_tokens = set(re.findall(r"\w+", eq_name))
+                match = False
+                if name_tokens and eq_tokens:
+                    # Exact token set match or subset match
+                    if name_tokens == eq_tokens or name_tokens.issubset(eq_tokens) or eq_tokens.issubset(name_tokens):
+                        match = True
+                # Fallback substring checks
+                if not match:
+                    if name_norm in eq_name or eq_name in name_norm:
+                        match = True
+                if match:
+                    console.log(f"[ENRICH] Found library match for {enriched.get('name')}: {eq_name_raw}")
+                    if not dmg:
+                        dmg = eq.get("damage") or eq.get("damage_dice") or dmg
+                    if not dmg_type:
+                        dmg_type = eq.get("damage_type") or dmg_type
+                    if not range_text:
+                        range_text = eq.get("range") or range_text
+                    if not props:
+                        p = eq.get("properties", "")
+                        if isinstance(p, list):
+                            # Convert list to comma-separated string
+                            props = ", ".join(str(x) for x in p)
+                            # Try to extract range info from properties strings like 'ammunition (range 80/320)'
+                            try:
+                                import re
+                                if not range_text:
+                                    for prop in p:
+                                        if isinstance(prop, str):
+                                            m = re.search(r"\(([^)]+)\)", prop)
+                                            if m:
+                                                # common Open5e property format: 'ammunition (range 80/320)'
+                                                candidate = m.group(1).strip()
+                                                # normalize candidate to remove leading 'range ' if present
+                                                if candidate.lower().startswith("range"):
+                                                    candidate = candidate.split(None, 1)[1] if len(candidate.split(None, 1)) > 1 else candidate
+                                                range_text = candidate
+                                                break
+                            except Exception:
+                                pass
+                        else:
+                            props = p
+
+                    # If fields still missing, try to parse notes JSON (Equipment.to_dict() stores extras in notes)
+                    try:
+                        notes_str = eq.get("notes", "")
+                        if notes_str and isinstance(notes_str, str) and notes_str.startswith("{"):
+                            notes_data = json.loads(notes_str)
+                            if not dmg:
+                                dmg = notes_data.get("damage") or notes_data.get("damage_dice") or dmg
+                            if not dmg_type:
+                                dmg_type = notes_data.get("damage_type") or dmg_type
+                            if not range_text:
+                                range_text = notes_data.get("range") or notes_data.get("range_text") or range_text
+                            if not props:
+                                p2 = notes_data.get("properties", "")
+                                if isinstance(p2, list):
+                                    props = ", ".join(str(x) for x in p2)
+                                else:
+                                    props = p2
+                            # Extract bonus from equipment notes if present
+                            if not bonus and notes_data.get("bonus"):
+                                try:
+                                    bonus = int(notes_data.get("bonus"))
+                                except Exception:
+                                    bonus = notes_data.get("bonus")
+                    except Exception:
+                        # ignore malformed notes
+                        pass
+
+                    # If still missing fields, try the builtin equipment list as a final fallback
+                    if (not dmg or not dmg_type or not range_text or not props):
+                        try:
+                            builtin = _find_builtin_equipment_match(enriched.get('name', ''))
+                            if builtin:
+                                if not dmg:
+                                    dmg = builtin.get('damage') or builtin.get('damage_dice') or dmg
+                                if not dmg_type:
+                                    dmg_type = builtin.get('damage_type') or dmg_type
+                                if not range_text:
+                                    range_text = builtin.get('range_text') or builtin.get('range') or range_text
+                                if not props:
+                                    p3 = builtin.get('properties', '')
+                                    if isinstance(p3, list):
+                                        props = ", ".join(str(x) for x in p3)
+                                    else:
+                                        props = p3
+                                # Extract bonus from builtin if provided
+                                if not bonus and builtin.get('bonus'):
+                                    try:
+                                        bonus = int(builtin.get('bonus'))
+                                    except Exception:
+                                        bonus = builtin.get('bonus')
+                        except Exception:
+                            pass
+
+                    console.log(f"[ENRICH] Applied damage={dmg}, type={dmg_type}, range={range_text}, props={props}")
+                    break
+        except Exception as e:
+            console.log(f"[ENRICH] Error during library lookup: {e}")
+            pass
+
+    # Assign back to enriched dict under expected keys
+    if dmg:
+        enriched["damage"] = dmg
+    if dmg_type:
+        enriched["damage_type"] = dmg_type
+    if range_text:
+        enriched["range_text"] = range_text
+    if props:
+        enriched["weapon_properties"] = props
+    # Ensure bonus from notes, equipment library or builtin fallback is present on enriched dict
+    if bonus and bonus != 0:
+        enriched["bonus"] = bonus
+
+    return enriched
 
 
 def render_equipped_attack_grid():
@@ -4194,23 +4431,16 @@ def render_equipped_attack_grid():
         to_hit_td.textContent = format_bonus(to_hit)
         tr.appendChild(to_hit_td)
         
-        # Column 3: Damage - check notes JSON for weapon properties and bonus
+        # Column 3: Damage - check notes JSON and equipment library for weapon properties and bonus
         dmg_td = document.createElement("td")
-        dmg = item.get("damage", "")
-        dmg_type = item.get("damage_type", "")
-        dmg_bonus = item.get("bonus", 0)
+        # Enrich item with any missing weapon metadata from notes/ library
+        enriched_item = _enrich_weapon_item(item)
+        dmg = enriched_item.get("damage", "")
+        dmg_type = enriched_item.get("damage_type", "")
+        dmg_bonus = enriched_item.get("bonus", 0) or item.get("bonus", 0)
         
-        if not dmg:
-            try:
-                notes_str = item.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    dmg = notes_data.get("damage", "")
-                    dmg_type = notes_data.get("damage_type", "")
-                    if not dmg_bonus or dmg_bonus == 0:
-                        dmg_bonus = notes_data.get("bonus", 0)
-            except:
-                pass
+        # Notes fallback (already handled by _enrich_weapon_item) - keep compatibility
+        # if needed, additional parsing could go here
         
         # If still no bonus, check weapon name for "+X" pattern (handles "+1 Mace" or "Sword +1")
         if not dmg_bonus or dmg_bonus == 0:
@@ -4222,38 +4452,20 @@ def render_equipped_attack_grid():
         dmg_text = dmg
         if dmg_text and dmg_type:
             dmg_text = f"{dmg_text} {dmg_type}"
-        if dmg_bonus and dmg_bonus > 0:
+        if dmg_bonus and dmg_bonus > 0 and dmg_text:
             dmg_text = f"{dmg_text} +{dmg_bonus}"
         dmg_td.textContent = dmg_text if dmg_text else "—"
         tr.appendChild(dmg_td)
         
-        # Column 4: Range - check notes JSON and direct field
+        # Column 4: Range - prefer enriched value
         range_td = document.createElement("td")
-        range_text = item.get("range_text", "")
-        if not range_text:
-            try:
-                notes_str = item.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    range_text = notes_data.get("range", "")
-                    if not range_text:
-                        range_text = notes_data.get("range_text", "")
-            except:
-                pass
+        range_text = enriched_item.get("range_text", "") or enriched_item.get("range", "")
         range_td.textContent = range_text if range_text else "—"
         tr.appendChild(range_td)
         
-        # Column 5: Properties - check notes JSON
+        # Column 5: Properties - prefer enriched weapon_properties
         prop_td = document.createElement("td")
-        props = item.get("weapon_properties", "")
-        if not props:
-            try:
-                notes_str = item.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    props = notes_data.get("properties", "")
-            except:
-                pass
+        props = enriched_item.get("weapon_properties", "") or enriched_item.get("properties", "")
         prop_td.textContent = props if props else "—"
         tr.appendChild(prop_td)
         
@@ -4858,7 +5070,12 @@ def fetch_equipment_from_open5e():
     
     # Use comprehensive fallback of common D&D 5e items
     console.log("PySheet: Using comprehensive fallback equipment list")
-    EQUIPMENT_LIBRARY_STATE["equipment"] = [item.to_dict() if hasattr(item, 'to_dict') else item for item in [
+    EQUIPMENT_LIBRARY_STATE["equipment"] = [item.to_dict() if hasattr(item, 'to_dict') else item for item in _get_builtin_equipment_list()]
+
+
+def _get_builtin_equipment_list():
+    """Return builtin equipment as a list of objects (Weapon/Armor/Equipment/etc)."""
+    return [
         # Melee Weapons (common PHB weapons)
         Weapon("Mace", damage="1d6", damage_type="bludgeoning", cost="5 gp", weight="4 lb."),
         Weapon("Longsword", damage="1d8", damage_type="slashing", cost="15 gp", weight="3 lb."),
@@ -4990,7 +5207,32 @@ def fetch_equipment_from_open5e():
         Equipment("Wand of Magic Missiles", cost="varies", weight="1 lb."),
         Equipment("Staff of Fire", cost="varies", weight="4 lb."),
         Equipment("Magic Item", cost="varies", weight="0 lb."),
-    ]]
+    ]
+
+
+def _find_builtin_equipment_match(name: str):
+    """Find a builtin equipment dict matching name using token/set or substring heuristics."""
+    try:
+        import re
+        name_norm = (name or "").lower().replace(',', '').strip()
+        name_tokens = set(re.findall(r"\w+", name_norm))
+        for itm in _get_builtin_equipment_list():
+            itm_dict = itm.to_dict() if hasattr(itm, 'to_dict') else itm
+            eq_name_raw = itm_dict.get('name', '')
+            eq_name = eq_name_raw.lower().replace(',', '').strip()
+            eq_tokens = set(re.findall(r"\w+", eq_name))
+            match = False
+            if name_tokens and eq_tokens:
+                if name_tokens == eq_tokens or name_tokens.issubset(eq_tokens) or eq_tokens.issubset(name_tokens):
+                    match = True
+            if not match:
+                if name_norm in eq_name or eq_name in name_norm:
+                    match = True
+            if match:
+                return itm_dict
+    except Exception:
+        pass
+    return None
 
 
 def load_equipment_library(_event=None):
@@ -6155,9 +6397,24 @@ if document is not None:
     update_calculations()
     
     # Initialize weapons and armor managers
+
+    # Manager pre-load helper is defined at module level (_ensure_manager_loaded)
+    # Use that helper to ensure the manager is available before initialization.
     try:
-        from weapons_manager import initialize_weapons_manager
-        from armor_manager import initialize_armor_manager
+        # Ensure weapons manager is available
+        initialize_weapons_manager = _ensure_manager_loaded(
+            "weapons_manager",
+            "initialize_weapons_manager",
+            "http://localhost:8080/assets/py/weapons_manager.py",
+        )
+
+        # Ensure armor manager is available (allow HTTP fallback)
+        initialize_armor_manager = _ensure_manager_loaded(
+            "armor_manager",
+            "initialize_armor_manager",
+            "http://localhost:8080/assets/py/armor_manager.py",
+        )
+
         console.log("[DEBUG] Initializing weapons and armor managers")
         # Get character stats for managers
         level = get_numeric_value("level", 1)
@@ -6188,6 +6445,16 @@ async def _auto_load_weapons():
     console.log("DEBUG: _auto_load_weapons() started")
     await load_weapon_library()
     console.log("DEBUG: _auto_load_weapons() - weapon library loaded")
+    # Also load the equipment library into Python (reads from localStorage or fallback)
+    try:
+        console.log("DEBUG: _auto_load_weapons() - loading equipment library into Python")
+        load_equipment_library()
+        console.log(f"DEBUG: _auto_load_weapons() - equipment library size = {len(EQUIPMENT_LIBRARY_STATE.get('equipment', []))}")
+        # Re-render the weapons grid so any enriched values are applied
+        console.log("DEBUG: _auto_load_weapons() - re-rendering equipped attack grid to apply enrichment")
+        render_equipped_attack_grid()
+    except Exception as e:
+        console.warn(f"DEBUG: _auto_load_weapons() - equipment load or render failed: {e}")
     # Give SPELLCASTING_MANAGER a chance to fully initialize
     await asyncio.sleep(0.1)
     console.log("DEBUG: _auto_load_weapons() - calling _populate_domain_spells_on_load")

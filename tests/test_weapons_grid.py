@@ -618,6 +618,44 @@ class TestWeaponsGridIntegration:
         
         # Verify it's no longer equipped
         assert item["equipped"] == False
+
+    def test_enrich_weapon_item_uses_equipment_library(self):
+        """If inventory item lacks damage/range, enrichment should pull from equipment library."""
+        import sys
+        sys.path.insert(0, 'static/assets/py')
+        from character import _enrich_weapon_item, EQUIPMENT_LIBRARY_STATE
+
+        # Ensure equipment library has a crossbow definition
+        # Test matching when equipment library uses 'Light Crossbow' naming
+        EQUIPMENT_LIBRARY_STATE['equipment'] = [
+            {
+                'name': 'Light Crossbow',
+                'damage': '1d8',
+                'damage_type': 'piercing',
+                'range': '80/320',
+                'properties': 'ammunition, loading'
+            }
+        ]
+
+        item = {
+            'id': '0',
+            'name': 'Crossbow, light',
+            'cost': '25 gp',
+            'weight': '5 lb.',
+            'qty': 1,
+            'category': 'Weapons',
+            'notes': '',
+            'source': 'open5e',
+            'equipped': True
+        }
+
+        enriched = _enrich_weapon_item(item)
+        assert enriched.get('damage') == '1d8'
+        assert enriched.get('damage_type') == 'piercing'
+        # allow normalized forms (with or without 'ft.')
+        assert '80/320' in enriched.get('range_text')
+        assert 'ammunition' in enriched.get('weapon_properties', '')
+
     
     def test_only_equipped_weapons_in_grid_display_list(self):
         """Verify that grid rendering only uses equipped weapons."""
