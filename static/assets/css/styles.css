@@ -486,7 +486,7 @@ body {
 .weapons-table td:nth-child(3),
 .weapons-table td:nth-child(4),
 .weapons-table td:nth-child(5) {
-    text-align: center;
+    text-align: left;
 }
 
 .weapons-table thead {
@@ -810,7 +810,7 @@ body {
 .weapons-table td:nth-child(3),
 .weapons-table td:nth-child(4),
 .weapons-table td:nth-child(5) {
-    text-align: center;
+    text-align: left;
 }
 
 .weapons-table thead {

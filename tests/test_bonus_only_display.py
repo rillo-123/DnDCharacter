@@ -8,10 +8,10 @@ def test_bonus_only_in_name_does_not_display_alone_in_damage():
     item = {"name": "Dagger +1", "category": "Weapons", "equipped": True}
     enriched = character._enrich_weapon_item(item)
 
-    # render_equipped_attack_grid uses enriched data; but here we assert enrichment didn't add damage
-    assert enriched.get('damage') in (None, "")
+    # render_equipped_attack_grid uses enriched data; enrichment should provide base damage from builtin fallback
+    assert enriched.get('damage') == '1d4'
 
-    # WeaponEntity final_damage should not return "+1" alone -- it should be '—'
+    # WeaponEntity final_damage constructed from raw data (no enrichment step) should not return "+1" alone -- it should be '—'
     w = WeaponEntity(weapon_data={'name': 'Dagger +1', 'notes': ''}, character_stats={"str":10, "dex":10, "proficiency":2})
     assert w.final_damage == '—'
 

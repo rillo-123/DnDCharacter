@@ -4367,6 +4367,44 @@ def _enrich_weapon_item(item: dict) -> dict:
     if bonus and bonus != 0:
         enriched["bonus"] = bonus
 
+    # Final fallback: if still missing critical fields, try builtin equipment lookup even if the
+    # global EQUIPMENT_LIBRARY_STATE hasn't been populated. This covers cases where the app
+    # hasn't loaded the cached equipment list yet (avoids showing empty damage for common items).
+    try:
+        if (not dmg or not dmg_type or not range_text or not props):
+            builtin = _find_builtin_equipment_match(enriched.get('name', ''))
+            if builtin:
+                if not dmg:
+                    dmg = builtin.get('damage') or builtin.get('damage_dice') or dmg
+                if not dmg_type:
+                    dmg_type = builtin.get('damage_type') or dmg_type
+                if not range_text:
+                    range_text = builtin.get('range_text') or builtin.get('range') or range_text
+                if not props:
+                    p3 = builtin.get('properties', '')
+                    if isinstance(p3, list):
+                        props = ", ".join(str(x) for x in p3)
+                    else:
+                        props = p3
+                # Propagate back to enriched dict
+                if dmg:
+                    enriched["damage"] = dmg
+                if dmg_type:
+                    enriched["damage_type"] = dmg_type
+                if range_text:
+                    enriched["range_text"] = range_text
+                if props:
+                    enriched["weapon_properties"] = props
+                # In case builtin includes a bonus value
+                if not bonus and builtin.get('bonus'):
+                    try:
+                        enriched['bonus'] = int(builtin.get('bonus'))
+                    except Exception:
+                        enriched['bonus'] = builtin.get('bonus')
+    except Exception:
+        # Be conservative — if anything goes wrong, don't interfere with enrichment
+        pass
+
     return enriched
 
 
@@ -4429,6 +4467,33 @@ def render_equipped_attack_grid():
         to_hit_td = document.createElement("td")
         to_hit = calculate_weapon_tohit(item)
         to_hit_td.textContent = format_bonus(to_hit)
+        
+        # Add tooltip showing calculation
+        level = get_numeric_value("level", 1)
+        proficiency = compute_proficiency(level)
+        item_name = (item.get("name") or "").lower()
+        ranged_keywords = ["bow", "crossbow", "ranged"]
+        is_ranged = any(kw in item_name for kw in ranged_keywords)
+        ability_key = "dex" if is_ranged else "str"
+        ability_score = get_numeric_value(f"{ability_key}-score", 10)
+        ability_mod = ability_modifier(ability_score)
+        weapon_bonus = 0
+        try:
+            enriched = _enrich_weapon_item(item)
+            weapon_bonus = enriched.get("bonus", 0) or 0
+        except:
+            weapon_bonus = 0
+        if not weapon_bonus:
+            import re
+            match = re.search(r'\+(\d+)', item.get("name", ""))
+            if match:
+                weapon_bonus = int(match.group(1))
+        
+        ability_name = "DEX" if is_ranged else "STR"
+        bonus_text = f" + {weapon_bonus}" if weapon_bonus > 0 else ""
+        tooltip = f"{ability_mod:+d} ({ability_name}) + {proficiency:+d} (Prof){bonus_text}"
+        to_hit_td.title = tooltip
+        
         tr.appendChild(to_hit_td)
         
         # Column 3: Damage - check notes JSON and equipment library for weapon properties and bonus
@@ -4466,10 +4531,11 @@ def render_equipped_attack_grid():
         # Column 5: Properties - prefer enriched weapon_properties
         prop_td = document.createElement("td")
         props = enriched_item.get("weapon_properties", "") or enriched_item.get("properties", "")
+        # Convert list to string if needed
+        if isinstance(props, list):
+            props = ", ".join(str(p) for p in props)
         prop_td.textContent = props if props else "—"
         tr.appendChild(prop_td)
-        
-        weapons_section.appendChild(tr)
         
         weapons_section.appendChild(tr)
 
