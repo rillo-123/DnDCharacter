@@ -4491,20 +4491,12 @@ def render_equipped_attack_grid():
                 if match:
                     weapon_bonus = int(match.group(1))
             
-            # Create wrapper for to-hit value + styled tooltip
-            wrapper = document.createElement("div")
-            wrapper.style.position = "relative"
-            wrapper.style.display = "inline-block"
-            wrapper.style.width = "100%"
-            wrapper.style.textAlign = "center"
-            
-            # Add to-hit bonus value
+            # Calculate to-hit value
             to_hit = calculate_weapon_tohit(item)
-            bonus_span = document.createElement("span")
-            bonus_span.textContent = format_bonus(to_hit)
-            wrapper.appendChild(bonus_span)
+            to_hit_bonus_text = format_bonus(to_hit)
             
-            # Add styled HTML tooltip (like ability scores) if WeaponToHitValue available
+            # Generate tooltip using WeaponToHitValue entity
+            tooltip_html = ""
             if WeaponToHitValue:
                 try:
                     w2h = WeaponToHitValue(
@@ -4515,13 +4507,6 @@ def render_equipped_attack_grid():
                         weapon_bonus=weapon_bonus
                     )
                     tooltip_html = w2h.generate_tooltip_html()
-                    # Insert tooltip HTML into wrapper
-                    temp = document.createElement("div")
-                    temp.innerHTML = tooltip_html
-                    tooltip_div = temp.firstChild
-                    if tooltip_div:
-                        wrapper.appendChild(tooltip_div)
-                    console.log(f"[RENDER WEAPONS] Added tooltip for {item.get('name')}")
                 except Exception as e:
                     console.log(f"[RENDER WEAPONS] Error creating tooltip for {item.get('name')}: {e}")
             else:
@@ -4529,10 +4514,11 @@ def render_equipped_attack_grid():
                 ability_name = "DEX" if is_ranged else "STR"
                 bonus_text = f" + {weapon_bonus}" if weapon_bonus > 0 else ""
                 tooltip = f"{ability_mod:+d} ({ability_name}) + {proficiency:+d} (Prof){bonus_text}"
-                bonus_span.title = tooltip
-                console.log(f"[RENDER WEAPONS] Added text tooltip for {item.get('name')}")
+                # Create simple tooltip without styling
+                tooltip_html = f'<div class="stat-tooltip"><div class="tooltip-row"><span class="tooltip-label">To Hit</span><span class="tooltip-value">{tooltip}</span></div></div>'
             
-            to_hit_td.appendChild(wrapper)
+            # Set innerHTML with value + tooltip (matching saves pattern)
+            to_hit_td.innerHTML = f'<span class="stat-value">{to_hit_bonus_text}{tooltip_html}</span>'
             tr.appendChild(to_hit_td)
             
             # Column 3: Damage - check notes JSON and equipment library for weapon properties and bonus
