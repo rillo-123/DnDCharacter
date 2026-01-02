@@ -1015,11 +1015,17 @@ class InventoryManager:
             except:
                 extra_props = {}
             
-            # Update bonus value
+            # Update armor_class value based on bonus
             if bonus_val != 0:
                 extra_props["bonus"] = bonus_val
+                # Auto-calculate AC: base armor class + bonus
+                base_ac = item.get("armor_class", 10)
+                extra_props["armor_class"] = base_ac + bonus_val
             elif "bonus" in extra_props:
                 del extra_props["bonus"]
+                # Reset AC to base when bonus removed
+                if "armor_class" in extra_props:
+                    del extra_props["armor_class"]
             
             # Save back to notes
             notes = json.dumps(extra_props) if extra_props else ""
