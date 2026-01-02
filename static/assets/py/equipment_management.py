@@ -971,8 +971,8 @@ class InventoryManager:
             # Save inventory and character to localStorage via character module
             try:
                 console.log("[AC-CHANGE] Calling save_character() to persist inventory")
-                from character import save_character
-                save_character()  # This saves the entire character including inventory
+                # save_character is globally available from character module
+                save_character()
                 console.log("[AC-CHANGE] Persistence complete")
             except Exception as e:
                 console.error(f"[AC-CHANGE] Error saving: {e}")
@@ -1027,8 +1027,8 @@ class InventoryManager:
 
             # Save inventory and character to localStorage via character module
             try:
-                from character import save_character
-                save_character()  # This saves the entire character including inventory
+                # save_character is globally available from character module
+                save_character()
             except Exception as e:
                 console.error(f"[BONUS-CHANGE] Error saving: {e}")
 
