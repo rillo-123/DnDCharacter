@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import Union, Optional
 
 try:
+    from tooltip_values import WeaponToHitValue
+except ImportError:
+    # In case tooltip_values not available (fallback)
+    WeaponToHitValue = None
+
+try:
     from js import console, document, window
 except ImportError:
     # Mock for testing environments
@@ -4463,12 +4469,10 @@ def render_equipped_attack_grid():
         name_td.textContent = item.get("name", "Unknown")
         tr.appendChild(name_td)
         
-        # Column 2: To Hit bonus
+        # Column 2: To Hit bonus (with styled tooltip)
         to_hit_td = document.createElement("td")
-        to_hit = calculate_weapon_tohit(item)
-        to_hit_td.textContent = format_bonus(to_hit)
         
-        # Add tooltip showing calculation
+        # Calculate weapon to-hit and breakdown for tooltip
         level = get_numeric_value("level", 1)
         proficiency = compute_proficiency(level)
         item_name = (item.get("name") or "").lower()
@@ -4484,16 +4488,46 @@ def render_equipped_attack_grid():
         except:
             weapon_bonus = 0
         if not weapon_bonus:
-            import re
             match = re.search(r'\+(\d+)', item.get("name", ""))
             if match:
                 weapon_bonus = int(match.group(1))
         
-        ability_name = "DEX" if is_ranged else "STR"
-        bonus_text = f" + {weapon_bonus}" if weapon_bonus > 0 else ""
-        tooltip = f"{ability_mod:+d} ({ability_name}) + {proficiency:+d} (Prof){bonus_text}"
-        to_hit_td.title = tooltip
+        # Create wrapper for to-hit value + styled tooltip
+        wrapper = document.createElement("div")
+        wrapper.style.position = "relative"
+        wrapper.style.display = "inline-block"
+        wrapper.style.width = "100%"
+        wrapper.style.textAlign = "center"
         
+        # Add to-hit bonus value
+        to_hit = calculate_weapon_tohit(item)
+        bonus_span = document.createElement("span")
+        bonus_span.textContent = format_bonus(to_hit)
+        wrapper.appendChild(bonus_span)
+        
+        # Add styled HTML tooltip (like ability scores) if WeaponToHitValue available
+        if WeaponToHitValue:
+            w2h = WeaponToHitValue(
+                weapon_name=item.get("name", ""),
+                ability=ability_key,
+                ability_mod=ability_mod,
+                proficiency=proficiency,
+                weapon_bonus=weapon_bonus
+            )
+            tooltip_html = w2h.generate_tooltip_html()
+            # Insert tooltip HTML into wrapper
+            temp = document.createElement("div")
+            temp.innerHTML = tooltip_html
+            tooltip_div = temp.firstChild
+            wrapper.appendChild(tooltip_div)
+        else:
+            # Fallback text tooltip
+            ability_name = "DEX" if is_ranged else "STR"
+            bonus_text = f" + {weapon_bonus}" if weapon_bonus > 0 else ""
+            tooltip = f"{ability_mod:+d} ({ability_name}) + {proficiency:+d} (Prof){bonus_text}"
+            bonus_span.title = tooltip
+        
+        to_hit_td.appendChild(wrapper)
         tr.appendChild(to_hit_td)
         
         # Column 3: Damage - check notes JSON and equipment library for weapon properties and bonus
