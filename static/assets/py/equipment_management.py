@@ -964,10 +964,22 @@ class InventoryManager:
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()  # Update display
             
+            # Save to localStorage directly
+            try:
+                from js import window
+                char_data = window.localStorage.getItem("pysheet.character.v1")
+                if char_data:
+                    data = json.loads(char_data)
+                    # Update inventory in the saved state
+                    data["inventory"] = {"items": self.items}
+                    window.localStorage.setItem("pysheet.character.v1", json.dumps(data))
+                    console.log("[AC-CHANGE] Saved inventory to localStorage")
+            except Exception as e:
+                console.error(f"[AC-CHANGE] Error saving to localStorage: {e}")
+            
             # Update calculations (which will recalculate AC with new armor base)
             console.log("[AC-CHANGE] Calling update_calculations()")
             update_calculations()
-            console.log("[AC-CHANGE] Persistence triggered via update_calculations()")
             
             # Re-render armor manager to show updated AC
             try:
@@ -1014,7 +1026,19 @@ class InventoryManager:
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()  # Update display to show new name with bonus
             
-            # Update calculations - this triggers persistence via update_calculations()
+            # Save to localStorage directly
+            try:
+                from js import window
+                char_data = window.localStorage.getItem("pysheet.character.v1")
+                if char_data:
+                    data = json.loads(char_data)
+                    # Update inventory in the saved state
+                    data["inventory"] = {"items": self.items}
+                    window.localStorage.setItem("pysheet.character.v1", json.dumps(data))
+            except Exception as e:
+                console.error(f"[BONUS-CHANGE] Error saving to localStorage: {e}")
+            
+            # Update calculations - this triggers display updates
             update_calculations()
 
             # Sync weapons and armor grids so changes to bonus are immediately visible
