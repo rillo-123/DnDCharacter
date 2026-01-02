@@ -68,121 +68,100 @@ if (-not (Test-Path $activateScript)) {
 Write-Host "`n🔌 Activating virtual environment..."
 & $activateScript
 
-# Prompt helper: show git branch and dirty marker in the prompt
-# Implements a lightweight cache to avoid calling git on every prompt when directory doesn't change.
-# Shows branch name and '*' when working tree has unstaged/uncommitted changes.
-function Get-GitBranch {
-    try {
-        $branch = git rev-parse --abbrev-ref HEAD 2>$null | ForEach-Object { $_.Trim() }
-        if ($LASTEXITCODE -eq 0 -and $branch) { return $branch }
-        return $null
-    } catch {
-        return $null
-    }
-}
-
-function Get-GitDirtyMarker {
-    try {
-        $status = git status --porcelain 2>$null
-        if ($LASTEXITCODE -eq 0 -and $status -and $status.Trim()) { return '*' }
-        return ''
-    } catch {
-        return ''
-    }
-}
-
-# Cache structure to reduce git calls
-if (-not (Test-Path Variable:GitPromptCache)) {
-    Set-Variable -Name GitPromptCache -Value @{ Path = $null; Branch = $null; Dirty = $null; Timestamp = [datetime]::MinValue } -Scope Global
-}
-
-function Update-GitPromptCache {
-    param([string]$path)
-    $cache = Get-Variable -Name GitPromptCache -Scope Global -ValueOnly
-    if ($cache.Path -eq $path -and ((Get-Date) - $cache.Timestamp).TotalSeconds -lt 1) {
-        return $cache
-    }
-
-    $branch = Get-GitBranch
-    $dirty = Get-GitDirtyMarker
-    $cache.Path = $path
-    $cache.Branch = $branch
-    $cache.Dirty = $dirty
-    $cache.Timestamp = Get-Date
-    Set-Variable -Name GitPromptCache -Value $cache -Scope Global
-    return $cache
-}
-
-function global:prompt {
-    try {
-        $path = (Get-Location).Path
-
-        # Virtualenv prefix
-        $venvPart = ""
-        if ($env:VIRTUAL_ENV) {
-            $venvName = Split-Path -Leaf $env:VIRTUAL_ENV
-            $venvPart = "($venvName) "
-        }
-
-        # Git branch + dirty marker (if git available and in a repo)
-        $branchPartRaw = ""
-        if (Get-Command git -ErrorAction SilentlyContinue) {
-            $cache = Update-GitPromptCache -path $path
-            if ($cache.Branch) {
-                $marker = $cache.Dirty ? "*" : ""
-                $branchPartRaw = "($($cache.Branch)$marker) "
-            }
-        }
-
-        # Color support
-        $useColor = $false
-        try { $useColor = $Host.UI.SupportsVirtualTerminal } catch { $useColor = $false }
-
-        if ($useColor) {
-            $esc = "`e"
-            $c_venv = ""
-            $c_branch = ""
-            if ($venvPart) { $c_venv = "${esc}[36m$venvPart${esc}[0m" }
-            if ($branchPartRaw) { $c_branch = "${esc}[33m$branchPartRaw${esc}[0m" }
-            return "$c_venv$c_branch$path> "
-        } else {
-            return "$venvPart$branchPartRaw$path> "
-        }
-    } catch {
-        return "PS> "
-    }
+# Step 2b: Load prompt helper functions from profile (dot-source to persist in session)
+Write-Host "`n📝 Loading prompt helper functions..."
+$profilePath = Join-Path $PSScriptRoot "profile.ps1"
+if (Test-Path $profilePath) {
+    . $profilePath
+} else {
+    Write-Host "⚠️  Warning: profile.ps1 not found at $profilePath"
+    Write-Host "   Prompt helpers will not be available"
 }
 
 # Step 3: Install/check dependencies
 if (Test-Path $reqFile) {
     Write-Host "`n📋 Checking dependencies from requirements.txt..."
     
-    # Pip upgrade disabled to speed up setup (removed per user request)
-    Write-Host "ℹ️  Skipping pip upgrade (disabled to speed up setup)."
-
-    # Check installed packages
-    Write-Host "📥 Checking installed packages..."
-    try {
-        $installedOutput = & python -m pip list --format=json
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "✗ Could not list installed packages (exit code: $LASTEXITCODE)"
-            exit 1
-        }
-        
-        $installed = @{}
+    # Fast pip upgrade (only if venv is older than 7 days or first creation)
+    $venvConfigFile = Join-Path $venvPath "pyvenv.cfg"
+    $shouldUpgradePip = $false
+    
+    if (Test-Path $venvConfigFile) {
+        $venvAge = (Get-Item $venvConfigFile).LastWriteTime
+        $daysSinceVenvCreated = ((Get-Date) - $venvAge).Days
+        $shouldUpgradePip = $daysSinceVenvCreated -gt 7
+    } else {
+        $shouldUpgradePip = $true
+    }
+    
+    if ($shouldUpgradePip) {
+        Write-Host "📦 Upgrading pip (venv is old, keeping pip fresh)..."
         try {
-            $pkgList = $installedOutput | ConvertFrom-Json
-            foreach ($pkg in $pkgList) {
-                $installed[$pkg.name.ToLower()] = $pkg.version
-            }
-            Write-Host "   Found $($installed.Count) installed package(s)"
+            & python -m pip install --upgrade --quiet pip 2>$null
+            Write-Host "✓ Pip upgraded"
         } catch {
-            Write-Host "✗ Could not parse installed packages: $_"
+            Write-Host "⚠️  Could not upgrade pip, continuing anyway..."
+        }
+    } else {
+        Write-Host "✓ Pip is recent (checked 7 days ago), skipping upgrade"
+    }
+
+    # Cache installed packages to avoid slow `pip list` every time
+    $cacheFile = Join-Path $PSScriptRoot ".venv_cache.json"
+    $reqHash = Get-FileHash $reqFile -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+    
+    $installed = @{}
+    $useCache = $false
+    
+    # Try to load from cache if requirements haven't changed
+    if (Test-Path $cacheFile) {
+        try {
+            $cache = Get-Content $cacheFile | ConvertFrom-Json -AsHashtable
+            if ($cache -and $cache.reqHash -eq $reqHash) {
+                $installed = $cache.packages
+                $useCache = $true
+                Write-Host "📦 Using cached package list (requirements unchanged)"
+            }
+        } catch {
+            # Cache is invalid, will rebuild
+        }
+    }
+    
+    # If cache miss, check installed packages (but use fast pip show lookup)
+    if (-not $useCache) {
+        Write-Host "📥 Checking installed packages (first time or requirements changed)..."
+        try {
+            # Fast method: just check which packages are installed without metadata
+            $installed = @{}
+            $reqLines = Get-Content $reqFile | Where-Object { $_ -and -not $_.StartsWith('#') }
+            foreach ($req in $reqLines) {
+                $pkgName = $req -replace '==.*', '' -replace '>=.*', '' -replace '<=.*', '' -replace '>.*', '' -replace '<.*', ''
+                $pkgName = $pkgName.Trim().ToLower()
+                if ($pkgName) {
+                    # Quick check: pip show returns 0 if package exists, 1 if not
+                    & python -m pip show $pkgName >$null 2>&1
+                    if ($LASTEXITCODE -eq 0) {
+                        $installed[$pkgName] = "installed"
+                    }
+                }
+            }
+            Write-Host "   Found $($installed.Count) of $($reqLines.Count) required packages already installed"
+            
+            # Save to cache
+            $cache = @{
+                reqHash = $reqHash
+                packages = $installed
+                timestamp = Get-Date -Format o
+            }
+            try {
+                $cache | ConvertTo-Json | Set-Content $cacheFile
+            } catch {
+                # Cache write failed, that's okay - continue anyway
+            }
+        } catch {
+            Write-Host "✗ Error checking installed packages: $_"
             exit 1
         }
-    } catch {
-        Write-Host "✗ Error checking installed packages: $_"
-        exit 1
     }
     
     # Read requirements file

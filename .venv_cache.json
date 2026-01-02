@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-01-02T21:53:03.3250887+01:00",
+  "packages": {
+    "httpx": "installed",
+    "requests": "installed",
+    "flask": "installed",
+    "vulture": "installed",
+    "pytest": "installed",
+    "tqdm": "installed"
+  },
+  "reqHash": "A44C652AAAB8F9D71C4FAE30F430A811CD8521C73DCC3A533D4426FCC25B90DF"
+}
