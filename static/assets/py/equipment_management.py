@@ -968,13 +968,11 @@ class InventoryManager:
             console.log("[AC-CHANGE] Calling update_calculations()")
             update_calculations()
             
-            # Save inventory and character to localStorage
+            # Save inventory and character to localStorage via character module
             try:
-                console.log("[AC-CHANGE] Calling save_to_storage()")
-                self.save_to_storage()  # Save inventory
+                console.log("[AC-CHANGE] Calling save_character() to persist inventory")
                 from character import save_character
-                console.log("[AC-CHANGE] Calling save_character()")
-                save_character()  # Save character
+                save_character()  # This saves the entire character including inventory
                 console.log("[AC-CHANGE] Persistence complete")
             except Exception as e:
                 console.error(f"[AC-CHANGE] Error saving: {e}")
@@ -1027,13 +1025,12 @@ class InventoryManager:
             # Update calculations if needed
             update_calculations()
 
-            # Save inventory and character to localStorage
+            # Save inventory and character to localStorage via character module
             try:
-                self.save_to_storage()  # Save inventory
                 from character import save_character
-                save_character()  # Save character
-            except:
-                pass
+                save_character()  # This saves the entire character including inventory
+            except Exception as e:
+                console.error(f"[BONUS-CHANGE] Error saving: {e}")
 
             # Sync weapons and armor grids so changes to bonus are immediately visible
             try:
