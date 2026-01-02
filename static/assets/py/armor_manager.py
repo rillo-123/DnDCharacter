@@ -262,7 +262,9 @@ class ArmorCollectionManager:
         
         for item in self.inventory_manager.items:
             category = item.get("category", "").lower()
-            if item.get("equipped") and category in ["armor", "shield"]:
+            # Accept both armor/armour and shield (UK/US insensitive)
+            is_armor = category in ["armor", "armour", "shield"]
+            if item.get("equipped") and is_armor:
                 armor = ArmorEntity(item, self.character_stats)
                 self.armor_pieces.append(armor)
     

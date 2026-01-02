@@ -3,7 +3,8 @@
 # Idempotent: Safe to run multiple times, kills existing processes
 
 param(
-    [switch]$StartServer
+    [switch]$StartServer,
+    [switch]$Upgrade
 )
 
 # Create logs directory
@@ -82,28 +83,15 @@ if (Test-Path $profilePath) {
 if (Test-Path $reqFile) {
     Write-Host "`n📋 Checking dependencies from requirements.txt..."
     
-    # Fast pip upgrade (only if venv is older than 7 days or first creation)
-    $venvConfigFile = Join-Path $venvPath "pyvenv.cfg"
-    $shouldUpgradePip = $false
-    
-    if (Test-Path $venvConfigFile) {
-        $venvAge = (Get-Item $venvConfigFile).LastWriteTime
-        $daysSinceVenvCreated = ((Get-Date) - $venvAge).Days
-        $shouldUpgradePip = $daysSinceVenvCreated -gt 7
-    } else {
-        $shouldUpgradePip = $true
-    }
-    
-    if ($shouldUpgradePip) {
-        Write-Host "📦 Upgrading pip (venv is old, keeping pip fresh)..."
+    # Upgrade pip only if -Upgrade flag is passed
+    if ($Upgrade) {
+        Write-Host "📦 Upgrading pip..."
         try {
             & python -m pip install --upgrade --quiet pip 2>$null
             Write-Host "✓ Pip upgraded"
         } catch {
             Write-Host "⚠️  Could not upgrade pip, continuing anyway..."
         }
-    } else {
-        Write-Host "✓ Pip is recent (checked 7 days ago), skipping upgrade"
     }
 
     # Cache installed packages to avoid slow `pip list` every time

@@ -961,6 +961,14 @@ class InventoryManager:
             
             # Update calculations (which will recalculate AC with new armor base)
             update_calculations()
+            
+            # Save inventory and character to localStorage
+            try:
+                self.save_to_storage()  # Save inventory
+                from character import save_character
+                save_character()  # Save character
+            except:
+                pass
     
     def _handle_bonus_change(self, event, item_id: str):
         """Handle weapon/armor bonus changes."""
@@ -999,6 +1007,14 @@ class InventoryManager:
             
             # Update calculations if needed
             update_calculations()
+
+            # Save inventory and character to localStorage
+            try:
+                self.save_to_storage()  # Save inventory
+                from character import save_character
+                save_character()  # Save character
+            except:
+                pass
 
             # Sync weapons and armor grids so changes to bonus are immediately visible
             try:
