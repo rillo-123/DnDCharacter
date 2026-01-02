@@ -4484,12 +4484,8 @@ def render_equipped_attack_grid():
             ability_score = get_numeric_value(f"{ability_key}-score", 10)
             ability_mod = ability_modifier(ability_score)
             weapon_bonus = 0
-            try:
-                enriched = _enrich_weapon_item(item)
-                weapon_bonus = enriched.get("bonus", 0) or 0
-            except Exception as e:
-                console.log(f"[RENDER WEAPONS] Error enriching {item.get('name')}: {e}")
-                weapon_bonus = 0
+            enriched = _enrich_weapon_item(item)
+            weapon_bonus = enriched.get("bonus", 0) or 0
             if not weapon_bonus:
                 match = re.search(r'\+(\d+)', item.get("name", ""))
                 if match:
