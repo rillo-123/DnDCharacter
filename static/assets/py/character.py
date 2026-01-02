@@ -2361,13 +2361,15 @@ def calculate_armor_class() -> int:
             # Heavy armor: AC is fixed, no DEX modifier
             base_ac = armor_ac
         elif armor_type == "medium":
-            # Medium armor: AC + DEX (max +2)
-            base_ac = armor_ac + min(dex_mod, 2)
+            # Medium armor: AC + DEX (max +2, never subtract)
+            dex_to_add = max(0, min(dex_mod, 2))  # Clamp: 0 to +2
+            base_ac = armor_ac + dex_to_add
         else:
-            # Light armor or unknown: AC + DEX (no cap)
-            base_ac = armor_ac + dex_mod
+            # Light armor: AC + DEX (no cap, but never subtract)
+            dex_to_add = max(0, dex_mod)  # Never go below 0
+            base_ac = armor_ac + dex_to_add
     else:
-        # No armor - use 10 + DEX
+        # No armor - use 10 + DEX (can be negative if DEX is very low)
         base_ac = 10 + dex_mod
     
     # Add AC modifiers from equipped items first, then other items
