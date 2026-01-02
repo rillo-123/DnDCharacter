@@ -299,9 +299,10 @@ class ArmorCollectionManager:
             self.grid_element.appendChild(row)
     
     def _create_armor_row(self, armor: ArmorEntity) -> object:
-        """Create a table row for an armor entity."""
+        """Create a table row for an armor entity with equipped checkbox."""
         try:
             row = document.createElement("tr")
+            row.id = f"armor-row-{armor.entity.get('id', 'unknown')}"
             
             # Column 1: Armor name
             name_td = document.createElement("td")
@@ -328,10 +329,52 @@ class ArmorCollectionManager:
             stealth_td.textContent = armor.final_stealth
             row.appendChild(stealth_td)
             
+            # Column 6: Equipped checkbox
+            equipped_td = document.createElement("td")
+            equipped_td.style.textAlign = "center"
+            checkbox = document.createElement("input")
+            checkbox.type = "checkbox"
+            checkbox.checked = armor.entity.get("equipped", False)
+            checkbox.style.cursor = "pointer"
+            checkbox.id = f"armor-equipped-{armor.entity.get('id', 'unknown')}"
+            
+            # Add event handler for equip/unequip
+            armor_id = armor.entity.get("id")
+            checkbox.addEventListener("change", lambda event: self._handle_armor_equipped_change(event, armor_id))
+            
+            equipped_td.appendChild(checkbox)
+            row.appendChild(equipped_td)
+            
             return row
         except Exception as e:
             console.error(f"[ARMOR] Error creating armor row: {e}")
             return document.createElement("tr")
+    
+    def _handle_armor_equipped_change(self, event, armor_id: str):
+        """Handle armor equipped checkbox change."""
+        try:
+            if not self.inventory_manager:
+                return
+            
+            is_equipped = event.target.checked
+            
+            # Update the armor item's equipped status
+            self.inventory_manager.update_item(armor_id, {"equipped": is_equipped})
+            
+            # Recalculate AC and trigger character update
+            try:
+                from character import calculate_armor_class, update_calculations
+                calculate_armor_class()
+                update_calculations()
+            except:
+                pass
+            
+            # Re-render the armor grid
+            self.render()
+            
+            console.log(f"[ARMOR] Armor {armor_id} equipped: {is_equipped}")
+        except Exception as e:
+            console.error(f"[ARMOR] Error handling armor equipped change: {e}")
 
 
 # Global instance

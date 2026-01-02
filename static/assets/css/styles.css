@@ -521,6 +521,73 @@ body {
     color: #e0f2fe;
 }
 
+/* Armor Table Styling */
+.armor-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 0.8rem;
+    overflow: hidden;
+}
+
+.armor-table th,
+.armor-table td {
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.armor-table th:nth-child(2),
+.armor-table th:nth-child(3),
+.armor-table th:nth-child(4),
+.armor-table th:nth-child(5),
+.armor-table th:nth-child(6),
+.armor-table td:nth-child(2),
+.armor-table td:nth-child(3),
+.armor-table td:nth-child(4),
+.armor-table td:nth-child(5),
+.armor-table td:nth-child(6) {
+    text-align: left;
+}
+
+.armor-table thead {
+    background: rgba(99, 102, 241, 0.35);
+    color: #e0e7ff;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+}
+
+.armor-table tbody tr:nth-child(odd) {
+    background: rgba(30, 41, 59, 0.5);
+}
+
+.armor-table tbody tr:nth-child(even) {
+    background: rgba(30, 41, 59, 0.3);
+}
+
+.armor-table tbody tr:hover {
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.armor-table td:nth-child(2),
+.armor-table td:nth-child(3) {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #a5f3fc;
+}
+
+.armor-table td:nth-child(1) {
+    font-weight: 500;
+    color: #c7d2fe;
+}
+
+.armor-table input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+    accent-color: #818cf8;
+}
+
 .weapons-library-controls {
     display: flex;
     flex-direction: column;
