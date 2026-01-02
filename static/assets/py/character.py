@@ -2303,6 +2303,8 @@ def calculate_armor_class() -> int:
     dex_score = get_numeric_value("dex-score", 10)
     dex_mod = ability_modifier(dex_score)
     
+    console.log(f"[AC-CALC] Starting AC calculation: DEX {dex_score} (mod {dex_mod})")
+    
     # Check for equipped armor in inventory (priority)
     armor_ac = None
     armor_name = None
@@ -2332,6 +2334,7 @@ def calculate_armor_class() -> int:
                                 armor_ac = int(ac_val)
                                 armor_name = item.get("name", "Unknown Armor")
                                 armor_type = get_armor_type(armor_name)
+                                console.log(f"[AC-CALC] Found armor: {armor_name}, AC={armor_ac}, type={armor_type}")
                                 break  # Use first equipped armor found
                     except:
                         pass
@@ -2351,6 +2354,7 @@ def calculate_armor_class() -> int:
                                 armor_ac = int(ac_val)
                                 armor_name = item.get("name", "Unknown Armor")
                                 armor_type = get_armor_type(armor_name)
+                                console.log(f"[AC-CALC] Found armor (fallback): {armor_name}, AC={armor_ac}, type={armor_type}")
                                 break  # Use first armor found
                     except:
                         pass
@@ -2360,17 +2364,21 @@ def calculate_armor_class() -> int:
         if armor_type == "heavy":
             # Heavy armor: AC is fixed, no DEX modifier
             base_ac = armor_ac
+            console.log(f"[AC-CALC] Heavy armor: base_ac={base_ac} (no DEX)")
         elif armor_type == "medium":
             # Medium armor: AC + DEX (max +2, never subtract)
             dex_to_add = max(0, min(dex_mod, 2))  # Clamp: 0 to +2
             base_ac = armor_ac + dex_to_add
+            console.log(f"[AC-CALC] Medium armor: {armor_ac} + DEX {dex_to_add} (capped) = {base_ac}")
         else:
             # Light armor: AC + DEX (no cap, but never subtract)
             dex_to_add = max(0, dex_mod)  # Never go below 0
             base_ac = armor_ac + dex_to_add
+            console.log(f"[AC-CALC] Light armor: {armor_ac} + DEX {dex_to_add} = {base_ac}")
     else:
         # No armor - use 10 + DEX (can be negative if DEX is very low)
         base_ac = 10 + dex_mod
+        console.log(f"[AC-CALC] No armor: 10 + DEX {dex_mod} = {base_ac}")
     
     # Add AC modifiers from equipped items
     # Shields add +2 base bonus + magical bonus
@@ -2397,15 +2405,19 @@ def calculate_armor_class() -> int:
                         # Shields: +2 base bonus + magical bonus
                         bonus_val = extra_props.get("bonus", 0)
                         shield_bonus += 2 + bonus_val
+                        console.log(f"[AC-CALC] Found shield: {item.get('name')}, bonus={2 + bonus_val}")
                     else:
                         # Other items: ac_modifier
                         ac_mod = extra_props.get("ac_modifier", 0)
                         if ac_mod:
                             item_ac_mod += int(ac_mod)
+                            console.log(f"[AC-CALC] AC modifier from {item.get('name')}: {ac_mod}")
             except:
                 pass
     
-    return max(1, base_ac + shield_bonus + item_ac_mod)
+    final_ac = max(1, base_ac + shield_bonus + item_ac_mod)
+    console.log(f"[AC-CALC] FINAL AC: {base_ac} (base) + {shield_bonus} (shields) + {item_ac_mod} (mods) = {final_ac}")
+    return final_ac
 
 
 def _compute_skill_entry(
