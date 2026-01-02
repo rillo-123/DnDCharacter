@@ -2372,25 +2372,40 @@ def calculate_armor_class() -> int:
         # No armor - use 10 + DEX (can be negative if DEX is very low)
         base_ac = 10 + dex_mod
     
-    # Add AC modifiers from equipped items first, then other items
-    # armor-only items add to AC but not to saves (e.g. +1 breastplate)
-    # regular items add to both AC and saves (e.g. Ring of Protection)
+    # Add AC modifiers from equipped items
+    # Shields add +2 base bonus + magical bonus
+    # AC modifiers from other items add to AC (e.g. Ring of Protection)
     item_ac_mod = 0
+    shield_bonus = 0
     if INVENTORY_MANAGER is not None:
         for item in INVENTORY_MANAGER.items:
             try:
-                # Prioritize equipped items
+                # Only process equipped items
                 if item.get("equipped"):
+                    item_name = item.get("name", "").lower()
+                    category = item.get("category", "").lower()
                     notes_str = item.get("notes", "")
+                    extra_props = {}
+                    
                     if notes_str and notes_str.startswith("{"):
                         extra_props = json.loads(notes_str)
+                    
+                    # Check if this is a shield
+                    is_shield = ("shield" in item_name or category == "shield")
+                    
+                    if is_shield:
+                        # Shields: +2 base bonus + magical bonus
+                        bonus_val = extra_props.get("bonus", 0)
+                        shield_bonus += 2 + bonus_val
+                    else:
+                        # Other items: ac_modifier
                         ac_mod = extra_props.get("ac_modifier", 0)
                         if ac_mod:
                             item_ac_mod += int(ac_mod)
             except:
                 pass
     
-    return max(1, base_ac + item_ac_mod)
+    return max(1, base_ac + shield_bonus + item_ac_mod)
 
 
 def _compute_skill_entry(
