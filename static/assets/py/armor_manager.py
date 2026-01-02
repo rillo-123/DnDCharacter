@@ -169,16 +169,20 @@ class ArmorEntity(EntityManager):
         For heavy armor, no DEX added.
         """
         try:
-            base_ac = self.entity.get("armor_class", 0)
+            base_ac = 0
+            
+            # Check notes first (user-modified values take priority)
+            try:
+                notes_str = self.entity.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    base_ac = notes_data.get("armor_class", 0)
+            except:
+                pass
+            
+            # If not in notes, get from direct field
             if not base_ac:
-                # Try to get from notes JSON
-                try:
-                    notes_str = self.entity.get("notes", "")
-                    if notes_str and notes_str.startswith("{"):
-                        notes_data = json.loads(notes_str)
-                        base_ac = notes_data.get("armor_class", 0)
-                except:
-                    pass
+                base_ac = self.entity.get("armor_class", 0)
             
             if base_ac <= 0:
                 return 0
