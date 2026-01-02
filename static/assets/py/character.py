@@ -2198,32 +2198,55 @@ def generate_ac_tooltip() -> tuple[int, str]:
         rows.append(f'<div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div>')
         base_ac = 10 + dex_mod
     
-    # Add item modifiers (skip armor-only items)
+    # Add item modifiers including shields
     item_ac_mod = 0
+    shield_bonus = 0
     item_mods = []
     if INVENTORY_MANAGER is not None:
         for item in INVENTORY_MANAGER.items:
             try:
+                # Only process equipped items
+                if not item.get("equipped"):
+                    continue
+                    
+                item_name = item.get("name", "").lower()
+                category = item.get("category", "").lower()
                 notes_str = item.get("notes", "")
+                extra_props = {}
+                
                 if notes_str and notes_str.startswith("{"):
                     extra_props = json.loads(notes_str)
-                    # Skip armor-only items - they affect AC differently in calculate_armor_class
+                
+                # Check if this is a shield
+                is_shield = ("shield" in item_name or category == "shield")
+                
+                if is_shield:
+                    # Shields: +2 base bonus + magical bonus
+                    bonus_val = int(extra_props.get("bonus", 0))
+                    shield_bonus_val = 2 + bonus_val
+                    shield_bonus += shield_bonus_val
+                    item_mods.append((item.get("name", "Unknown"), shield_bonus_val, True))  # True = is_shield
+                else:
+                    # Other items: ac_modifier
                     if extra_props.get("armor_only", False):
                         continue
                     ac_mod = extra_props.get("ac_modifier", 0)
                     if ac_mod:
                         ac_mod = int(ac_mod)
                         item_ac_mod += ac_mod
-                        item_mods.append((item.get("name", "Unknown"), ac_mod))
+                        item_mods.append((item.get("name", "Unknown"), ac_mod, False))  # False = not shield
             except:
                 pass
     
     if item_mods:
         rows.append('<div style="margin-top: 0.4rem; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 0.4rem;"></div>')
-        for item_name, mod_val in item_mods:
-            rows.append(f'<div class="tooltip-row"><span class="tooltip-label">{escape(item_name)}</span><span class="tooltip-value">{format_bonus(mod_val)}</span></div>')
+        for item_name, mod_val, is_shield_item in item_mods:
+            if is_shield_item:
+                rows.append(f'<div class="tooltip-row"><span class="tooltip-label">{escape(item_name)}</span><span class="tooltip-value">{format_bonus(mod_val)}</span></div>')
+            else:
+                rows.append(f'<div class="tooltip-row"><span class="tooltip-label">{escape(item_name)}</span><span class="tooltip-value">{format_bonus(mod_val)}</span></div>')
     
-    total_ac = base_ac + item_ac_mod
+    total_ac = base_ac + shield_bonus + item_ac_mod
     tooltip_html = f'<div class="stat-tooltip multiline">{"".join(rows)}</div>'
     return max(1, total_ac), tooltip_html
 
