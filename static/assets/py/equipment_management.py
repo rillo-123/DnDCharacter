@@ -967,15 +967,7 @@ class InventoryManager:
             # Update calculations (which will recalculate AC with new armor base)
             console.log("[AC-CHANGE] Calling update_calculations()")
             update_calculations()
-            
-            # Save inventory and character to localStorage via character module
-            try:
-                console.log("[AC-CHANGE] Calling save_character() to persist inventory")
-                # save_character is globally available from character module
-                save_character()
-                console.log("[AC-CHANGE] Persistence complete")
-            except Exception as e:
-                console.error(f"[AC-CHANGE] Error saving: {e}")
+            console.log("[AC-CHANGE] Persistence triggered via update_calculations()")
             
             # Re-render armor manager to show updated AC
             try:
@@ -1022,15 +1014,8 @@ class InventoryManager:
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()  # Update display to show new name with bonus
             
-            # Update calculations if needed
+            # Update calculations - this triggers persistence via update_calculations()
             update_calculations()
-
-            # Save inventory and character to localStorage via character module
-            try:
-                # save_character is globally available from character module
-                save_character()
-            except Exception as e:
-                console.error(f"[BONUS-CHANGE] Error saving: {e}")
 
             # Sync weapons and armor grids so changes to bonus are immediately visible
             try:
