@@ -4462,116 +4462,127 @@ def render_equipped_attack_grid():
     
     # Build table rows (weapons_section is the tbody)
     for item in equipped_items:
-        tr = document.createElement("tr")
-        
-        # Column 1: Weapon name
-        name_td = document.createElement("td")
-        name_td.textContent = item.get("name", "Unknown")
-        tr.appendChild(name_td)
-        
-        # Column 2: To Hit bonus (with styled tooltip)
-        to_hit_td = document.createElement("td")
-        
-        # Calculate weapon to-hit and breakdown for tooltip
-        level = get_numeric_value("level", 1)
-        proficiency = compute_proficiency(level)
-        item_name = (item.get("name") or "").lower()
-        ranged_keywords = ["bow", "crossbow", "ranged"]
-        is_ranged = any(kw in item_name for kw in ranged_keywords)
-        ability_key = "dex" if is_ranged else "str"
-        ability_score = get_numeric_value(f"{ability_key}-score", 10)
-        ability_mod = ability_modifier(ability_score)
-        weapon_bonus = 0
+        console.log(f"[RENDER WEAPONS] Building row for: {item.get('name')}")
         try:
-            enriched = _enrich_weapon_item(item)
-            weapon_bonus = enriched.get("bonus", 0) or 0
-        except:
+            tr = document.createElement("tr")
+            
+            # Column 1: Weapon name
+            name_td = document.createElement("td")
+            name_td.textContent = item.get("name", "Unknown")
+            tr.appendChild(name_td)
+            
+            # Column 2: To Hit bonus (with styled tooltip)
+            to_hit_td = document.createElement("td")
+            
+            # Calculate weapon to-hit and breakdown for tooltip
+            level = get_numeric_value("level", 1)
+            proficiency = compute_proficiency(level)
+            item_name = (item.get("name") or "").lower()
+            ranged_keywords = ["bow", "crossbow", "ranged"]
+            is_ranged = any(kw in item_name for kw in ranged_keywords)
+            ability_key = "dex" if is_ranged else "str"
+            ability_score = get_numeric_value(f"{ability_key}-score", 10)
+            ability_mod = ability_modifier(ability_score)
             weapon_bonus = 0
-        if not weapon_bonus:
-            match = re.search(r'\+(\d+)', item.get("name", ""))
-            if match:
-                weapon_bonus = int(match.group(1))
-        
-        # Create wrapper for to-hit value + styled tooltip
-        wrapper = document.createElement("div")
-        wrapper.style.position = "relative"
-        wrapper.style.display = "inline-block"
-        wrapper.style.width = "100%"
-        wrapper.style.textAlign = "center"
-        
-        # Add to-hit bonus value
-        to_hit = calculate_weapon_tohit(item)
-        bonus_span = document.createElement("span")
-        bonus_span.textContent = format_bonus(to_hit)
-        wrapper.appendChild(bonus_span)
-        
-        # Add styled HTML tooltip (like ability scores) if WeaponToHitValue available
-        if WeaponToHitValue:
-            w2h = WeaponToHitValue(
-                weapon_name=item.get("name", ""),
-                ability=ability_key,
-                ability_mod=ability_mod,
-                proficiency=proficiency,
-                weapon_bonus=weapon_bonus
-            )
-            tooltip_html = w2h.generate_tooltip_html()
-            # Insert tooltip HTML into wrapper
-            temp = document.createElement("div")
-            temp.innerHTML = tooltip_html
-            tooltip_div = temp.firstChild
-            wrapper.appendChild(tooltip_div)
-        else:
-            # Fallback text tooltip
-            ability_name = "DEX" if is_ranged else "STR"
-            bonus_text = f" + {weapon_bonus}" if weapon_bonus > 0 else ""
-            tooltip = f"{ability_mod:+d} ({ability_name}) + {proficiency:+d} (Prof){bonus_text}"
-            bonus_span.title = tooltip
-        
-        to_hit_td.appendChild(wrapper)
-        tr.appendChild(to_hit_td)
-        
-        # Column 3: Damage - check notes JSON and equipment library for weapon properties and bonus
-        dmg_td = document.createElement("td")
-        # Enrich item with any missing weapon metadata from notes/ library
-        enriched_item = _enrich_weapon_item(item)
-        dmg = enriched_item.get("damage", "")
-        dmg_type = enriched_item.get("damage_type", "")
-        dmg_bonus = enriched_item.get("bonus", 0) or item.get("bonus", 0)
-        
-        # Notes fallback (already handled by _enrich_weapon_item) - keep compatibility
-        # if needed, additional parsing could go here
-        
-        # If still no bonus, check weapon name for "+X" pattern (handles "+1 Mace" or "Sword +1")
-        if not dmg_bonus or dmg_bonus == 0:
-            import re
-            match = re.search(r'\+(\d+)', item.get("name", ""))
-            if match:
-                dmg_bonus = int(match.group(1))
-        
-        dmg_text = dmg
-        if dmg_text and dmg_type:
-            dmg_text = f"{dmg_text} {dmg_type}"
-        if dmg_bonus and dmg_bonus > 0 and dmg_text:
-            dmg_text = f"{dmg_text} +{dmg_bonus}"
-        dmg_td.textContent = dmg_text if dmg_text else "—"
-        tr.appendChild(dmg_td)
-        
-        # Column 4: Range - prefer enriched value
-        range_td = document.createElement("td")
-        range_text = enriched_item.get("range_text", "") or enriched_item.get("range", "")
-        range_td.textContent = range_text if range_text else "—"
-        tr.appendChild(range_td)
-        
-        # Column 5: Properties - prefer enriched weapon_properties
-        prop_td = document.createElement("td")
-        props = enriched_item.get("weapon_properties", "") or enriched_item.get("properties", "")
-        # Convert list to string if needed
-        if isinstance(props, list):
-            props = ", ".join(str(p) for p in props)
-        prop_td.textContent = props if props else "—"
-        tr.appendChild(prop_td)
-        
-        weapons_section.appendChild(tr)
+            try:
+                enriched = _enrich_weapon_item(item)
+                weapon_bonus = enriched.get("bonus", 0) or 0
+            except Exception as e:
+                console.log(f"[RENDER WEAPONS] Error enriching {item.get('name')}: {e}")
+                weapon_bonus = 0
+            if not weapon_bonus:
+                match = re.search(r'\+(\d+)', item.get("name", ""))
+                if match:
+                    weapon_bonus = int(match.group(1))
+            
+            # Create wrapper for to-hit value + styled tooltip
+            wrapper = document.createElement("div")
+            wrapper.style.position = "relative"
+            wrapper.style.display = "inline-block"
+            wrapper.style.width = "100%"
+            wrapper.style.textAlign = "center"
+            
+            # Add to-hit bonus value
+            to_hit = calculate_weapon_tohit(item)
+            bonus_span = document.createElement("span")
+            bonus_span.textContent = format_bonus(to_hit)
+            wrapper.appendChild(bonus_span)
+            
+            # Add styled HTML tooltip (like ability scores) if WeaponToHitValue available
+            if WeaponToHitValue:
+                try:
+                    w2h = WeaponToHitValue(
+                        weapon_name=item.get("name", ""),
+                        ability=ability_key,
+                        ability_mod=ability_mod,
+                        proficiency=proficiency,
+                        weapon_bonus=weapon_bonus
+                    )
+                    tooltip_html = w2h.generate_tooltip_html()
+                    # Insert tooltip HTML into wrapper
+                    temp = document.createElement("div")
+                    temp.innerHTML = tooltip_html
+                    tooltip_div = temp.firstChild
+                    if tooltip_div:
+                        wrapper.appendChild(tooltip_div)
+                    console.log(f"[RENDER WEAPONS] Added tooltip for {item.get('name')}")
+                except Exception as e:
+                    console.log(f"[RENDER WEAPONS] Error creating tooltip for {item.get('name')}: {e}")
+            else:
+                # Fallback text tooltip
+                ability_name = "DEX" if is_ranged else "STR"
+                bonus_text = f" + {weapon_bonus}" if weapon_bonus > 0 else ""
+                tooltip = f"{ability_mod:+d} ({ability_name}) + {proficiency:+d} (Prof){bonus_text}"
+                bonus_span.title = tooltip
+                console.log(f"[RENDER WEAPONS] Added text tooltip for {item.get('name')}")
+            
+            to_hit_td.appendChild(wrapper)
+            tr.appendChild(to_hit_td)
+            
+            # Column 3: Damage - check notes JSON and equipment library for weapon properties and bonus
+            dmg_td = document.createElement("td")
+            # Enrich item with any missing weapon metadata from notes/ library
+            enriched_item = _enrich_weapon_item(item)
+            dmg = enriched_item.get("damage", "")
+            dmg_type = enriched_item.get("damage_type", "")
+            dmg_bonus = enriched_item.get("bonus", 0) or item.get("bonus", 0)
+            
+            # Notes fallback (already handled by _enrich_weapon_item) - keep compatibility
+            # if needed, additional parsing could go here
+            
+            # If still no bonus, check weapon name for "+X" pattern (handles "+1 Mace" or "Sword +1")
+            if not dmg_bonus or dmg_bonus == 0:
+                match = re.search(r'\+(\d+)', item.get("name", ""))
+                if match:
+                    dmg_bonus = int(match.group(1))
+            
+            dmg_text = dmg
+            if dmg_text and dmg_type:
+                dmg_text = f"{dmg_text} {dmg_type}"
+            if dmg_bonus and dmg_bonus > 0 and dmg_text:
+                dmg_text = f"{dmg_text} +{dmg_bonus}"
+            dmg_td.textContent = dmg_text if dmg_text else "—"
+            tr.appendChild(dmg_td)
+            
+            # Column 4: Range - prefer enriched value
+            range_td = document.createElement("td")
+            range_text = enriched_item.get("range_text", "") or enriched_item.get("range", "")
+            range_td.textContent = range_text if range_text else "—"
+            tr.appendChild(range_td)
+            
+            # Column 5: Properties - prefer enriched weapon_properties
+            prop_td = document.createElement("td")
+            props = enriched_item.get("weapon_properties", "") or enriched_item.get("properties", "")
+            # Convert list to string if needed
+            if isinstance(props, list):
+                props = ", ".join(str(p) for p in props)
+            prop_td.textContent = props if props else "—"
+            tr.appendChild(prop_td)
+            
+            weapons_section.appendChild(tr)
+            console.log(f"[RENDER WEAPONS] Successfully added row for: {item.get('name')}")
+        except Exception as e:
+            console.log(f"[RENDER WEAPONS] ERROR rendering {item.get('name')}: {e}")
 
 
 def _create_equipment_row(item: dict) -> any:
