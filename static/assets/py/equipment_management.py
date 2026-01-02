@@ -969,6 +969,15 @@ class InventoryManager:
                 save_character()  # Save character
             except:
                 pass
+            
+            # Re-render armor manager to show updated AC
+            try:
+                from armor_manager import get_armor_manager
+                armor_mgr = get_armor_manager()
+                if armor_mgr:
+                    armor_mgr.render()
+            except:
+                pass
     
     def _handle_bonus_change(self, event, item_id: str):
         """Handle weapon/armor bonus changes."""
