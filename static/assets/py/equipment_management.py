@@ -609,8 +609,8 @@ class InventoryManager:
                 category_select_html += '</select>'
                 body_html += f'<div class="inventory-item-field"><label>Category</label>{category_select_html}</div>'
                 
-                # Determine if item is equipable (armor or weapon)
-                is_armor = category in ["Armor", "Weapons"]
+                # Determine if item is equipable (armor only)
+                is_armor = category == "Armor"
                 is_weapon = category == "Weapons"
                 equipable = is_armor
                 equipped_checked = "checked" if item.get("equipped") else ""
@@ -663,108 +663,173 @@ class InventoryManager:
         if inventory_list is None:
             return
         
+        # FIX: Get item_id from event target's data attribute instead of closure capture
+        # This prevents the closure problem where all handlers end up with the last item_id
         toggles = inventory_list.querySelectorAll("[data-toggle-item]")
         for toggle in toggles:
-            item_id = toggle.getAttribute("data-toggle-item")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_item_toggle(event, iid))
+            def make_toggle_handler():
+                def handler(event):
+                    # Get item_id from the element that was clicked
+                    item_id = event.target.getAttribute("data-toggle-item")
+                    # If not found on clicked element, traverse up to find it
+                    if not item_id:
+                        parent = event.target.parentElement
+                        while parent and not item_id:
+                            item_id = parent.getAttribute("data-toggle-item")
+                            parent = parent.parentElement
+                    if item_id:
+                        self._handle_item_toggle(event, item_id)
+                return handler
+            proxy = create_proxy(make_toggle_handler())
             toggle.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Remove buttons
         removes = inventory_list.querySelectorAll("[data-remove-item]")
         for remove_btn in removes:
-            item_id = remove_btn.getAttribute("data-remove-item")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_item_remove(event, iid))
+            def make_remove_handler():
+                def handler(event):
+                    # Get item_id from the button's data attribute
+                    item_id = event.target.getAttribute("data-remove-item")
+                    if item_id:
+                        self._handle_item_remove(event, item_id)
+                return handler
+            proxy = create_proxy(make_remove_handler())
             remove_btn.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Qty changes
         qty_inputs = inventory_list.querySelectorAll("[data-item-qty]")
         for qty_input in qty_inputs:
-            item_id = qty_input.getAttribute("data-item-qty")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_qty_change(event, iid))
+            def make_qty_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-qty")
+                    if item_id:
+                        self._handle_qty_change(event, item_id)
+                return handler
+            proxy = create_proxy(make_qty_handler())
             qty_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Category changes
         cat_selects = inventory_list.querySelectorAll("[data-item-category]")
         for cat_select in cat_selects:
-            item_id = cat_select.getAttribute("data-item-category")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_category_change(event, iid))
+            def make_cat_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-category")
+                    if item_id:
+                        self._handle_category_change(event, item_id)
+                return handler
+            proxy = create_proxy(make_cat_handler())
             cat_select.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Custom properties changes
         custom_props_inputs = inventory_list.querySelectorAll("[data-item-custom-props]")
         for props_input in custom_props_inputs:
-            item_id = props_input.getAttribute("data-item-custom-props")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_custom_props_change(event, iid))
+            def make_props_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-custom-props")
+                    if item_id:
+                        self._handle_custom_props_change(event, item_id)
+                return handler
+            proxy = create_proxy(make_props_handler())
             props_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # AC modifier changes
         ac_mod_inputs = inventory_list.querySelectorAll("[data-item-ac-mod]")
         for ac_input in ac_mod_inputs:
-            item_id = ac_input.getAttribute("data-item-ac-mod")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_modifier_change(event, iid, "ac_modifier"))
+            def make_ac_mod_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-ac-mod")
+                    if item_id:
+                        self._handle_modifier_change(event, item_id, "ac_modifier")
+                return handler
+            proxy = create_proxy(make_ac_mod_handler())
             ac_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Saves modifier changes
         saves_mod_inputs = inventory_list.querySelectorAll("[data-item-saves-mod]")
         for saves_input in saves_mod_inputs:
-            item_id = saves_input.getAttribute("data-item-saves-mod")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_modifier_change(event, iid, "saves_modifier"))
+            def make_saves_mod_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-saves-mod")
+                    if item_id:
+                        self._handle_modifier_change(event, item_id, "saves_modifier")
+                return handler
+            proxy = create_proxy(make_saves_mod_handler())
             saves_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Armor-only checkbox changes
         armor_only_checkboxes = inventory_list.querySelectorAll("[data-item-armor-only]")
         for checkbox in armor_only_checkboxes:
-            item_id = checkbox.getAttribute("data-item-armor-only")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_armor_only_toggle(event, iid))
+            def make_armor_only_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-armor-only")
+                    if item_id:
+                        self._handle_armor_only_toggle(event, item_id)
+                return handler
+            proxy = create_proxy(make_armor_only_handler())
             checkbox.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Armor AC value changes
         armor_ac_inputs = inventory_list.querySelectorAll("[data-item-armor-ac]")
         for ac_input in armor_ac_inputs:
-            item_id = ac_input.getAttribute("data-item-armor-ac")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_armor_ac_change(event, iid))
+            def make_armor_ac_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-armor-ac")
+                    if item_id:
+                        self._handle_armor_ac_change(event, item_id)
+                return handler
+            proxy = create_proxy(make_armor_ac_handler())
             ac_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Bonus value changes (for weapons and armor)
         bonus_inputs = inventory_list.querySelectorAll("[data-item-bonus]")
         for bonus_input in bonus_inputs:
-            item_id = bonus_input.getAttribute("data-item-bonus")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_bonus_change(event, iid))
+            def make_bonus_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-bonus")
+                    if item_id:
+                        self._handle_bonus_change(event, item_id)
+                return handler
+            proxy = create_proxy(make_bonus_handler())
             bonus_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Equipped checkboxes
         equipped_checkboxes = inventory_list.querySelectorAll("[data-item-equipped]")
         for checkbox in equipped_checkboxes:
-            item_id = checkbox.getAttribute("data-item-equipped")
-            proxy = create_proxy(lambda event, iid=item_id: self._handle_equipped_toggle(event, iid))
+            def make_equipped_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-equipped")
+                    if item_id:
+                        self._handle_equipped_toggle(event, item_id)
+                return handler
+            proxy = create_proxy(make_equipped_handler())
             checkbox.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Magic Item fetch buttons
         fetch_buttons = inventory_list.querySelectorAll("button[id^='magic-item-fetch-']")
         for btn in fetch_buttons:
-            btn_id = btn.getAttribute("id")
-            item_id = btn_id.replace("magic-item-fetch-", "")
-            def make_fetch_handler(iid):
+            def make_fetch_handler():
                 def handle_fetch(event):
-                    url_input = document.getElementById(f"magic-item-url-{iid}")
+                    btn_id = event.target.getAttribute("id")
+                    item_id = btn_id.replace("magic-item-fetch-", "")
+                    url_input = document.getElementById(f"magic-item-url-{item_id}")
                     if url_input:
                         url = url_input.value.strip()
                         if url:
                             console.log(f"PySheet: Fetching magic item from {url}")
-                            self._fetch_magic_item(iid, url)
+                            self._fetch_magic_item(item_id, url)
                 return handle_fetch
-            proxy = create_proxy(make_fetch_handler(item_id))
+            proxy = create_proxy(make_fetch_handler())
             btn.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
     

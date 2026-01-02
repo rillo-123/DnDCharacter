@@ -167,6 +167,7 @@ class ArmorEntity(EntityManager):
         
         For light/medium armor, may add DEX modifier.
         For heavy armor, no DEX added.
+        For shields, return the bonus value (not a standalone AC).
         """
         try:
             base_ac = 0
@@ -305,34 +306,75 @@ class ArmorCollectionManager:
             self.empty_state_element.style.display = "none"
     
     def _render_armor_rows(self):
-        """Render table rows for all armor entities."""
+        """Render table rows for all armor entities.
+        
+        Separates armor and shields, combining AC calculation:
+        - Show main armor with final AC (armor AC + DEX + shield bonus)
+        - Show shield as a separate row with bonus value only
+        """
         if not self.grid_element:
             return
         
-        for armor in self.armor_pieces:
-            row = self._create_armor_row(armor)
+        # Separate armor and shields
+        armor_pieces = [a for a in self.armor_pieces if "shield" not in a.final_armor_type.lower()]
+        shields = [a for a in self.armor_pieces if "shield" in a.final_armor_type.lower()]
+        
+        # Get total shield bonus
+        total_shield_bonus = 0
+        for shield in shields:
+            # Shields have base +2 bonus, plus any magical bonus
+            try:
+                notes_str = shield.entity.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    bonus = notes_data.get("bonus", 0)
+                else:
+                    bonus = 0
+            except:
+                bonus = 0
+            
+            shield_bonus = 2 + bonus  # Base +2 plus magical bonus
+            total_shield_bonus += shield_bonus
+            console.log(f"[ARMOR] Shield '{shield.entity.get('name')}': +{shield_bonus} (base +2 + bonus {bonus})")
+        
+        # Render armor with combined AC (armor + shield bonuses)
+        for armor in armor_pieces:
+            row = self._create_armor_row(armor, total_shield_bonus)
+            self.grid_element.appendChild(row)
+        
+        # Render shields as separate rows (showing bonus only)
+        for shield in shields:
+            row = self._create_shield_row(shield)
             self.grid_element.appendChild(row)
     
-    def _create_armor_row(self, armor: ArmorEntity) -> object:
-        """Create a table row for an armor entity with equipped checkbox."""
+    def _create_armor_row(self, armor: ArmorEntity, shield_bonus: int = 0) -> object:
+        """Create a table row for an armor entity with equipped checkbox.
+        
+        Args:
+            armor: The armor entity to render
+            shield_bonus: Additional AC bonus from shields (will be added to armor AC)
+        """
         try:
             row = document.createElement("tr")
             armor_id = armor.entity.get('id', 'unknown')
             armor_name = armor.entity.get('name', 'Unknown')
-            final_ac = armor.final_ac
+            base_ac = int(armor.final_ac) if armor.final_ac != "—" else 0
+            final_ac = base_ac + shield_bonus if base_ac > 0 else 0
+            final_ac_str = str(final_ac) if final_ac > 0 else "—"
+            
             row.id = f"armor-row-{armor_id}"
             
-            console.log(f"[RENDER-ARMOR] Creating row for {armor_name}: AC={final_ac}")
+            console.log(f"[RENDER-ARMOR] Creating row for {armor_name}: base AC={base_ac}, shield_bonus={shield_bonus}, final AC={final_ac}")
             
             # Column 1: Armor name
             name_td = document.createElement("td")
             name_td.textContent = armor.final_name
             row.appendChild(name_td)
             
-            # Column 2: AC
+            # Column 2: AC (including shield bonus)
             ac_td = document.createElement("td")
-            ac_td.textContent = final_ac
-            console.log(f"[RENDER-ARMOR] Set AC cell text to: {final_ac}")
+            ac_td.textContent = final_ac_str
+            console.log(f"[RENDER-ARMOR] Set AC cell text to: {final_ac_str}")
             row.appendChild(ac_td)
             
             # Column 3: Armor Type
@@ -369,6 +411,78 @@ class ArmorCollectionManager:
             return row
         except Exception as e:
             console.error(f"[ARMOR] Error creating armor row: {e}")
+            return document.createElement("tr")
+    
+    def _create_shield_row(self, shield: ArmorEntity) -> object:
+        """Create a table row for a shield showing only the AC bonus."""
+        try:
+            row = document.createElement("tr")
+            shield_id = shield.entity.get('id', 'unknown')
+            shield_name = shield.entity.get('name', 'Unknown')
+            
+            # Calculate shield bonus
+            try:
+                notes_str = shield.entity.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    bonus = notes_data.get("bonus", 0)
+                else:
+                    bonus = 0
+            except:
+                bonus = 0
+            
+            shield_bonus = 2 + bonus  # Base +2 plus magical bonus
+            shield_bonus_str = f"+{shield_bonus}"
+            
+            row.id = f"armor-row-{shield_id}"
+            
+            console.log(f"[RENDER-ARMOR] Creating shield row for {shield_name}: bonus={shield_bonus}")
+            
+            # Column 1: Shield name
+            name_td = document.createElement("td")
+            name_td.textContent = shield_name
+            row.appendChild(name_td)
+            
+            # Column 2: AC Bonus (not full AC, just the bonus)
+            ac_td = document.createElement("td")
+            ac_td.textContent = shield_bonus_str
+            ac_td.style.color = "#90EE90"  # Light green to differentiate from armor AC
+            row.appendChild(ac_td)
+            
+            # Column 3: Type (Shield)
+            type_td = document.createElement("td")
+            type_td.textContent = "Shield"
+            row.appendChild(type_td)
+            
+            # Column 4: Material
+            material_td = document.createElement("td")
+            material_td.textContent = shield.final_material
+            row.appendChild(material_td)
+            
+            # Column 5: Stealth (usually "—" for shields)
+            stealth_td = document.createElement("td")
+            stealth_td.textContent = "—"
+            row.appendChild(stealth_td)
+            
+            # Column 6: Equipped checkbox
+            equipped_td = document.createElement("td")
+            equipped_td.style.textAlign = "center"
+            checkbox = document.createElement("input")
+            checkbox.type = "checkbox"
+            checkbox.checked = shield.entity.get("equipped", False)
+            checkbox.style.cursor = "pointer"
+            checkbox.id = f"armor-equipped-{shield.entity.get('id', 'unknown')}"
+            
+            # Add event handler for equip/unequip
+            shield_id = shield.entity.get("id")
+            checkbox.addEventListener("change", lambda event: self._handle_armor_equipped_change(event, shield_id))
+            
+            equipped_td.appendChild(checkbox)
+            row.appendChild(equipped_td)
+            
+            return row
+        except Exception as e:
+            console.error(f"[ARMOR] Error creating shield row: {e}")
             return document.createElement("tr")
     
     def _handle_armor_equipped_change(self, event, armor_id: str):
