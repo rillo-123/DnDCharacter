@@ -1083,8 +1083,15 @@ class InventoryManager:
             # Update armor_class value based on bonus
             if bonus_val != 0:
                 extra_props["bonus"] = bonus_val
-                # Auto-calculate AC: base armor class + bonus
-                base_ac = item.get("armor_class", 10)
+                # Auto-calculate AC: look up base armor class from ARMOR_AC_VALUES, then add bonus
+                armor_name = item.get("name", "").lower()
+                base_ac = None
+                for armor_key, ac_value in ARMOR_AC_VALUES.items():
+                    if armor_key in armor_name:
+                        base_ac = ac_value
+                        break
+                if base_ac is None:
+                    base_ac = 10  # Default fallback
                 extra_props["armor_class"] = base_ac + bonus_val
             elif "bonus" in extra_props:
                 del extra_props["bonus"]
