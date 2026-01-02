@@ -202,6 +202,14 @@ class ArmorEntity(EntityManager):
                 # Get DEX modifier
                 dex_score = self.character_stats.get("dex", 10)
                 dex_mod = (dex_score - 10) // 2
+                
+                # Only add positive DEX modifiers (don't subtract for low DEX)
+                # Medium armor caps at +2, light armor adds full DEX
+                if "medium" in armor_type and dex_mod > 2:
+                    dex_mod = 2  # Cap medium armor DEX at +2
+                elif dex_mod < 0:
+                    dex_mod = 0  # Never subtract for low DEX
+                
                 final_ac = base_ac + dex_mod
                 console.log(f"[CALC-AC] {armor_name}: {armor_type} armor: base {base_ac} + dex {dex_mod} = {final_ac}")
                 return final_ac
