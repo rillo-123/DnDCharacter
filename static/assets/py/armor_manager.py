@@ -170,21 +170,27 @@ class ArmorEntity(EntityManager):
         """
         try:
             base_ac = 0
+            armor_name = self.entity.get("name", "Unknown")
             
             # Check notes first (user-modified values take priority)
             try:
                 notes_str = self.entity.get("notes", "")
+                console.log(f"[CALC-AC] {armor_name}: notes_str='{notes_str}'")
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     base_ac = notes_data.get("armor_class", 0)
-            except:
-                pass
+                    if base_ac:
+                        console.log(f"[CALC-AC] {armor_name}: Found armor_class={base_ac} in notes")
+            except Exception as e:
+                console.log(f"[CALC-AC] {armor_name}: Error parsing notes: {e}")
             
             # If not in notes, get from direct field
             if not base_ac:
                 base_ac = self.entity.get("armor_class", 0)
+                console.log(f"[CALC-AC] {armor_name}: Using direct armor_class={base_ac}")
             
             if base_ac <= 0:
+                console.log(f"[CALC-AC] {armor_name}: AC is 0 or less, returning 0")
                 return 0
             
             # Determine if we add DEX modifier
@@ -195,11 +201,14 @@ class ArmorEntity(EntityManager):
                 # Get DEX modifier
                 dex_score = self.character_stats.get("dex", 10)
                 dex_mod = (dex_score - 10) // 2
-                return base_ac + dex_mod
+                final_ac = base_ac + dex_mod
+                console.log(f"[CALC-AC] {armor_name}: {armor_type} armor: base {base_ac} + dex {dex_mod} = {final_ac}")
+                return final_ac
             
+            console.log(f"[CALC-AC] {armor_name}: {armor_type} armor: final AC = {base_ac}")
             return base_ac
         except Exception as e:
-            console.error(f"[ARMOR] Error calculating AC: {e}")
+            console.error(f"[CALC-AC] Error calculating AC: {e}")
             return 0
 
 
@@ -308,7 +317,12 @@ class ArmorCollectionManager:
         """Create a table row for an armor entity with equipped checkbox."""
         try:
             row = document.createElement("tr")
-            row.id = f"armor-row-{armor.entity.get('id', 'unknown')}"
+            armor_id = armor.entity.get('id', 'unknown')
+            armor_name = armor.entity.get('name', 'Unknown')
+            final_ac = armor.final_ac
+            row.id = f"armor-row-{armor_id}"
+            
+            console.log(f"[RENDER-ARMOR] Creating row for {armor_name}: AC={final_ac}")
             
             # Column 1: Armor name
             name_td = document.createElement("td")
@@ -317,7 +331,8 @@ class ArmorCollectionManager:
             
             # Column 2: AC
             ac_td = document.createElement("td")
-            ac_td.textContent = armor.final_ac
+            ac_td.textContent = final_ac
+            console.log(f"[RENDER-ARMOR] Set AC cell text to: {final_ac}")
             row.appendChild(ac_td)
             
             # Column 3: Armor Type

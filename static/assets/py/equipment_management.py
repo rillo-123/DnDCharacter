@@ -935,9 +935,12 @@ class InventoryManager:
         except:
             ac_val = None
         
+        console.log(f"[AC-CHANGE] item_id={item_id}, new_ac={ac_val}")
+        
         # Update the item's notes field with the armor_class value
         item = self.get_item(item_id)
         if item:
+            console.log(f"[AC-CHANGE] Found item: {item.get('name')}, existing notes: {item.get('notes', '')}")
             try:
                 # Parse existing notes to preserve other properties
                 notes_str = item.get("notes", "")
@@ -951,33 +954,40 @@ class InventoryManager:
             # Update armor_class value
             if ac_val is not None:
                 extra_props["armor_class"] = ac_val
+                console.log(f"[AC-CHANGE] Set armor_class={ac_val} in notes")
             elif "armor_class" in extra_props:
                 del extra_props["armor_class"]
             
             # Save back to notes
             notes = json.dumps(extra_props) if extra_props else ""
+            console.log(f"[AC-CHANGE] Saving notes: {notes}")
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()  # Update display
             
             # Update calculations (which will recalculate AC with new armor base)
+            console.log("[AC-CHANGE] Calling update_calculations()")
             update_calculations()
             
             # Save inventory and character to localStorage
             try:
+                console.log("[AC-CHANGE] Calling save_to_storage()")
                 self.save_to_storage()  # Save inventory
                 from character import save_character
+                console.log("[AC-CHANGE] Calling save_character()")
                 save_character()  # Save character
-            except:
-                pass
+                console.log("[AC-CHANGE] Persistence complete")
+            except Exception as e:
+                console.error(f"[AC-CHANGE] Error saving: {e}")
             
             # Re-render armor manager to show updated AC
             try:
+                console.log("[AC-CHANGE] Re-rendering armor manager")
                 from armor_manager import get_armor_manager
                 armor_mgr = get_armor_manager()
                 if armor_mgr:
                     armor_mgr.render()
-            except:
-                pass
+            except Exception as e:
+                console.error(f"[AC-CHANGE] Error re-rendering armor: {e}")
     
     def _handle_bonus_change(self, event, item_id: str):
         """Handle weapon/armor bonus changes."""
