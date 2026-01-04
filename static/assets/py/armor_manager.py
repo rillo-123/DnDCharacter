@@ -73,7 +73,7 @@ class ArmorEntity(EntityManager):
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     armor_type = notes_data.get("armor_type", "")
-            except:
+            except Exception:
                 pass
         
         return armor_type if armor_type else "—"
@@ -101,7 +101,7 @@ class ArmorEntity(EntityManager):
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     material = notes_data.get("material", "")
-            except:
+            except Exception:
                 pass
         
         return material if material else "—"
@@ -116,7 +116,7 @@ class ArmorEntity(EntityManager):
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     cost = notes_data.get("cost", "")
-            except:
+            except Exception:
                 pass
         return cost if cost else "—"
 
@@ -130,7 +130,7 @@ class ArmorEntity(EntityManager):
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     weight = notes_data.get("weight", "")
-            except:
+            except Exception:
                 pass
         return weight if weight else "—"
 
@@ -157,7 +157,7 @@ class ArmorEntity(EntityManager):
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     stealth = notes_data.get("stealth_disadvantage", False)
-            except:
+            except Exception:
                 pass
         
         return "Disadvantage" if stealth else "—"
@@ -250,7 +250,7 @@ class ArmorCollectionManager:
         """Get element by ID, with fallback for testing."""
         try:
             return document.getElementById(element_id)
-        except:
+        except Exception:
             return None
     
     def render(self):
@@ -436,7 +436,7 @@ class ArmorCollectionManager:
                     bonus = notes_data.get("bonus", 0)
                 else:
                     bonus = 0
-            except:
+            except Exception:
                 bonus = 0
             
             shield_bonus = 2 + bonus  # Base +2 plus magical bonus
@@ -509,7 +509,7 @@ class ArmorCollectionManager:
                 from character import calculate_armor_class, update_calculations
                 calculate_armor_class()
                 update_calculations()
-            except:
+            except Exception:
                 pass
             
             # Re-render the armor grid
