@@ -1279,23 +1279,7 @@ def reset_spell_slots(_event=None):
         if SPELLCASTING_MANAGER is not None:
             SPELLCASTING_MANAGER.reset_spell_slots()
         reset_channel_divinity()
-        
-        # Trigger auto-export - try multiple ways to ensure it's called
-        try:
-            if export_management is not None:
-                export_management.schedule_auto_export()
-                console.log("DEBUG: reset_spell_slots - export triggered via direct import")
-                return
-        except Exception as e:
-            console.warn(f"DEBUG: Direct export_management call failed in reset_spell_slots: {e}")
-        
-        try:
-            initialize_module_references()
-            if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
-                _EXPORT_MODULE_REF.schedule_auto_export()
-                console.log("DEBUG: reset_spell_slots - export triggered via module reference")
-        except Exception as e:
-            console.error(f"ERROR in reset_spell_slots auto-export: {e}")
+        trigger_auto_export("reset_spell_slots")
     except Exception as e:
         print(f"ERROR in reset_spell_slots: {e}")
 
@@ -2527,25 +2511,7 @@ def reset_channel_divinity(event=None):
     proficiency = compute_proficiency(level)
     set_form_value("channel_divinity_available", str(proficiency))
     update_calculations()
-    
-    # Trigger auto-export - try multiple ways to ensure it's called
-    try:
-        # Try direct import first
-        if export_management is not None:
-            export_management.schedule_auto_export()
-            console.log("DEBUG: reset_channel_divinity - export triggered via direct import")
-            return
-    except Exception as e:
-        console.warn(f"DEBUG: Direct export_management call failed: {e}")
-    
-    # Fallback: try module reference
-    try:
-        initialize_module_references()
-        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
-            _EXPORT_MODULE_REF.schedule_auto_export()
-            console.log("DEBUG: reset_channel_divinity - export triggered via module reference")
-    except Exception as e:
-        console.error(f"ERROR in reset_channel_divinity auto-export: {e}")
+    trigger_auto_export("reset_channel_divinity")
 
 
 def update_calculations(*_args):
@@ -6338,6 +6304,27 @@ def initialize_module_references():
     if _EQUIPMENT_MODULE_REF is None:
         _EQUIPMENT_MODULE_REF = sys.modules.get('equipment_management')
 
+def trigger_auto_export(source: str = "auto"):
+    """Trigger auto-export with fallback logic. Tries direct import first, then module reference."""
+    try:
+        # Try direct import first
+        if export_management is not None:
+            export_management.schedule_auto_export()
+            return True
+    except Exception as e:
+        console.warn(f"DEBUG: Direct export_management call failed ({source}): {e}")
+    
+    try:
+        # Fallback: try module reference
+        initialize_module_references()
+        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+            _EXPORT_MODULE_REF.schedule_auto_export()
+            return True
+    except Exception as e:
+        console.error(f"ERROR in trigger_auto_export ({source}): {e}")
+    
+    return False
+
 def handle_adjust_button(event=None):
     """Handle health/resource adjustment buttons."""
     if event is None or not hasattr(event, "target"):
@@ -6398,14 +6385,7 @@ def handle_adjust_button(event=None):
     # Set the new value
     set_form_value(target_id, str(new_value))
     update_calculations()
-    
-    # Trigger auto-export
-    initialize_module_references()
-    if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
-        try:
-            _EXPORT_MODULE_REF.schedule_auto_export()
-        except Exception as e:
-            console.error(f"ERROR in schedule_auto_export(): {e}")
+    trigger_auto_export("handle_adjust_button")
 
 def handle_currency_button(event):
     """Handle currency adjustment buttons (±10, ±100)"""
@@ -6430,14 +6410,7 @@ def handle_currency_button(event):
         # Set the new value
         set_form_value(f"currency-{currency_type}", str(new_value))
         update_calculations()
-        
-        # Trigger auto-export
-        initialize_module_references()
-        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
-            try:
-                _EXPORT_MODULE_REF.schedule_auto_export()
-            except Exception as e:
-                console.error(f"ERROR in schedule_auto_export(): {e}")
+        trigger_auto_export("handle_currency_button")
     except Exception as e:
         console.error(f"ERROR in handle_currency_button: {e}")
 
