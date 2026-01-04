@@ -302,6 +302,10 @@ def prune_old_exports(directory_handle, max_keep: int = MAX_EXPORTS_PER_CHARACTE
 async def _prune_old_exports_from_directory(directory_handle):
     """Prune exports older than EXPORT_PRUNE_DAYS from the directory.
     
+    Rules:
+    - Delete files older than 30 days
+    - BUT always keep at least 1 file (never delete all exports)
+    
     Format: <name>_<class>_lvl<level>_YYYYMMDD_HHMM.json
     Only works if directory_handle supports async iteration (desktop/Chrome).
     """
@@ -311,8 +315,9 @@ async def _prune_old_exports_from_directory(directory_handle):
     try:
         cutoff_date = datetime.now() - timedelta(days=EXPORT_PRUNE_DAYS)
         pruned_count = 0
+        all_files = []  # Collect all JSON files with their dates
         
-        # Attempt to iterate and delete old files
+        # Attempt to iterate and collect files
         try:
             async for entry in directory_handle.entries():
                 if not entry.name.endswith(".json"):
@@ -326,10 +331,7 @@ async def _prune_old_exports_from_directory(directory_handle):
                 date_str, time_str = match.groups()
                 try:
                     file_date = datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M")
-                    if file_date < cutoff_date:
-                        await directory_handle.removeEntry(entry.name)
-                        pruned_count += 1
-                        console.log(f"PySheet: pruned old export {entry.name}")
+                    all_files.append((entry.name, file_date))
                 except (ValueError, JsException):
                     continue
         except (AttributeError, TypeError):
@@ -347,17 +349,30 @@ async def _prune_old_exports_from_directory(directory_handle):
                     date_str, time_str = match.groups()
                     try:
                         file_date = datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M")
-                        if file_date < cutoff_date:
-                            await directory_handle.removeEntry(entry_name)
-                            pruned_count += 1
-                            console.log(f"PySheet: pruned old export {entry_name}")
+                        all_files.append((entry_name, file_date))
                     except (ValueError, JsException):
                         continue
             except (AttributeError, JsException):
                 pass
         
+        # Sort by date (newest first) and delete old ones, but keep at least 1
+        all_files.sort(key=lambda x: x[1], reverse=True)
+        
+        for filename, file_date in all_files:
+            # Only delete if:
+            # 1. File is older than cutoff date AND
+            # 2. We have more than 1 file (keep at least 1)
+            if file_date < cutoff_date and len(all_files) > 1:
+                try:
+                    await directory_handle.removeEntry(filename)
+                    pruned_count += 1
+                    console.log(f"PySheet: pruned old export {filename}")
+                    all_files.remove((filename, file_date))  # Update count for "keep at least 1" check
+                except Exception as exc:
+                    console.warn(f"PySheet: could not delete {filename}: {exc}")
+        
         if pruned_count > 0:
-            console.log(f"PySheet: pruned {pruned_count} exports older than {EXPORT_PRUNE_DAYS} days")
+            console.log(f"PySheet: pruned {pruned_count} exports older than {EXPORT_PRUNE_DAYS} days (kept at least 1)")
     
     except Exception as exc:
         console.warn(f"PySheet: error during export pruning: {exc}")
