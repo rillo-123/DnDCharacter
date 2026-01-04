@@ -820,6 +820,9 @@ async def export_character(_event=None, *, auto: bool = False):
     def show_saving_state():
         """Show green SAVING state."""
         console.log("[DEBUG] show_saving_state() function START")
+        if document is None:
+            console.warn("[DEBUG] show_saving_state() - document is None, skipping")
+            return
         indicator = document.getElementById("saving-indicator")
         console.log(f"[DEBUG] show_saving_state() - indicator element: {indicator}")
         if indicator:
@@ -835,6 +838,9 @@ async def export_character(_event=None, *, auto: bool = False):
 
     def fade_indicator():
         """Fade to gray and remove."""
+        if document is None:
+            console.warn("[DEBUG] fade_indicator() - document is None, skipping")
+            return
         indicator = document.getElementById("saving-indicator")
         if indicator:
             indicator.classList.remove("saving", "recording")
