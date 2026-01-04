@@ -1228,12 +1228,14 @@ def schedule_auto_export():
     
     # Show recording indicator (red) - even if auto-export is disabled, show that we detected a change
     indicator = document.getElementById("saving-indicator")
+    print(f"[SAVE-LAMP] schedule_auto_export() showing lamp: indicator={indicator is not None}")
     if indicator:
         indicator.classList.remove("saving", "fading")
         indicator.classList.add("recording")
         # Force visibility in cases where CSS hasn't applied yet
         indicator.style.display = "flex"
         indicator.style.opacity = "1"
+        print(f"[SAVE-LAMP] Classes added: {list(indicator.classList)}")
         try:
             # Debug the current visual state to help diagnose why the lamp may be hidden
             computed = window.getComputedStyle(indicator)

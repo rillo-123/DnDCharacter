@@ -20,6 +20,12 @@ except ImportError:
     WeaponToHitValue = None
 
 try:
+    import export_management
+except ImportError:
+    # export_management may not be available in test environments
+    export_management = None
+
+try:
     from js import console, document, window
 except ImportError:
     # Mock for testing environments
@@ -1135,6 +1141,10 @@ _EVENT_PROXIES: list = []
 _EQUIPMENT_RESULT_PROXY = None  # Track the current equipment results listener to remove it
 _DOMAIN_SPELL_SYNCING = False
 
+# Module references for lazy loading (initialized on first use)
+_EXPORT_MODULE_REF = None
+_EQUIPMENT_MODULE_REF = None
+
 
 
 # Export/Import functions moved to export_management.py
@@ -1269,6 +1279,23 @@ def reset_spell_slots(_event=None):
         if SPELLCASTING_MANAGER is not None:
             SPELLCASTING_MANAGER.reset_spell_slots()
         reset_channel_divinity()
+        
+        # Trigger auto-export - try multiple ways to ensure it's called
+        try:
+            if export_management is not None:
+                export_management.schedule_auto_export()
+                console.log("DEBUG: reset_spell_slots - export triggered via direct import")
+                return
+        except Exception as e:
+            console.warn(f"DEBUG: Direct export_management call failed in reset_spell_slots: {e}")
+        
+        try:
+            initialize_module_references()
+            if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+                _EXPORT_MODULE_REF.schedule_auto_export()
+                console.log("DEBUG: reset_spell_slots - export triggered via module reference")
+        except Exception as e:
+            console.error(f"ERROR in reset_spell_slots auto-export: {e}")
     except Exception as e:
         print(f"ERROR in reset_spell_slots: {e}")
 
@@ -2500,6 +2527,25 @@ def reset_channel_divinity(event=None):
     proficiency = compute_proficiency(level)
     set_form_value("channel_divinity_available", str(proficiency))
     update_calculations()
+    
+    # Trigger auto-export - try multiple ways to ensure it's called
+    try:
+        # Try direct import first
+        if export_management is not None:
+            export_management.schedule_auto_export()
+            console.log("DEBUG: reset_channel_divinity - export triggered via direct import")
+            return
+    except Exception as e:
+        console.warn(f"DEBUG: Direct export_management call failed: {e}")
+    
+    # Fallback: try module reference
+    try:
+        initialize_module_references()
+        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+            _EXPORT_MODULE_REF.schedule_auto_export()
+            console.log("DEBUG: reset_channel_divinity - export triggered via module reference")
+    except Exception as e:
+        console.error(f"ERROR in reset_channel_divinity auto-export: {e}")
 
 
 def update_calculations(*_args):
@@ -2849,6 +2895,7 @@ def collect_character_data() -> dict:
             "temp_hp": get_numeric_value("temp_hp", 0),
             "hit_dice": get_text_value("hit_dice"),
             "hit_dice_available": get_numeric_value("hit_dice_available", 0),
+            "channel_divinity_available": get_numeric_value("channel_divinity_available", 0),
             "death_saves_success": sum(1 for i in range(1, 4) if get_checkbox(f"death_saves_success_{i}")),
             "death_saves_failure": sum(1 for i in range(1, 4) if get_checkbox(f"death_saves_failure_{i}")),
         },
@@ -2963,6 +3010,7 @@ def populate_form(data: dict):
         set_form_value("temp_hp", combat.get("temp_hp", 0))
         set_form_value("hit_dice", combat.get("hit_dice", ""))
         set_form_value("hit_dice_available", combat.get("hit_dice_available", 0))
+        set_form_value("channel_divinity_available", combat.get("channel_divinity_available", 0))
         
         # Load death saves as checkboxes
         death_success = combat.get("death_saves_success", 0)
@@ -6273,6 +6321,23 @@ def handle_input_event(event=None):
             target_id = getattr(target, "id", "")
         auto = target_id in {"class", "level"}
         apply_spell_filters(auto_select=auto)
+
+def initialize_module_references():
+    """Lazy load module references for export and equipment management."""
+    global _EXPORT_MODULE_REF, _EQUIPMENT_MODULE_REF
+    
+    if _EXPORT_MODULE_REF is None:
+        _EXPORT_MODULE_REF = sys.modules.get('export_management')
+        if not _EXPORT_MODULE_REF and export_management is not None:
+            _EXPORT_MODULE_REF = export_management
+        if _EXPORT_MODULE_REF:
+            # Verify the module has the functions we need
+            if not hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+                _EXPORT_MODULE_REF = None
+    
+    if _EQUIPMENT_MODULE_REF is None:
+        _EQUIPMENT_MODULE_REF = sys.modules.get('equipment_management')
+
 def handle_adjust_button(event=None):
     """Handle health/resource adjustment buttons."""
     if event is None or not hasattr(event, "target"):
@@ -6342,6 +6407,40 @@ def handle_adjust_button(event=None):
         except Exception as e:
             console.error(f"ERROR in schedule_auto_export(): {e}")
 
+def handle_currency_button(event):
+    """Handle currency adjustment buttons (±10, ±100)"""
+    try:
+        button = event.target
+        currency_type = button.getAttribute("data-currency")
+        amount_str = button.getAttribute("data-amount")
+        
+        if not currency_type or not amount_str:
+            return
+        
+        # Get the input element for this currency type
+        input_elem = get_element(f"currency-{currency_type}")
+        if not input_elem:
+            return
+        
+        # Get current value and amount adjustment
+        current = get_numeric_value(f"currency-{currency_type}", 0)
+        amount = int(amount_str)
+        new_value = max(0, current + amount)  # Don't allow negative currency
+        
+        # Set the new value
+        set_form_value(f"currency-{currency_type}", str(new_value))
+        update_calculations()
+        
+        # Trigger auto-export
+        initialize_module_references()
+        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+            try:
+                _EXPORT_MODULE_REF.schedule_auto_export()
+            except Exception as e:
+                console.error(f"ERROR in schedule_auto_export(): {e}")
+    except Exception as e:
+        console.error(f"ERROR in handle_currency_button: {e}")
+
 def register_event_listeners():
     console.log("[DEBUG] register_event_listeners() called - starting event registration")
     # In test environments document is often a lightweight mock; be defensive
@@ -6367,6 +6466,13 @@ def register_event_listeners():
         proxy_adjust = create_proxy(handle_adjust_button)
         button.addEventListener("click", proxy_adjust)
         _EVENT_PROXIES.append(proxy_adjust)
+
+    # Register currency button handlers
+    currency_buttons = document.querySelectorAll(".currency-btn")
+    for button in currency_buttons:
+        proxy_currency = create_proxy(handle_currency_button)
+        button.addEventListener("click", proxy_currency)
+        _EVENT_PROXIES.append(proxy_currency)
 
     import_input = get_element("import-file")
     if import_input is not None:

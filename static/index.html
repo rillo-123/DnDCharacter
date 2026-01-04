@@ -38,123 +38,135 @@
             <div class="panel-grid">
                 <section class="card">
                     <h2>Character</h2>
-                    <div class="grid grid-3 compact-grid">
-                        <label class="field compact-field">
-                            <span>Name</span>
-                            <input data-character-input type="text" id="name" placeholder="Rill the Bold">
-                        </label>
-                        <label class="field compact-field">
-                            <span>Class</span>
-                            <select data-character-input id="class">
-                                <option value="">Select Class</option>
-                                <option value="Barbarian">Barbarian</option>
-                                <option value="Bard">Bard</option>
-                                <option value="Cleric">Cleric</option>
-                                <option value="Druid">Druid</option>
-                                <option value="Fighter">Fighter</option>
-                                <option value="Monk">Monk</option>
-                                <option value="Paladin">Paladin</option>
-                                <option value="Ranger">Ranger</option>
-                                <option value="Rogue">Rogue</option>
-                                <option value="Sorcerer">Sorcerer</option>
-                                <option value="Warlock">Warlock</option>
-                                <option value="Wizard">Wizard</option>
-                            </select>
-                        </label>
-                        <label class="field compact-field">
-                            <span>Race</span>
-                            <select data-character-input id="race">
-                                <option value="">Select Race</option>
-                                <option value="Human">Human</option>
-                                <option value="Elf">Elf</option>
-                                <option value="High Elf">High Elf</option>
-                                <option value="Wood Elf">Wood Elf</option>
-                                <option value="Dark Elf">Dark Elf</option>
-                                <option value="Dwarf">Dwarf</option>
-                                <option value="Mountain Dwarf">Mountain Dwarf</option>
-                                <option value="Hill Dwarf">Hill Dwarf</option>
-                                <option value="Halfling">Halfling</option>
-                                <option value="Lightfoot Halfling">Lightfoot Halfling</option>
-                                <option value="Stout Halfling">Stout Halfling</option>
-                                <option value="Dragonborn">Dragonborn</option>
-                                <option value="Gnome">Gnome</option>
-                                <option value="Forest Gnome">Forest Gnome</option>
-                                <option value="Rock Gnome">Rock Gnome</option>
-                                <option value="Half-Elf">Half-Elf</option>
-                                <option value="Half-Orc">Half-Orc</option>
-                                <option value="Tiefling">Tiefling</option>
-                            </select>
-                        </label>
-                        <label class="field compact-field">
-                            <span>Background</span>
-                            <select data-character-input id="background">
-                                <option value="">Select Background</option>
-                                <option value="Acolyte">Acolyte</option>
-                                <option value="Charlatan">Charlatan</option>
-                                <option value="Criminal">Criminal</option>
-                                <option value="Entertainer">Entertainer</option>
-                                <option value="Folk Hero">Folk Hero</option>
-                                <option value="Gladiator">Gladiator</option>
-                                <option value="Guild Artisan">Guild Artisan</option>
-                                <option value="Hermit">Hermit</option>
-                                <option value="Knight">Knight</option>
-                                <option value="Mercenary Captain">Mercenary Captain</option>
-                                <option value="Noble">Noble</option>
-                                <option value="Outlander">Outlander</option>
-                                <option value="Sage">Sage</option>
-                                <option value="Sailor">Sailor</option>
-                                <option value="Soldier">Soldier</option>
-                                <option value="Urchin">Urchin</option>
-                            </select>
-                        </label>
-                        <label class="field compact-field">
-                            <span>Domain</span>
-                            <select data-character-input id="domain">
-                                <option value="">Select Domain</option>
-                                <option value="Arcana">Arcana</option>
-                                <option value="City">City</option>
-                                <option value="Death">Death</option>
-                                <option value="Forge">Forge</option>
-                                <option value="Grave">Grave</option>
-                                <option value="Knowledge">Knowledge</option>
-                                <option value="Life">Life</option>
-                                <option value="Light">Light</option>
-                                <option value="Nature">Nature</option>
-                                <option value="Order">Order</option>
-                                <option value="Peace">Peace</option>
-                                <option value="Tempest">Tempest</option>
-                                <option value="Trickery">Trickery</option>
-                                <option value="War">War</option>
-                            </select>
-                        </label>
-                        <label class="field compact-field">
-                            <span>Alignment</span>
-                            <select data-character-input id="alignment">
-                                <option value="">Select Alignment</option>
-                                <option value="Lawful Good">Lawful Good</option>
-                                <option value="Neutral Good">Neutral Good</option>
-                                <option value="Chaotic Good">Chaotic Good</option>
-                                <option value="Lawful Neutral">Lawful Neutral</option>
-                                <option value="Neutral">Neutral</option>
-                                <option value="Chaotic Neutral">Chaotic Neutral</option>
-                                <option value="Lawful Evil">Lawful Evil</option>
-                                <option value="Neutral Evil">Neutral Evil</option>
-                                <option value="Chaotic Evil">Chaotic Evil</option>
-                            </select>
-                        </label>
-                        <label class="field compact-field">
-                            <span>Player Name</span>
-                            <input data-character-input type="text" id="player_name" placeholder="Carl">
-                        </label>
-                        <label class="field compact-field">
-                            <span>Level</span>
-                            <input data-character-input type="number" min="1" max="20" id="level" value="1">
-                        </label>
-                        <div class="field readonly compact-field">
-                            <span>Proficiency Bonus</span>
-                            <output id="proficiency-bonus">+2</output>
-                        </div>
-                    </div>
+                    <table class="character-table">
+                        <tbody>
+                            <tr>
+                                <td class="character-label">Name</td>
+                                <td><input data-character-input type="text" id="name" placeholder="Rill the Bold"></td>
+                            </tr>
+                            <tr>
+                                <td class="character-label">Class</td>
+                                <td>
+                                    <select data-character-input id="class">
+                                        <option value="">Select Class</option>
+                                        <option value="Barbarian">Barbarian</option>
+                                        <option value="Bard">Bard</option>
+                                        <option value="Cleric">Cleric</option>
+                                        <option value="Druid">Druid</option>
+                                        <option value="Fighter">Fighter</option>
+                                        <option value="Monk">Monk</option>
+                                        <option value="Paladin">Paladin</option>
+                                        <option value="Ranger">Ranger</option>
+                                        <option value="Rogue">Rogue</option>
+                                        <option value="Sorcerer">Sorcerer</option>
+                                        <option value="Warlock">Warlock</option>
+                                        <option value="Wizard">Wizard</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="character-label">Race</td>
+                                <td>
+                                    <select data-character-input id="race">
+                                        <option value="">Select Race</option>
+                                        <option value="Human">Human</option>
+                                        <option value="Elf">Elf</option>
+                                        <option value="High Elf">High Elf</option>
+                                        <option value="Wood Elf">Wood Elf</option>
+                                        <option value="Dark Elf">Dark Elf</option>
+                                        <option value="Dwarf">Dwarf</option>
+                                        <option value="Mountain Dwarf">Mountain Dwarf</option>
+                                        <option value="Hill Dwarf">Hill Dwarf</option>
+                                        <option value="Halfling">Halfling</option>
+                                        <option value="Lightfoot Halfling">Lightfoot Halfling</option>
+                                        <option value="Stout Halfling">Stout Halfling</option>
+                                        <option value="Dragonborn">Dragonborn</option>
+                                        <option value="Gnome">Gnome</option>
+                                        <option value="Forest Gnome">Forest Gnome</option>
+                                        <option value="Rock Gnome">Rock Gnome</option>
+                                        <option value="Half-Elf">Half-Elf</option>
+                                        <option value="Half-Orc">Half-Orc</option>
+                                        <option value="Tiefling">Tiefling</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="character-label">Background</td>
+                                <td>
+                                    <select data-character-input id="background">
+                                        <option value="">Select Background</option>
+                                        <option value="Acolyte">Acolyte</option>
+                                        <option value="Charlatan">Charlatan</option>
+                                        <option value="Criminal">Criminal</option>
+                                        <option value="Entertainer">Entertainer</option>
+                                        <option value="Folk Hero">Folk Hero</option>
+                                        <option value="Gladiator">Gladiator</option>
+                                        <option value="Guild Artisan">Guild Artisan</option>
+                                        <option value="Hermit">Hermit</option>
+                                        <option value="Knight">Knight</option>
+                                        <option value="Mercenary Captain">Mercenary Captain</option>
+                                        <option value="Noble">Noble</option>
+                                        <option value="Outlander">Outlander</option>
+                                        <option value="Sage">Sage</option>
+                                        <option value="Sailor">Sailor</option>
+                                        <option value="Soldier">Soldier</option>
+                                        <option value="Urchin">Urchin</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="character-label">Domain</td>
+                                <td>
+                                    <select data-character-input id="domain">
+                                        <option value="">Select Domain</option>
+                                        <option value="Arcana">Arcana</option>
+                                        <option value="City">City</option>
+                                        <option value="Death">Death</option>
+                                        <option value="Forge">Forge</option>
+                                        <option value="Grave">Grave</option>
+                                        <option value="Knowledge">Knowledge</option>
+                                        <option value="Life">Life</option>
+                                        <option value="Light">Light</option>
+                                        <option value="Nature">Nature</option>
+                                        <option value="Order">Order</option>
+                                        <option value="Peace">Peace</option>
+                                        <option value="Tempest">Tempest</option>
+                                        <option value="Trickery">Trickery</option>
+                                        <option value="War">War</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="character-label">Alignment</td>
+                                <td>
+                                    <select data-character-input id="alignment">
+                                        <option value="">Select Alignment</option>
+                                        <option value="Lawful Good">Lawful Good</option>
+                                        <option value="Neutral Good">Neutral Good</option>
+                                        <option value="Chaotic Good">Chaotic Good</option>
+                                        <option value="Lawful Neutral">Lawful Neutral</option>
+                                        <option value="Neutral">Neutral</option>
+                                        <option value="Chaotic Neutral">Chaotic Neutral</option>
+                                        <option value="Lawful Evil">Lawful Evil</option>
+                                        <option value="Neutral Evil">Neutral Evil</option>
+                                        <option value="Chaotic Evil">Chaotic Evil</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="character-label">Player Name</td>
+                                <td><input data-character-input type="text" id="player_name" placeholder="Carl"></td>
+                            </tr>
+                            <tr>
+                                <td class="character-label">Level</td>
+                                <td><input data-character-input type="number" min="1" max="20" id="level" value="1"></td>
+                            </tr>
+                            <tr>
+                                <td class="character-label">Proficiency Bonus</td>
+                                <td><output id="proficiency-bonus">+2</output></td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </section>
 
                 <section class="card abilities">
@@ -292,28 +304,67 @@
                         </div>
                         <div class="currency-card">
                             <h3>Coin Pouch</h3>
-                            <div class="currency-grid">
-                                <label class="currency-field">
-                                    <span>PP</span>
-                                    <input data-character-input data-currency-field="pp" type="number" min="0" id="currency-pp" value="0">
-                                </label>
-                                <label class="currency-field">
-                                    <span>GP</span>
-                                    <input data-character-input data-currency-field="gp" type="number" min="0" id="currency-gp" value="0">
-                                </label>
-                                <label class="currency-field">
-                                    <span>EP</span>
-                                    <input data-character-input data-currency-field="ep" type="number" min="0" id="currency-ep" value="0">
-                                </label>
-                                <label class="currency-field">
-                                    <span>SP</span>
-                                    <input data-character-input data-currency-field="sp" type="number" min="0" id="currency-sp" value="0">
-                                </label>
-                                <label class="currency-field">
-                                    <span>CP</span>
-                                    <input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0">
-                                </label>
-                            </div>
+                            <table class="currency-table">
+                                <thead>
+                                    <tr>
+                                        <th>Coin Type</th>
+                                        <th>Adjust</th>
+                                        <th>Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Platinum (PP)</td>
+                                        <td class="currency-buttons">
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="pp" data-amount="-100" title="Subtract 100">-100</button>
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="pp" data-amount="-10" title="Subtract 10">-10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="pp" data-amount="10" title="Add 10">+10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="pp" data-amount="100" title="Add 100">+100</button>
+                                        </td>
+                                        <td><input data-character-input data-currency-field="pp" type="number" min="0" id="currency-pp" value="0"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Gold (GP)</td>
+                                        <td class="currency-buttons">
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="gp" data-amount="-100" title="Subtract 100">-100</button>
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="gp" data-amount="-10" title="Subtract 10">-10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="gp" data-amount="10" title="Add 10">+10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="gp" data-amount="100" title="Add 100">+100</button>
+                                        </td>
+                                        <td><input data-character-input data-currency-field="gp" type="number" min="0" id="currency-gp" value="0"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Electrum (EP)</td>
+                                        <td class="currency-buttons">
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="ep" data-amount="-100" title="Subtract 100">-100</button>
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="ep" data-amount="-10" title="Subtract 10">-10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="ep" data-amount="10" title="Add 10">+10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="ep" data-amount="100" title="Add 100">+100</button>
+                                        </td>
+                                        <td><input data-character-input data-currency-field="ep" type="number" min="0" id="currency-ep" value="0"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Silver (SP)</td>
+                                        <td class="currency-buttons">
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="sp" data-amount="-100" title="Subtract 100">-100</button>
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="sp" data-amount="-10" title="Subtract 10">-10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="sp" data-amount="10" title="Add 10">+10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="sp" data-amount="100" title="Add 100">+100</button>
+                                        </td>
+                                        <td><input data-character-input data-currency-field="sp" type="number" min="0" id="currency-sp" value="0"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Copper (CP)</td>
+                                        <td class="currency-buttons">
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="cp" data-amount="-100" title="Subtract 100">-100</button>
+                                            <button type="button" class="currency-btn currency-btn-minus" data-currency="cp" data-amount="-10" title="Subtract 10">-10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="cp" data-amount="10" title="Add 10">+10</button>
+                                            <button type="button" class="currency-btn currency-btn-plus" data-currency="cp" data-amount="100" title="Add 100">+100</button>
+                                        </td>
+                                        <td><input data-character-input data-currency-field="cp" type="number" min="0" id="currency-cp" value="0"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </section>
@@ -573,12 +624,10 @@
                                             <input data-character-input type="checkbox" id="death_saves_failure_3" style="cursor: pointer;">
                                         </td>
                                     </tr>
+                                <tr style="display: none;">
+                                    <td><input data-character-input type="hidden" id="channel_divinity_available" value="0"></td>
+                                </tr>
                                 </tbody>
-                            </table>
-                            <tr style="display: none;">
-                                <td><input data-character-input type="hidden" id="channel_divinity_available" value="0"></td>
-                            </tr>
-                        </tbody>
                             </table>
                             
                             <!-- Channel Divinity Counter -->
