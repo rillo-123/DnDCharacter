@@ -2513,6 +2513,149 @@ def reset_channel_divinity(event=None):
     update_calculations()
     trigger_auto_export("reset_channel_divinity")
 
+def _update_ability_scores_and_saves(scores, race_bonuses, proficiency):
+    """Update ability scores, modifiers, and saving throws display."""
+    for ability, score in scores.items():
+        # Calculate race bonus and total
+        race_bonus = race_bonuses.get(ability, 0)
+        total_score = score + race_bonus
+        
+        # Update display
+        if race_bonus > 0:
+            set_text(f"{ability}-race", f"+{race_bonus}")
+        else:
+            set_text(f"{ability}-race", "—")
+        set_text(f"{ability}-total", str(total_score))
+        
+        # Calculate modifier and save from total
+        mod = ability_modifier(total_score)
+        set_text(f"{ability}-mod", format_bonus(mod))
+        proficient = get_checkbox(f"{ability}-save-prof")
+        save_total, save_tooltip = generate_save_tooltip(ability, total_score, proficient, proficiency)
+        save_elem = get_element(f"{ability}-save")
+        if save_elem:
+            save_elem.innerHTML = f'<span class="stat-value">{format_bonus(save_total)}{save_tooltip}</span>'
+
+
+def _update_skills_and_passive(scores, proficiency, race_bonuses):
+    """Update skill bonuses and passive perception display."""
+    skill_totals = {}
+    for skill_key in SKILLS:
+        _, _, total = _compute_skill_entry(skill_key, scores, proficiency, race_bonuses)
+        skill_totals[skill_key] = total
+        skill_tooltip = generate_skill_tooltip(skill_key, scores, proficiency, race_bonuses)
+        skill_elem = get_element(f"{skill_key}-total")
+        if skill_elem:
+            skill_elem.innerHTML = f'<span class="stat-value">{format_bonus(total)}{skill_tooltip}</span>'
+
+    # Passive Perception
+    passive_perception = 10 + skill_totals.get("perception", 0)
+    perception_total = skill_totals.get("perception", 0)
+    passive_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Base</span><span class="tooltip-value">10</span></div><div class="tooltip-row"><span class="tooltip-label">Perception bonus</span><span class="tooltip-value">{format_bonus(perception_total)}</span></div></div>'
+    passive_elem = get_element("passive-perception")
+    if passive_elem:
+        passive_elem.innerHTML = f'<span class="stat-value">{passive_perception}{passive_tooltip}</span>'
+
+
+def _update_spell_casting_stats(class_name, scores, race_bonuses, level, proficiency):
+    """Update spell save DC, spell attack, and max prepared spells."""
+    class_spell_ability_map = {
+        "bard": "cha",
+        "cleric": "wis",
+        "druid": "wis",
+        "monk": "wis",
+        "paladin": "cha",
+        "ranger": "wis",
+        "sorcerer": "cha",
+        "warlock": "cha",
+        "wizard": "int",
+    }
+    spell_ability = class_spell_ability_map.get(class_name.lower() if class_name else "", "int")
+    spell_score = scores.get(spell_ability, 10) + race_bonuses.get(spell_ability, 0)
+    spell_mod = ability_modifier(spell_score)
+    spell_save_dc = 8 + proficiency + spell_mod
+    spell_attack = proficiency + spell_mod
+    
+    # Spell Save DC tooltip
+    spell_dc_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Base</span><span class="tooltip-value">8</span></div><div class="tooltip-row"><span class="tooltip-label">Proficiency</span><span class="tooltip-value">{format_bonus(proficiency)}</span></div><div class="tooltip-row"><span class="tooltip-label">{spell_ability.upper()} modifier</span><span class="tooltip-value">{format_bonus(spell_mod)}</span></div></div>'
+    spell_dc_elem = get_element("spell-save-dc")
+    if spell_dc_elem:
+        spell_dc_elem.innerHTML = f'<span class="stat-value">{spell_save_dc}{spell_dc_tooltip}</span>'
+    
+    # Spell Attack tooltip
+    spell_attack_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Proficiency</span><span class="tooltip-value">{format_bonus(proficiency)}</span></div><div class="tooltip-row"><span class="tooltip-label">{spell_ability.upper()} modifier</span><span class="tooltip-value">{format_bonus(spell_mod)}</span></div></div>'
+    spell_attack_elem = get_element("spell-attack")
+    if spell_attack_elem:
+        spell_attack_elem.innerHTML = f'<span class="stat-value">{format_bonus(spell_attack)}{spell_attack_tooltip}</span>'
+
+    # Calculate max prepared spells
+    if class_name == "cleric":
+        max_prepared = level + spell_mod
+    elif class_name == "druid":
+        max_prepared = level + spell_mod
+    elif class_name == "paladin":
+        max_prepared = level // 2 + spell_mod
+    elif class_name == "ranger":
+        max_prepared = level // 2 + spell_mod
+    elif class_name == "wizard":
+        max_prepared = level + spell_mod
+    elif class_name == "warlock":
+        max_prepared = level  # Warlocks know spells, always max prepared
+    elif class_name == "bard":
+        max_prepared = level + spell_mod
+    elif class_name == "sorcerer":
+        max_prepared = level + spell_mod
+    else:
+        max_prepared = 0  # Other classes don't prepare spells
+    
+    max_prepared = max(0, max_prepared)  # Never negative
+    
+    return spell_ability, spell_mod, spell_score, spell_save_dc, spell_attack, max_prepared
+
+
+def _update_hp_display(current_hp, max_hp, temp_hp):
+    """Update HP bar fill and temp HP overlay."""
+    if max_hp > 0:
+        hp_percentage = max(0, min(100, int((current_hp / max_hp) * 100)))
+        if temp_hp > 0:
+            hp_label = f"({current_hp} / {max_hp} +{temp_hp})"
+            temp_hp_percentage = max(0, min(100, int((temp_hp / max_hp) * 100)))
+        else:
+            hp_label = f"({current_hp} / {max_hp})"
+            temp_hp_percentage = 0
+    else:
+        hp_percentage = 0
+        hp_label = f"({current_hp} / 0)"
+        temp_hp_percentage = 0
+    
+    hp_bar_fill = get_element("hp-bar-fill")
+    if hp_bar_fill:
+        hp_bar_fill.style.width = f"{hp_percentage}%"
+        # Round right edge only when temp HP is 0 (not adjacent to purple bar)
+        if temp_hp_percentage > 0:
+            hp_bar_fill.style.borderRadius = "0.5rem 0 0 0.5rem"
+        else:
+            hp_bar_fill.style.borderRadius = "0.5rem"
+        
+        # Calculate color: Red (0%) -> Yellow (50%) -> Green (100%)
+        if hp_percentage <= 50:
+            hue = 60 * (hp_percentage / 50)
+            saturation = 100
+            lightness = 40
+        else:
+            hue = 60 + (60 * ((hp_percentage - 50) / 50))
+            saturation = 100
+            lightness = 40
+        
+        hp_bar_fill.style.background = f"hsl({hue}, {saturation}%, {lightness}%)"
+    
+    hp_bar_temp = get_element("hp-bar-temp")
+    if hp_bar_temp:
+        hp_bar_temp.style.width = f"{temp_hp_percentage}%"
+        hp_bar_temp.style.left = f"{hp_percentage}%"
+    
+    set_text("hp-bar-label", hp_label)
+
 
 def update_calculations(*_args):
     scores = gather_scores()
@@ -2570,29 +2713,11 @@ def update_calculations(*_args):
 
     set_text("proficiency-bonus", format_bonus(proficiency))
 
-    for ability, score in scores.items():
-        # Calculate race bonus and total
-        race_bonus = race_bonuses.get(ability, 0)
-        total_score = score + race_bonus
-        
-        # Update display
-        if race_bonus > 0:
-            set_text(f"{ability}-race", f"+{race_bonus}")
-        else:
-            set_text(f"{ability}-race", "—")
-        set_text(f"{ability}-total", str(total_score))
-        
-        # Calculate modifier and save from total
-        mod = ability_modifier(total_score)
-        set_text(f"{ability}-mod", format_bonus(mod))
-        proficient = get_checkbox(f"{ability}-save-prof")
-        save_total, save_tooltip = generate_save_tooltip(ability, total_score, proficient, proficiency)
-        save_elem = get_element(f"{ability}-save")
-        if save_elem:
-            save_elem.innerHTML = f'<span class="stat-value">{format_bonus(save_total)}{save_tooltip}</span>'
+    # Update ability scores and saves
+    _update_ability_scores_and_saves(scores, race_bonuses, proficiency)
 
+    # Update initiative
     dex_mod = ability_modifier(scores["dex"] + race_bonuses.get("dex", 0))
-    # Initiative tooltip: just DEX modifier
     initiative_tooltip = f'<div class="stat-tooltip"><div class="tooltip-row"><span class="tooltip-label">DEX modifier</span><span class="tooltip-value">{format_bonus(dex_mod)}</span></div></div>'
     initiative_elem = get_element("initiative")
     if initiative_elem:
@@ -2611,74 +2736,13 @@ def update_calculations(*_args):
     if conc_save_elem:
         conc_save_elem.innerHTML = f'<span class="stat-value">1d20 {format_bonus(con_mod)} vs DC 10{con_tooltip}</span>'
 
-    skill_totals = {}
-    for skill_key in SKILLS:
-        _, _, total = _compute_skill_entry(skill_key, scores, proficiency, race_bonuses)
-        skill_totals[skill_key] = total
-        skill_tooltip = generate_skill_tooltip(skill_key, scores, proficiency, race_bonuses)
-        skill_elem = get_element(f"{skill_key}-total")
-        if skill_elem:
-            skill_elem.innerHTML = f'<span class="stat-value">{format_bonus(total)}{skill_tooltip}</span>'
+    # Update skills and passive perception
+    _update_skills_and_passive(scores, proficiency, race_bonuses)
 
-    # Passive Perception
-    passive_perception = 10 + skill_totals.get("perception", 0)
-    perception_total = skill_totals.get("perception", 0)
-    passive_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Base</span><span class="tooltip-value">10</span></div><div class="tooltip-row"><span class="tooltip-label">Perception bonus</span><span class="tooltip-value">{format_bonus(perception_total)}</span></div></div>'
-    passive_elem = get_element("passive-perception")
-    if passive_elem:
-        passive_elem.innerHTML = f'<span class="stat-value">{passive_perception}{passive_tooltip}</span>'
-
-    # Derive spell ability from class
-    class_spell_ability_map = {
-        "bard": "cha",
-        "cleric": "wis",
-        "druid": "wis",
-        "monk": "wis",
-        "paladin": "cha",
-        "ranger": "wis",
-        "sorcerer": "cha",
-        "warlock": "cha",
-        "wizard": "int",
-    }
-    spell_ability = class_spell_ability_map.get(class_name.lower() if class_name else "", "int")
-    spell_score = scores.get(spell_ability, 10) + race_bonuses.get(spell_ability, 0)
-    spell_mod = ability_modifier(spell_score)
-    spell_save_dc = 8 + proficiency + spell_mod
-    spell_attack = proficiency + spell_mod
-    
-    # Spell Save DC tooltip
-    spell_dc_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Base</span><span class="tooltip-value">8</span></div><div class="tooltip-row"><span class="tooltip-label">Proficiency</span><span class="tooltip-value">{format_bonus(proficiency)}</span></div><div class="tooltip-row"><span class="tooltip-label">{spell_ability.upper()} modifier</span><span class="tooltip-value">{format_bonus(spell_mod)}</span></div></div>'
-    spell_dc_elem = get_element("spell-save-dc")
-    if spell_dc_elem:
-        spell_dc_elem.innerHTML = f'<span class="stat-value">{spell_save_dc}{spell_dc_tooltip}</span>'
-    
-    # Spell Attack tooltip
-    spell_attack_tooltip = f'<div class="stat-tooltip multiline"><div class="tooltip-row"><span class="tooltip-label">Proficiency</span><span class="tooltip-value">{format_bonus(proficiency)}</span></div><div class="tooltip-row"><span class="tooltip-label">{spell_ability.upper()} modifier</span><span class="tooltip-value">{format_bonus(spell_mod)}</span></div></div>'
-    spell_attack_elem = get_element("spell-attack")
-    if spell_attack_elem:
-        spell_attack_elem.innerHTML = f'<span class="stat-value">{format_bonus(spell_attack)}{spell_attack_tooltip}</span>'
-
-    # Calculate max prepared spells (class_name already lowercased above)
-    if class_name == "cleric":
-        max_prepared = level + spell_mod
-    elif class_name == "druid":
-        max_prepared = level + spell_mod
-    elif class_name == "paladin":
-        max_prepared = level // 2 + spell_mod
-    elif class_name == "ranger":
-        max_prepared = level // 2 + spell_mod
-    elif class_name == "wizard":
-        max_prepared = level + spell_mod
-    elif class_name == "warlock":
-        max_prepared = level  # Warlocks know spells, always max prepared
-    elif class_name == "bard":
-        max_prepared = level + spell_mod
-    elif class_name == "sorcerer":
-        max_prepared = level + spell_mod
-    else:
-        max_prepared = 0  # Other classes don't prepare spells
-    
-    max_prepared = max(0, max_prepared)  # Never negative
+    # Update spell casting stats and prepare spells counter
+    spell_ability, spell_mod, spell_score, spell_save_dc, spell_attack, max_prepared = _update_spell_casting_stats(
+        class_name, scores, race_bonuses, level, proficiency
+    )
     
     # Count only user-prepared spells (exclude domain bonus spells and cantrips)
     domain = get_text_value("domain")
@@ -2732,51 +2796,7 @@ def update_calculations(*_args):
     current_hp = get_numeric_value("current_hp", 0)
     max_hp = get_numeric_value("max_hp", 0)
     temp_hp = get_numeric_value("temp_hp", 0)
-    
-    if max_hp > 0:
-        hp_percentage = max(0, min(100, int((current_hp / max_hp) * 100)))
-        if temp_hp > 0:
-            hp_label = f"({current_hp} / {max_hp} +{temp_hp})"
-            # Calculate temp HP bar as overflow: show only the portion beyond current HP
-            temp_hp_percentage = max(0, min(100, int((temp_hp / max_hp) * 100)))
-        else:
-            hp_label = f"({current_hp} / {max_hp})"
-            temp_hp_percentage = 0
-    else:
-        hp_percentage = 0
-        hp_label = f"({current_hp} / 0)"
-        temp_hp_percentage = 0
-    
-    hp_bar_fill = get_element("hp-bar-fill")
-    if hp_bar_fill:
-        hp_bar_fill.style.width = f"{hp_percentage}%"
-        # Round right edge only when temp HP is 0 (not adjacent to purple bar)
-        if temp_hp_percentage > 0:
-            hp_bar_fill.style.borderRadius = "0.5rem 0 0 0.5rem"
-        else:
-            hp_bar_fill.style.borderRadius = "0.5rem"
-        
-        # Calculate color: Red (0%) -> Yellow (50%) -> Green (100%)
-        # Use HSL for easier color transitions
-        if hp_percentage <= 50:
-            # Red to Yellow: 0% -> 50%
-            hue = 60 * (hp_percentage / 50)  # 0 (red) to 60 (yellow)
-            saturation = 100
-            lightness = 40
-        else:
-            # Yellow to Green: 50% -> 100%
-            hue = 60 + (60 * ((hp_percentage - 50) / 50))  # 60 (yellow) to 120 (green)
-            saturation = 100
-            lightness = 40
-        
-        hp_bar_fill.style.background = f"hsl({hue}, {saturation}%, {lightness}%)"
-    
-    hp_bar_temp = get_element("hp-bar-temp")
-    if hp_bar_temp:
-        hp_bar_temp.style.width = f"{temp_hp_percentage}%"
-        hp_bar_temp.style.left = f"{hp_percentage}%"
-    
-    set_text("hp-bar-label", hp_label)
+    _update_hp_display(current_hp, max_hp, temp_hp)
 
     # Update hit dice pips display
     hit_dice_type = get_text_value("hit_dice")
