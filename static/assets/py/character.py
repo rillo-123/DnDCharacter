@@ -3375,28 +3375,8 @@ def populate_spell_class_filter(spells: list[dict] | None):
     SPELL_LIBRARY_STATE["class_options"] = ordered_classes
 
 
-def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) -> str:
-    allowed_set: set[str] = set(allowed_classes or set())
-    slug = spell.get("slug", "")
-    prepared = is_spell_prepared(slug)
-    spell_classes = set(spell.get("classes", []))
-    can_add = prepared or not allowed_set or bool(spell_classes.intersection(allowed_set))
-    
-    # Check if this is a domain bonus spell (cannot be removed)
-    domain = get_text_value("domain")
-    character_level = get_numeric_value("level", 1)
-    is_domain_bonus = slug in get_domain_bonus_spells(domain, character_level) if domain else False
-    can_remove = prepared and not is_domain_bonus
-
-    meta_parts: list[str] = []
-    level_label = spell.get("level_label")
-    if level_label:
-        meta_parts.append(level_label)
-    school = spell.get("school")
-    if school:
-        meta_parts.append(school)
-    meta_text = " · ".join(part for part in meta_parts if part)
-
+def _build_spell_tags_and_action_button(spell: dict, prepared: bool, is_domain_bonus: bool, can_add: bool, can_remove: bool, slug: str) -> tuple[str, str, str]:
+    """Build spell tags and action button HTML. Returns (tags_html, action_button_html, button_classes_str)."""
     tags = []
     if not prepared and not can_add:
         tags.append("<span class=\"spell-tag unavailable\">Unavailable</span>")
@@ -3433,13 +3413,16 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
         if slug and action and action_label
         else ""
     )
+    
+    return tags_html, action_button, button_class_attr
 
+
+def _build_spell_properties_html(spell: dict) -> str:
+    """Build spell properties definition list HTML."""
     properties = []
     casting_time = spell.get("casting_time")
     if casting_time:
-        properties.append(
-            f"<div><dt>Casting Time</dt><dd>{escape(casting_time)}</dd></div>"
-        )
+        properties.append(f"<div><dt>Casting Time</dt><dd>{escape(casting_time)}</dd></div>")
     range_text = spell.get("range")
     if range_text:
         properties.append(f"<div><dt>Range</dt><dd>{escape(range_text)}</dd></div>")
@@ -3453,9 +3436,42 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
     duration = spell.get("duration")
     if duration:
         properties.append(f"<div><dt>Duration</dt><dd>{escape(duration)}</dd></div>")
-    properties_html = ""
+    
     if properties:
-        properties_html = "<dl class=\"spell-properties\">" + "".join(properties) + "</dl>"
+        return "<dl class=\"spell-properties\">" + "".join(properties) + "</dl>"
+    return ""
+
+
+def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) -> str:
+    allowed_set: set[str] = set(allowed_classes or set())
+    slug = spell.get("slug", "")
+    prepared = is_spell_prepared(slug)
+    spell_classes = set(spell.get("classes", []))
+    can_add = prepared or not allowed_set or bool(spell_classes.intersection(allowed_set))
+    
+    # Check if this is a domain bonus spell (cannot be removed)
+    domain = get_text_value("domain")
+    character_level = get_numeric_value("level", 1)
+    is_domain_bonus = slug in get_domain_bonus_spells(domain, character_level) if domain else False
+    can_remove = prepared and not is_domain_bonus
+
+    # Build meta text (level and school)
+    meta_parts: list[str] = []
+    level_label = spell.get("level_label")
+    if level_label:
+        meta_parts.append(level_label)
+    school = spell.get("school")
+    if school:
+        meta_parts.append(school)
+    meta_text = " · ".join(part for part in meta_parts if part)
+
+    # Build tags and action button
+    tags_html, action_button, button_class_attr = _build_spell_tags_and_action_button(
+        spell, prepared, is_domain_bonus, can_add, can_remove, slug
+    )
+
+    # Build properties definition list
+    properties_html = _build_spell_properties_html(spell)
 
     classes_display = spell.get("classes_display", [])
     classes_html = ""
