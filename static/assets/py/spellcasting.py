@@ -592,6 +592,137 @@ class SpellcastingManager:
     # ------------------------------------------------------------------
     # rendering helpers
     # ------------------------------------------------------------------
+    
+    def _enrich_spell_record(self, spell: dict) -> dict:
+        """Enrich spell record with library data (description, properties, etc)."""
+        record = spell.copy()
+        slug = spell.get("slug", "")
+        level = spell.get("level", 0)
+        
+        if not record.get("level_label"):
+            record["level_label"] = format_spell_level_label(level)
+        
+        # Merge with library record if available
+        lib_record = get_spell_by_slug(slug)
+        if lib_record:
+            for key in lib_record:
+                if key not in record or not record.get(key):
+                    record[key] = lib_record[key]
+            # Ensure critical keys are present
+            for critical_key in ["desc", "higher_level", "description_html", "description"]:
+                if not record.get(critical_key) and lib_record.get(critical_key):
+                    record[critical_key] = lib_record[critical_key]
+        
+        return record
+    
+    def _build_spellbook_mnemonics_and_tags(self, record: dict) -> tuple[str, str]:
+        """Build mnemonics HTML and tags HTML for a spell card.
+        
+        Returns: (mnemonics_html, tags_html)
+        """
+        mnemonics = []
+        if record.get("concentration"):
+            mnemonics.append("<span class=\"spell-mnemonic\" title=\"Concentration\">Conc.</span>")
+        if record.get("ritual"):
+            mnemonics.append("<span class=\"spell-mnemonic\" title=\"Ritual\">Rit.</span>")
+        if record.get("is_domain_bonus"):
+            mnemonics.append("<span class=\"spell-mnemonic domain\" title=\"Domain Bonus\">Dom.</span>")
+        
+        # Detect saving throw requirement
+        save_required, save_ability = _detect_saving_throw(record)
+        if save_required and save_ability:
+            label = f"Save: {save_ability}"
+            title = f"Requires {save_ability} saving throw"
+            mnemonics.append(f"<span class=\"spell-mnemonic save\" title=\"{escape(title)}\">{escape(label)}</span>")
+        
+        # Add range mnemonic
+        range_text = record.get("range", "").lower()
+        if range_text:
+            if "self" in range_text:
+                range_label = "Self"
+            elif "touch" in range_text:
+                range_label = "Touch"
+            elif "sight" in range_text:
+                range_label = "Sight"
+            elif "unlimited" in range_text:
+                range_label = "∞"
+            else:
+                match = re.search(r'(\d+)\s*(?:feet|ft)', range_text)
+                range_label = f"{match.group(1)}ft" if match else None
+            
+            if range_label:
+                mnemonics.append(f"<span class=\"spell-mnemonic range\" title=\"Range: {escape(record.get('range', ''))}\">{ escape(range_label)}</span>")
+        
+        mnemonics_html = f"<span class=\"spell-mnemonics\">{''.join(mnemonics)}</span>" if mnemonics else ""
+        
+        # Build tags
+        tag_parts = []
+        if record.get("ritual"):
+            tag_parts.append("<span class=\"spell-tag\">Ritual</span>")
+        if record.get("concentration"):
+            tag_parts.append("<span class=\"spell-tag\">Concentration</span>")
+        tags_html = "".join(tag_parts)
+        
+        return mnemonics_html, tags_html
+    
+    def _build_spellbook_body_html(self, record: dict) -> str:
+        """Build the body HTML (properties, classes, description) for a spell card."""
+        # Build properties
+        properties = []
+        casting_time = record.get("casting_time") or ""
+        if casting_time:
+            properties.append(f"<div><dt>Casting Time</dt><dd>{escape(casting_time)}</dd></div>")
+        range_text = record.get("range") or ""
+        if range_text:
+            properties.append(f"<div><dt>Range</dt><dd>{escape(range_text)}</dd></div>")
+        components = record.get("components") or ""
+        material = record.get("material") or ""
+        if components:
+            comp_text = escape(components)
+            if material:
+                comp_text = f"{comp_text} ({escape(material)})"
+            properties.append(f"<div><dt>Components</dt><dd>{comp_text}</dd></div>")
+        duration = record.get("duration") or ""
+        if duration:
+            properties.append(f"<div><dt>Duration</dt><dd>{escape(duration)}</dd></div>")
+        properties_html = ("<dl class=\"spellbook-properties\">" + "".join(properties) + "</dl>") if properties else ""
+        
+        # Build classes display
+        classes_display = record.get("classes_display") or []
+        classes_html = (
+            "<div class=\"spellbook-classes\"><strong>Classes: </strong>"
+            + escape(", ".join(classes_display))
+            + "</div>"
+        ) if classes_display else ""
+        
+        # Build description
+        description_html = record.get("description_html")
+        if not description_html:
+            desc_text = _coerce_spell_text(record.get("desc"))
+            higher_text = _coerce_spell_text(record.get("higher_level"))
+            desc_html = _make_paragraphs(desc_text)
+            higher_html = _make_paragraphs(higher_text)
+            if desc_html:
+                description_html = desc_html
+                if higher_html:
+                    description_html += "<p class=\"spell-section-title\">At Higher Levels</p>" + higher_html
+            else:
+                description_text = record.get("description", "")
+                if description_text:
+                    description_html = _make_paragraphs(_coerce_spell_text(description_text))
+                else:
+                    description_html = "<p class=\"spellbook-description-empty\">No detailed description available.</p>"
+        
+        # Combine body sections
+        body_sections = []
+        if properties_html:
+            body_sections.append(properties_html)
+        if classes_html:
+            body_sections.append(classes_html)
+        body_sections.append(f"<div class=\"spellbook-description\">{description_html}</div>")
+        
+        return "<div class=\"spellbook-body\">" + "".join(body_sections) + "</div>"
+    
     def render_spellbook(self):
         """Render the spellbook UI with all prepared spells."""
         container = get_element("spellbook-levels")
@@ -644,159 +775,24 @@ class SpellcastingManager:
                 name = spell.get("name", "Unknown Spell")
                 source = spell.get("source", "")
                 
-                record = spell.copy()
-                if not record.get("level_label"):
-                    record["level_label"] = format_spell_level_label(spell.get("level", level))
+                # Enrich spell record with library data
+                record = self._enrich_spell_record(spell)
                 
-                lib_record = get_spell_by_slug(slug)
-                if lib_record:
-                    for key in lib_record:
-                        if key not in record or not record.get(key):
-                            record[key] = lib_record[key]
-                    for critical_key in ["desc", "higher_level", "description_html", "description"]:
-                        if not record.get(critical_key) and lib_record.get(critical_key):
-                            record[critical_key] = lib_record[critical_key]
-                
-                level_label = record.get("level_label")
-                if not level_label:
-                    level_label = format_spell_level_label(spell.get("level", level))
+                # Build meta text (level and school)
+                level_label = record.get("level_label") or format_spell_level_label(spell.get("level", level))
                 school = record.get("school") or ""
-                meta_parts = []
-                if level_label:
-                    meta_parts.append(level_label)
-                if school:
-                    meta_parts.append(school)
-                meta_text = " · ".join(part for part in meta_parts if part)
-                meta_html = (
-                    f"<span class=\"spellbook-meta\">{escape(meta_text)}</span>"
-                    if meta_text
-                    else ""
-                )
-                source_html = (
-                    f"<span class=\"spellbook-source\">{escape(source)}</span>"
-                    if source
-                    else ""
-                )
+                meta_parts = [part for part in [level_label, school] if part]
+                meta_text = " · ".join(meta_parts)
+                meta_html = f"<span class=\"spellbook-meta\">{escape(meta_text)}</span>" if meta_text else ""
+                source_html = f"<span class=\"spellbook-source\">{escape(source)}</span>" if source else ""
                 
-                # Build mnemonics for prepared spells
-                mnemonics = []
-                if record.get("concentration"):
-                    mnemonics.append("<span class=\"spell-mnemonic\" title=\"Concentration\">Conc.</span>")
-                if record.get("ritual"):
-                    mnemonics.append("<span class=\"spell-mnemonic\" title=\"Ritual\">Rit.</span>")
-                if record.get("is_domain_bonus"):
-                    mnemonics.append("<span class=\"spell-mnemonic domain\" title=\"Domain Bonus\">Dom.</span>")
-                save_required, save_ability = _detect_saving_throw(record)
-                if save_required and save_ability:
-                    label = f"Save: {save_ability}"
-                    title = f"Requires {save_ability} saving throw"
-                    mnemonics.append(f"<span class=\"spell-mnemonic save\" title=\"{escape(title)}\">{escape(label)}</span>")
+                # Build mnemonics and tags
+                mnemonics_html, tags_html = self._build_spellbook_mnemonics_and_tags(record)
                 
-                # Add range mnemonic
-                range_text = record.get("range", "").lower()
-                if range_text:
-                    if "self" in range_text:
-                        range_label = "Self"
-                    elif "touch" in range_text:
-                        range_label = "Touch"
-                    elif "sight" in range_text:
-                        range_label = "Sight"
-                    elif "unlimited" in range_text:
-                        range_label = "∞"
-                    else:
-                        # Extract number from range (e.g., "60 feet" -> "60ft")
-                        match = re.search(r'(\d+)\s*(?:feet|ft)', range_text)
-                        if match:
-                            range_label = f"{match.group(1)}ft"
-                        else:
-                            range_label = None
-                    
-                    if range_label:
-                        mnemonics.append(f"<span class=\"spell-mnemonic range\" title=\"Range: {escape(record.get('range', ''))}\">{ escape(range_label)}</span>")
-                
-                mnemonics_html = f"<span class=\"spell-mnemonics\">{''.join(mnemonics)}</span>" if mnemonics else ""
-                
-                tag_parts: list[str] = []
-                if record.get("ritual"):
-                    tag_parts.append("<span class=\"spell-tag\">Ritual</span>")
-                if record.get("concentration"):
-                    tag_parts.append("<span class=\"spell-tag\">Concentration</span>")
-                tags_html = "".join(tag_parts)
-                classes_display = record.get("classes_display") or []
-                classes_html = (
-                    "<div class=\"spellbook-classes\"><strong>Classes: </strong>"
-                    + escape(", ".join(classes_display))
-                    + "</div>"
-                    if classes_display
-                    else ""
-                )
-                properties: list[str] = []
-                casting_time = record.get("casting_time") or ""
-                if casting_time:
-                    properties.append(
-                        f"<div><dt>Casting Time</dt><dd>{escape(casting_time)}</dd></div>"
-                    )
-                range_text = record.get("range") or ""
-                if range_text:
-                    properties.append(
-                        f"<div><dt>Range</dt><dd>{escape(range_text)}</dd></div>"
-                    )
-                components = record.get("components") or ""
-                material = record.get("material") or ""
-                if components:
-                    comp_text = escape(components)
-                    if material:
-                        comp_text = f"{comp_text} ({escape(material)})"
-                    properties.append(
-                        f"<div><dt>Components</dt><dd>{comp_text}</dd></div>"
-                    )
-                duration = record.get("duration") or ""
-                if duration:
-                    properties.append(
-                        f"<div><dt>Duration</dt><dd>{escape(duration)}</dd></div>"
-                    )
-                properties_html = (
-                    "<dl class=\"spellbook-properties\">"
-                    + "".join(properties)
-                    + "</dl>"
-                    if properties
-                    else ""
-                )
-                description_html = record.get("description_html")
-                if not description_html:
-                    desc_text = _coerce_spell_text(record.get("desc"))
-                    higher_text = _coerce_spell_text(record.get("higher_level"))
-                    desc_html = _make_paragraphs(desc_text)
-                    higher_html = _make_paragraphs(higher_text)
-                    if desc_html:
-                        description_html = desc_html
-                        if higher_html:
-                            description_html += "<p class=\"spell-section-title\">At Higher Levels</p>" + higher_html
-                    else:
-                        description_text = record.get("description", "")
-                        if description_text:
-                            description_html = _make_paragraphs(_coerce_spell_text(description_text))
-                        else:
-                            description_html = (
-                                "<p class=\"spellbook-description-empty\">No detailed description available.</p>"
-                            )
-                body_sections = []
+                # Build body HTML
+                body_html = self._build_spellbook_body_html(record)
                 if tags_html:
-                    body_sections.append(
-                        f"<div class=\"spellbook-tags\">{tags_html}</div>"
-                    )
-                if properties_html:
-                    body_sections.append(properties_html)
-                if classes_html:
-                    body_sections.append(classes_html)
-                body_sections.append(
-                    f"<div class=\"spellbook-description\">{description_html}</div>"
-                )
-                body_html = (
-                    "<div class=\"spellbook-body\">"
-                    + "".join(body_sections)
-                    + "</div>"
-                )
+                    body_html = f"<div class=\"spellbook-tags\">{tags_html}</div>" + body_html
 
                 # Determine castability
                 is_castable = self.can_cast_spell(level)
