@@ -609,10 +609,10 @@ class InventoryManager:
                 category_select_html += '</select>'
                 body_html += f'<div class="inventory-item-field"><label>Category</label>{category_select_html}</div>'
                 
-                # Determine if item is equipable (armor only)
+                # Determine if item is equipable (armor AND weapons)
                 is_armor = category == "Armor"
                 is_weapon = category == "Weapons"
-                equipable = is_armor
+                equipable = is_armor or is_weapon
                 equipped_checked = "checked" if item.get("equipped") else ""
                 equipped_decorator = "⭐ " if item.get("equipped") else ""
                 
