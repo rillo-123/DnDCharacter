@@ -11,7 +11,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Push-Location $root
 
 try {
-    $shim = Join-Path $root 'tools' 'run_check.ps1'
+    $shim = Join-Path -Path $root -ChildPath 'tools' | Join-Path -ChildPath 'run_check.ps1'
     if (-not (Test-Path $shim)) { Write-Error "Shim not found: $shim"; exit 1 }
 
     $argsList = @('-Script', $Script, '-ExportsDir', $ExportsDir)
