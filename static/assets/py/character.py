@@ -1296,6 +1296,147 @@ def render_inventory():
         INVENTORY_MANAGER.render_inventory()
 
 
+
+
+def _extract_weapon_properties(weapon: dict) -> tuple[int, str, str, str, str, bool]:
+    """Extract weapon properties from notes JSON or fallback fields.
+    
+    Returns: (bonus, damage, damage_type, range, properties_str, is_ranged)
+    """
+    weapon_bonus = 0
+    weapon_damage = None
+    weapon_damage_type = ""
+    weapon_range = "Melee"
+    weapon_properties_list = []
+    weapon_properties_str = ""
+    is_ranged = False
+    
+    # Try to parse properties from notes JSON (primary source)
+    try:
+        notes_str = weapon.get("notes", "")
+        if notes_str and notes_str.startswith("{"):
+            extra_props = json.loads(notes_str)
+            weapon_damage = extra_props.get("damage", weapon_damage)
+            weapon_damage_type = extra_props.get("damage_type", weapon_damage_type)
+            weapon_range = extra_props.get("range", weapon_range)
+            weapon_properties_str = extra_props.get("properties", weapon_properties_str)
+            weapon_bonus = extra_props.get("bonus", weapon_bonus)
+    except Exception:
+        pass
+    
+    # Fallback: Try direct fields
+    if not weapon_damage:
+        weapon_damage = weapon.get("damage_dice") or weapon.get("damage")
+    
+    # Parse properties from Open5e format (list) if needed
+    if not weapon_properties_str:
+        props = weapon.get("properties", [])
+        if isinstance(props, list) and props:
+            weapon_properties_list = props
+            # Look for range in properties (e.g., "ammunition (range 30/120)")
+            for prop in props:
+                if isinstance(prop, str):
+                    prop_lower = prop.lower()
+                    if "range" in prop_lower or "ammunition" in prop_lower:
+                        if "(" in prop and ")" in prop:
+                            weapon_range = prop[prop.find("(")+1:prop.find(")")]
+                        else:
+                            weapon_range = prop
+                        break
+            # Convert properties list to string
+            weapon_properties_str = ", ".join(weapon_properties_list)
+    
+    # Determine if ranged weapon
+    if weapon_properties_list:
+        for prop in weapon_properties_list:
+            if isinstance(prop, str) and ("ranged" in prop.lower() or "ammunition" in prop.lower()):
+                is_ranged = True
+                break
+    elif not is_ranged and weapon_range == "Melee":
+        # Check by category
+        weapon_category = weapon.get("category", "").lower()
+        if "ranged" in weapon_category or "bow" in weapon_category or "crossbow" in weapon_category:
+            is_ranged = True
+    
+    # Default damage if not found
+    if not weapon_damage:
+        weapon_damage = "1d4"
+    
+    return weapon_bonus, weapon_damage, weapon_damage_type, weapon_range, weapon_properties_str, is_ranged
+
+
+def _calculate_weapon_to_hit(weapon_bonus: int, is_ranged: bool, weapon_properties_str: str, 
+                             weapon_properties_list: list, scores: dict, race_bonuses: dict, proficiency: int) -> int:
+    """Calculate weapon to-hit bonus based on ability scores and properties.
+    
+    Returns: to_hit bonus (ability modifier + proficiency + weapon bonus)
+    """
+    # Determine ability based on weapon properties (finesse, ranged, etc)
+    use_finesse = False
+    if weapon_properties_list:
+        for prop in weapon_properties_list:
+            if isinstance(prop, str) and "finesse" in prop.lower():
+                use_finesse = True
+                break
+    elif weapon_properties_str:
+        use_finesse = "finesse" in weapon_properties_str.lower()
+    
+    str_score = scores.get("str", 10) + race_bonuses.get("str", 0)
+    dex_score = scores.get("dex", 10) + race_bonuses.get("dex", 0)
+    
+    # For ranged weapons, use DEX; for melee, use STR unless finesse
+    if is_ranged:
+        ability_mod = ability_modifier(dex_score)
+    elif use_finesse and dex_score > str_score:
+        ability_mod = ability_modifier(dex_score)
+    else:
+        ability_mod = ability_modifier(str_score)
+    
+    return ability_mod + proficiency + weapon_bonus
+
+
+def _create_weapon_table_row(weapon: dict, weapon_bonus: int, weapon_damage: str, weapon_damage_type: str,
+                             weapon_range: str, weapon_properties_str: str, to_hit: int) -> object:
+    """Create a table row element for a weapon."""
+    tr = document.createElement("tr")
+    
+    # Column 1: Weapon name (with bonus if applicable)
+    name_td = document.createElement("td")
+    name_text = weapon.get("name", "Unknown")
+    if weapon_bonus and weapon_bonus > 0:
+        name_text = f"{name_text} +{weapon_bonus}"
+    name_td.textContent = name_text
+    tr.appendChild(name_td)
+    
+    # Column 2: To Hit bonus
+    to_hit_td = document.createElement("td")
+    to_hit_td.textContent = format_bonus(to_hit)
+    tr.appendChild(to_hit_td)
+    
+    # Column 3: Damage
+    damage_td = document.createElement("td")
+    damage_text = weapon_damage
+    if weapon_damage_type:
+        damage_text += f" {weapon_damage_type}"
+    if weapon_bonus and weapon_bonus > 0:
+        damage_text += f" +{weapon_bonus}"
+    damage_td.textContent = damage_text
+    tr.appendChild(damage_td)
+    
+    # Column 4: Range
+    range_td = document.createElement("td")
+    range_td.textContent = weapon_range
+    tr.appendChild(range_td)
+    
+    # Column 5: Properties
+    props_td = document.createElement("td")
+    properties_text = weapon_properties_str if weapon_properties_str else "—"
+    props_td.textContent = properties_text
+    tr.appendChild(props_td)
+    
+    return tr
+
+
 def render_weapons_grid():
     """Render equipped weapons as a grid table in the Skills tab."""
     if INVENTORY_MANAGER is None:
@@ -1305,7 +1446,6 @@ def render_weapons_grid():
     equipped_weapons = []
     for item in INVENTORY_MANAGER.items:
         category = item.get("category", "")
-        # Check if weapon - "Weapons" is the primary category, but also check for "weapon" just in case
         is_weapon = category in ["Weapons", "weapon", "weapons"]
         if item.get("equipped") and is_weapon:
             equipped_weapons.append(item)
@@ -1316,14 +1456,13 @@ def render_weapons_grid():
     if not weapons_grid:
         return
     
+    # Show/hide empty state
     if not equipped_weapons:
-        # Show empty state
         weapons_grid.innerHTML = ""
         if empty_state:
             empty_state.style.display = "table-row"
         return
     
-    # Hide empty state
     if empty_state:
         empty_state.style.display = "none"
     
@@ -1335,168 +1474,20 @@ def render_weapons_grid():
     
     weapons_grid.innerHTML = ""
     
+    # Render each equipped weapon
     for weapon in equipped_weapons:
-        tr = document.createElement("tr")
+        # Extract weapon properties
+        weapon_bonus, weapon_damage, weapon_damage_type, weapon_range, weapon_properties_str, is_ranged = _extract_weapon_properties(weapon)
         
-        # Extract weapon properties - handle both Open5e API format and custom format
-        weapon_bonus = 0
-        weapon_damage = None
-        weapon_damage_type = ""
-        weapon_range = "Melee"
-        weapon_properties_list = []
-        weapon_properties_str = ""
+        # For to-hit calculation, we need properties as list for finesse detection
+        weapon_properties_list = weapon.get("properties", []) if isinstance(weapon.get("properties", []), list) else []
         
-        # DEBUG: Log what we're working with
-        console.log(f"DEBUG render_weapons_grid: Processing '{weapon.get('name')}'")
-        console.log(f"  - notes field content: {weapon.get('notes')}")
+        # Calculate to-hit
+        to_hit = _calculate_weapon_to_hit(weapon_bonus, is_ranged, weapon_properties_str, weapon_properties_list, scores, race_bonuses, proficiency)
         
-        # First, always try to parse properties from notes JSON (this is where they're stored)
-        try:
-            notes_str = weapon.get("notes", "")
-            if notes_str and notes_str.startswith("{"):
-                extra_props = json.loads(notes_str)
-                console.log(f"  ✓ Successfully parsed notes JSON: {extra_props}")
-                # Get all values from notes
-                if "damage" in extra_props:
-                    weapon_damage = extra_props["damage"]
-                if "damage_type" in extra_props:
-                    weapon_damage_type = extra_props["damage_type"]
-                if "range" in extra_props:
-                    weapon_range = extra_props["range"]
-                if "properties" in extra_props:
-                    weapon_properties_str = extra_props["properties"]
-                if "bonus" in extra_props:
-                    weapon_bonus = extra_props["bonus"]
-                console.log(f"  ✓ FINAL VALUES: damage={weapon_damage}, type={weapon_damage_type}, range={weapon_range}, properties={weapon_properties_str}")
-        except Exception as e:
-            console.error(f"  ✗ Failed to parse notes JSON: {e}")
-            pass
-        
-        # Fallback: Try to get damage from direct properties (backward compat)
-        if not weapon_damage:
-            if weapon.get("damage_dice"):
-                weapon_damage = weapon.get("damage_dice")
-            elif weapon.get("damage"):
-                weapon_damage = weapon.get("damage")
-        
-        # Parse properties from Open5e format (list) if we still don't have them
-        if not weapon_properties_str:
-            props = weapon.get("properties", [])
-            if isinstance(props, list) and props:
-                weapon_properties_list = props
-            # Look for range in properties (e.g., "ammunition (range 30/120)")
-            for prop in props:
-                if isinstance(prop, str):
-                    prop_lower = prop.lower()
-                    if "range" in prop_lower or "ammunition" in prop_lower:
-                        # Extract range if it exists in the property
-                        if "(" in prop and ")" in prop:
-                            weapon_range = prop[prop.find("(")+1:prop.find(")")]
-                        else:
-                            weapon_range = prop
-                        break
-        
-        # Convert properties list to string
-        if weapon_properties_list and not weapon_properties_str:
-            weapon_properties_str = ", ".join(weapon_properties_list)
-        
-        # Determine if ranged weapon
-        is_ranged = False
-        if weapon_properties_list:
-            for prop in weapon_properties_list:
-                if isinstance(prop, str) and ("ranged" in prop.lower() or "ammunition" in prop.lower()):
-                    is_ranged = True
-                    break
-        
-        # If no range info found and it's not ranged, keep as Melee
-        if not is_ranged and weapon_range == "Melee":
-            # Check if it's a ranged weapon by category
-            weapon_category = weapon.get("category", "").lower()
-            if "ranged" in weapon_category or "bow" in weapon_category or "crossbow" in weapon_category:
-                is_ranged = True
-        
-        # Default damage if not found
-        if not weapon_damage:
-            weapon_damage = "1d4"
-        
-        # Column 1: Weapon name (with bonus if applicable)
-        name_td = document.createElement("td")
-        name_text = weapon.get("name", "Unknown")
-        
-        if weapon_bonus and weapon_bonus > 0:
-            name_text = f"{name_text} +{weapon_bonus}"
-        name_td.textContent = name_text
-        tr.appendChild(name_td)
-        
-        # Column 2: To Hit bonus
-        to_hit_td = document.createElement("td")
-        # Determine ability based on weapon properties
-        use_finesse = False
-        if weapon_properties_list:
-            for prop in weapon_properties_list:
-                if isinstance(prop, str) and "finesse" in prop.lower():
-                    use_finesse = True
-                    break
-        elif weapon_properties_str:
-            use_finesse = "finesse" in weapon_properties_str.lower()
-        
-        str_score = scores.get("str", 10) + race_bonuses.get("str", 0)
-        dex_score = scores.get("dex", 10) + race_bonuses.get("dex", 0)
-        
-        # For ranged weapons, use DEX if higher; for melee, use STR unless finesse
-        if is_ranged:
-            ability_mod = ability_modifier(dex_score)
-        elif use_finesse and dex_score > str_score:
-            ability_mod = ability_modifier(dex_score)
-        else:
-            ability_mod = ability_modifier(str_score)
-        
-        to_hit = ability_mod + proficiency + weapon_bonus
-        to_hit_td.textContent = format_bonus(to_hit)
-        tr.appendChild(to_hit_td)
-        
-        # Column 3: Damage
-        damage_td = document.createElement("td")
-        damage_text = f"{weapon_damage}"
-        if weapon_damage_type:
-            damage_text += f" {weapon_damage_type}"
-        if weapon_bonus and weapon_bonus > 0:
-            damage_text += f" +{weapon_bonus}"
-        damage_td.textContent = damage_text
-        tr.appendChild(damage_td)
-        
-        # Column 4: Range
-        range_td = document.createElement("td")
-        range_td.textContent = weapon_range
-        tr.appendChild(range_td)
-        
-        # Column 5: Properties
-        props_td = document.createElement("td")
-        properties_text = weapon_properties_str if weapon_properties_str else "—"
-        props_td.textContent = properties_text
-        tr.appendChild(props_td)
-        
+        # Create and append row
+        tr = _create_weapon_table_row(weapon, weapon_bonus, weapon_damage, weapon_damage_type, weapon_range, weapon_properties_str, to_hit)
         weapons_grid.appendChild(tr)
-    
-    weapons_grid = get_element("weapons-grid")
-    empty_state = get_element("weapons-empty-state")
-    
-    if not weapons_grid:
-        return
-    
-    if not equipped_weapons:
-        # Show empty state
-        weapons_grid.innerHTML = ""
-        if empty_state:
-            empty_state.style.display = "table-row"
-        return
-    
-    # Hide empty state
-    if empty_state:
-        empty_state.style.display = "none"
-    
-    # Get character stats for to-hit calculation
-    scores = gather_scores()
     level = get_numeric_value("level", 1)
     proficiency = compute_proficiency(level)
     
