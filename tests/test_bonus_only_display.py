@@ -16,7 +16,7 @@ def test_bonus_only_in_name_does_not_display_alone_in_damage():
     assert w.final_damage == '—'
 
 
-def test_render_damage_shows_bonus_only_when_damage_present(capsys):
+def test_render_damage_shows_bonus_only_when_damage_present():
     # Item with damage and bonus
     item = {"name": "Dagger +1", "category": "Weapons", "equipped": True, "damage": "1d4", "damage_type": "piercing", "bonus": 1}
     enriched = character._enrich_weapon_item(item)

@@ -4,9 +4,7 @@ Tests that the server starts correctly and responds to basic requests.
 """
 
 import pytest
-import subprocess
 import time
-import requests
 import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock

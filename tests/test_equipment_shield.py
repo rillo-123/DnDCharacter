@@ -4,7 +4,6 @@ Tests both the Python equipment fallback and the card generation system.
 """
 
 import unittest
-import subprocess
 from pathlib import Path
 from html import escape
 
