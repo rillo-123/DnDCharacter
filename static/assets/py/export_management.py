@@ -358,16 +358,20 @@ async def _prune_old_exports_from_directory(directory_handle):
         # Sort by date (newest first) and delete old ones, but keep at least 1
         all_files.sort(key=lambda x: x[1], reverse=True)
         
+        # Never delete the most recent file - it's our fallback
+        most_recent_file = all_files[0][0] if all_files else None
+        
         for filename, file_date in all_files:
-            # Only delete if:
-            # 1. File is older than cutoff date AND
-            # 2. We have more than 1 file (keep at least 1)
-            if file_date < cutoff_date and len(all_files) > 1:
+            # Never delete the most recent file
+            if filename == most_recent_file:
+                continue
+            
+            # Only delete if file is older than cutoff date
+            if file_date < cutoff_date:
                 try:
                     await directory_handle.removeEntry(filename)
                     pruned_count += 1
                     console.log(f"PySheet: pruned old export {filename}")
-                    all_files.remove((filename, file_date))  # Update count for "keep at least 1" check
                 except Exception as exc:
                     console.warn(f"PySheet: could not delete {filename}: {exc}")
         
