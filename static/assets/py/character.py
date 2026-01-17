@@ -1482,81 +1482,26 @@ def render_weapons_grid():
         # For to-hit calculation, we need properties as list for finesse detection
         weapon_properties_list = weapon.get("properties", []) if isinstance(weapon.get("properties", []), list) else []
         
+        # Debug logging
+        weapon_name = weapon.get("name", "Unknown")
+        if "rapier" in weapon_name.lower():
+            console.log(f"DEBUG: Rapier weapon object: {weapon}")
+            console.log(f"DEBUG: Extracted properties: properties_str='{weapon_properties_str}', properties_list={weapon_properties_list}, is_ranged={is_ranged}")
+            dex_score = scores.get("dex", 10) + race_bonuses.get("dex", 0)
+            str_score = scores.get("str", 10) + race_bonuses.get("str", 0)
+            console.log(f"DEBUG: Ability scores: DEX={dex_score} (mod {ability_modifier(dex_score)}), STR={str_score} (mod {ability_modifier(str_score)})")
+            console.log(f"DEBUG: Proficiency={proficiency}, weapon_bonus={weapon_bonus}")
+        
         # Calculate to-hit
         to_hit = _calculate_weapon_to_hit(weapon_bonus, is_ranged, weapon_properties_str, weapon_properties_list, scores, race_bonuses, proficiency)
+        
+        if "rapier" in weapon_name.lower():
+            console.log(f"DEBUG: Final to_hit={to_hit}")
         
         # Create and append row
         tr = _create_weapon_table_row(weapon, weapon_bonus, weapon_damage, weapon_damage_type, weapon_range, weapon_properties_str, to_hit)
         weapons_grid.appendChild(tr)
-    level = get_numeric_value("level", 1)
-    proficiency = compute_proficiency(level)
     
-    weapons_grid.innerHTML = ""
-    
-    for weapon in equipped_weapons:
-        tr = document.createElement("tr")
-        
-        # Column 1: Weapon name (with bonus if applicable)
-        name_td = document.createElement("td")
-        name_text = weapon.get("name", "Unknown")
-        bonus = 0
-        try:
-            notes_str = weapon.get("notes", "")
-            if notes_str and notes_str.startswith("{"):
-                extra_props = json.loads(notes_str)
-                bonus = extra_props.get("bonus", 0)
-        except:
-            bonus = 0
-        
-        if bonus and bonus > 0:
-            name_text = f"{name_text} +{bonus}"
-        name_td.textContent = name_text
-        tr.appendChild(name_td)
-        
-        # Column 2: To Hit bonus
-        to_hit_td = document.createElement("td")
-        # Try to calculate based on weapon properties
-        # For now, use DEX or STR based on weapon properties
-        weapon_properties = weapon.get("properties", "").lower()
-        use_finesse = "finesse" in weapon_properties
-        str_score = scores.get("str", 10) + get_race_ability_bonuses(get_text_value("race")).get("str", 0)
-        dex_score = scores.get("dex", 10) + get_race_ability_bonuses(get_text_value("race")).get("dex", 0)
-        
-        # Default to STR, but use DEX if finesse and DEX is higher
-        if use_finesse and dex_score > str_score:
-            ability_mod = ability_modifier(dex_score)
-        else:
-            ability_mod = ability_modifier(str_score)
-        
-        to_hit = ability_mod + proficiency + bonus
-        to_hit_td.textContent = format_bonus(to_hit)
-        tr.appendChild(to_hit_td)
-        
-        # Column 3: Damage
-        damage_td = document.createElement("td")
-        damage_dice = weapon.get("damage", "1d4")
-        damage_type = weapon.get("damage_type", "bludgeoning")
-        damage_text = f"{damage_dice} {damage_type}"
-        if bonus and bonus > 0:
-            damage_text += f" +{bonus}"
-        damage_td.textContent = damage_text
-        tr.appendChild(damage_td)
-        
-        # Column 4: Range
-        range_td = document.createElement("td")
-        range_text = weapon.get("range_text", "Melee")
-        range_td.textContent = range_text
-        tr.appendChild(range_td)
-        
-        # Column 5: Properties
-        props_td = document.createElement("td")
-        properties_text = weapon.get("properties", "")
-        if not properties_text:
-            properties_text = "—"
-        props_td.textContent = properties_text
-        tr.appendChild(props_td)
-        
-        weapons_grid.appendChild(tr)
     # Update equipped items display
     render_equipped_attack_grid()
 
@@ -2107,20 +2052,8 @@ ARMOR_TYPES = {
 }
 
 # D&D 5e standard armor AC values (from PHB)
-ARMOR_AC_VALUES = {
-    "leather": 11,
-    "studded leather": 12,
-    "studded": 12,
-    "hide": 12,
-    "chain shirt": 13,
-    "scale mail": 14,
-    "breastplate": 14,
-    "half plate": 15,
-    "plate": 18,
-    "chain mail": 16,
-    "splint": 17,
-    "splint armor": 17,
-}
+# ARMOR_AC_VALUES moved to equipment.json - use equipment_data.find_armor() instead
+ARMOR_AC_VALUES = {}  # Deprecated - kept for backwards compatibility
 
 
 def get_armor_type(armor_name: str) -> str:
@@ -2134,11 +2067,15 @@ def get_armor_type(armor_name: str) -> str:
 
 
 def get_armor_ac(armor_name: str) -> int:
-    """Get standard D&D 5e AC value for armor by name. Returns None if not standard armor."""
-    name_lower = armor_name.lower()
-    for armor_pattern, ac_value in ARMOR_AC_VALUES.items():
-        if armor_pattern in name_lower:
-            return ac_value
+    """Get standard D&D 5e AC value for armor by name from equipment database."""
+    try:
+        from assets.py.equipment_data import find_armor
+        armor = find_armor(armor_name)
+        if armor and "ac" in armor:
+            return armor.get('ac')
+    except:
+        pass
+    # Fallback to default for basic armor
     return None
 
 
@@ -2926,6 +2863,144 @@ def collect_character_data() -> dict:
     return character.to_dict()
 
 
+def populate_character_switcher():
+    """Populate the character switcher dropdown with available characters from exports."""
+    try:
+        switcher = get_element("character-switcher")
+        if switcher is None:
+            return
+        
+        # Clear options
+        switcher.innerHTML = ""
+        
+        # Add placeholder
+        placeholder = document.createElement("option")
+        placeholder.value = ""
+        placeholder.textContent = "Select a character..."
+        placeholder.disabled = True
+        placeholder.selected = True
+        switcher.appendChild(placeholder)
+        
+        # Get current character info
+        current_name = get_text_value("name", "")
+        current_class = get_text_value("class", "")
+        current_label = f"{current_name} - {current_class}" if current_name and current_class else "Current Character"
+        
+        # Fetch available exports from API
+        import asyncio
+        
+        async def fetch_and_populate():
+            try:
+                # Fetch the list of exports
+                response = await js.fetch("/api/exports")
+                if not response.ok:
+                    console.warn(f"Failed to fetch exports: {response.status}")
+                    return
+                
+                data = await response.json()
+                exports = data.get("exports", [])
+                console.log(f"DEBUG: Fetched {len(exports)} export files")
+                
+                # Parse filenames and add options
+                seen_characters = set()
+                for export_info in exports:
+                    filename = export_info.get("filename", "")
+                    # Parse filename format: CharacterName_Class_lvlN_timestamp.json
+                    # e.g., Enwer_Cleric_lvl9_20260102_2327.json
+                    parts = filename.replace(".json", "").split("_")
+                    if len(parts) >= 2:
+                        char_name = parts[0]
+                        char_class = parts[1]
+                        # Get level if available
+                        level = ""
+                        for part in parts:
+                            if part.startswith("lvl"):
+                                level = part
+                                break
+                        
+                        label = f"{char_name} - {char_class}"
+                        if level:
+                            label += f" ({level})"
+                        
+                        # Only add unique character/class combinations
+                        if label not in seen_characters:
+                            seen_characters.add(label)
+                            option = document.createElement("option")
+                            option.value = filename  # Store filename as value for loading
+                            option.textContent = label
+                            
+                            # Mark current character as selected
+                            if char_name == current_name and char_class == current_class:
+                                option.selected = True
+                            
+                            switcher.appendChild(option)
+                
+                console.log(f"DEBUG: Character switcher populated with {len(seen_characters)} unique characters")
+            except Exception as e:
+                console.warn(f"ERROR fetching exports: {e}")
+        
+        # Schedule the async operation
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            console.warn("DEBUG: No running event loop for character switcher")
+        else:
+            loop.create_task(fetch_and_populate())
+        
+    except Exception as e:
+        console.warn(f"ERROR in populate_character_switcher: {e}")
+
+
+def handle_character_switcher_change(event):
+    """Handle character selection from the switcher dropdown."""
+    try:
+        selected_filename = event.target.value
+        if not selected_filename:
+            return
+        
+        console.log(f"DEBUG: Character switcher changed to {selected_filename}")
+        
+        # Load the selected character from the export file
+        import asyncio
+        
+        async def load_selected_character():
+            try:
+                # Fetch the export file
+                response = await js.fetch(f"/exports/{selected_filename}")
+                if not response.ok:
+                    console.error(f"Failed to load character: {response.status}")
+                    return
+                
+                char_data = await response.json()
+                console.log(f"DEBUG: Loaded character from {selected_filename}")
+                
+                # Populate the form with the loaded character data
+                populate_form(char_data)
+                
+            except Exception as e:
+                console.error(f"ERROR loading character: {e}")
+        
+        # Schedule the async operation
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            console.warn("DEBUG: No running event loop for character loading")
+        else:
+            loop.create_task(load_selected_character())
+        
+    except Exception as e:
+        console.warn(f"ERROR in handle_character_switcher_change: {e}")
+
+
+# Setup character switcher
+try:
+    switcher = get_element("character-switcher")
+    if switcher:
+        switcher.addEventListener("change", create_proxy(handle_character_switcher_change))
+except Exception as e:
+    console.warn(f"DEBUG: Could not setup character switcher: {e}")
+
+
 def populate_form(data: dict):
     # Suppress auto-exports during bulk form updates to avoid performance issues
     # Access the flag from the export_management module
@@ -3037,6 +3112,9 @@ def populate_form(data: dict):
         # render_equipment_table(items)
         # update_equipment_totals()
         console.log("[POPULATE] populate_form() COMPLETED SUCCESSFULLY")
+        
+        # Update character switcher to show current character
+        populate_character_switcher()
     except Exception as e:
         console.error(f"[POPULATE] ERROR in populate_form: {e}")
         import traceback
@@ -4244,15 +4322,31 @@ def calculate_weapon_tohit(item: dict) -> int:
     level = get_numeric_value("level", 1)
     proficiency = compute_proficiency(level)
     
-    # Determine relevant ability (STR for melee, DEX for ranged typically)
-    # For simplicity, use STR unless it's explicitly a ranged weapon
+    # Determine relevant ability (STR for melee, DEX for ranged, DEX for finesse if higher)
     item_type = (item.get("type") or "").lower()
     item_name = (item.get("name") or "").lower()
     
     ranged_keywords = ["bow", "crossbow", "ranged"]
     is_ranged = any(kw in item_name or kw in item_type for kw in ranged_keywords)
     
-    ability_key = "dex" if is_ranged else "str"
+    # Check weapon properties for finesse
+    has_finesse = False
+    properties = item.get("properties", [])
+    if isinstance(properties, list):
+        has_finesse = any("finesse" in str(p).lower() for p in properties)
+    elif isinstance(properties, str):
+        has_finesse = "finesse" in properties.lower()
+    
+    # Determine ability: ranged always uses DEX, finesse uses DEX if higher, otherwise STR
+    if is_ranged:
+        ability_key = "dex"
+    elif has_finesse:
+        str_score = get_numeric_value("str-score", 10)
+        dex_score = get_numeric_value("dex-score", 10)
+        ability_key = "dex" if dex_score > str_score else "str"
+    else:
+        ability_key = "str"
+    
     ability_score = get_numeric_value(f"{ability_key}-score", 10)
     ability_mod = ability_modifier(ability_score)
     
@@ -4313,6 +4407,8 @@ def _enrich_weapon_item(item: dict) -> dict:
     dmg_type = enriched.get("damage_type", "")
     range_text = enriched.get("range_text", "") or enriched.get("range", "")
     props = enriched.get("weapon_properties", "") or enriched.get("properties", "")
+    
+    console.log(f"[ENRICH WEAPON] Starting enrichment of '{enriched.get('name', 'Unknown')}': initial dmg='{dmg}', range='{range_text}', props='{props}'")
 
     # Try notes JSON
     bonus = enriched.get("bonus", 0) or 0
@@ -4340,6 +4436,30 @@ def _enrich_weapon_item(item: dict) -> dict:
                     bonus = notes_data.get("bonus")
     except Exception:
         pass
+
+    # ALWAYS try builtin equipment first for weapons - it's most reliable for properties/finesse
+    builtin = _find_builtin_equipment_match(enriched.get('name', ''))
+    if builtin:
+        console.log(f"[ENRICH] Builtin returned: name={builtin.get('name')}, keys={list(builtin.keys())}, properties={builtin.get('properties', 'KEY_NOT_FOUND')}")
+        if not dmg:
+            dmg = builtin.get('damage') or builtin.get('damage_dice') or dmg
+        if not dmg_type:
+            dmg_type = builtin.get('damage_type') or dmg_type
+        if not range_text:
+            range_text = builtin.get('range_text') or builtin.get('range') or range_text
+        # ALWAYS extract properties from builtin - don't skip this!
+        p = builtin.get('properties', '')
+        if p and not props:  # Only if builtin has properties AND we don't have them yet
+            if isinstance(p, list):
+                props = ", ".join(str(x) for x in p)
+            else:
+                props = p
+        if not bonus and builtin.get('bonus'):
+            try:
+                bonus = int(builtin.get('bonus'))
+            except Exception:
+                bonus = builtin.get('bonus')
+        console.log(f"[ENRICH] Found builtin match: {builtin.get('name')}, properties={props}")
 
     # If still missing fields, try to look up in equipment library by normalized name
     if (not dmg or not dmg_type or not range_text or not props) and EQUIPMENT_LIBRARY_STATE.get("equipment"):
@@ -4421,32 +4541,6 @@ def _enrich_weapon_item(item: dict) -> dict:
                         # ignore malformed notes
                         pass
 
-                    # If still missing fields, try the builtin equipment list as a final fallback
-                    if (not dmg or not dmg_type or not range_text or not props):
-                        try:
-                            builtin = _find_builtin_equipment_match(enriched.get('name', ''))
-                            if builtin:
-                                if not dmg:
-                                    dmg = builtin.get('damage') or builtin.get('damage_dice') or dmg
-                                if not dmg_type:
-                                    dmg_type = builtin.get('damage_type') or dmg_type
-                                if not range_text:
-                                    range_text = builtin.get('range_text') or builtin.get('range') or range_text
-                                if not props:
-                                    p3 = builtin.get('properties', '')
-                                    if isinstance(p3, list):
-                                        props = ", ".join(str(x) for x in p3)
-                                    else:
-                                        props = p3
-                                # Extract bonus from builtin if provided
-                                if not bonus and builtin.get('bonus'):
-                                    try:
-                                        bonus = int(builtin.get('bonus'))
-                                    except Exception:
-                                        bonus = builtin.get('bonus')
-                        except Exception:
-                            pass
-
                     console.log(f"[ENRICH] Applied damage={dmg}, type={dmg_type}, range={range_text}, props={props}")
                     break
         except Exception as e:
@@ -4460,49 +4554,15 @@ def _enrich_weapon_item(item: dict) -> dict:
         enriched["damage_type"] = dmg_type
     if range_text:
         enriched["range_text"] = range_text
+        enriched["range"] = range_text  # Also set "range" key for compatibility
     if props:
         enriched["weapon_properties"] = props
+        enriched["properties"] = props  # Also set "properties" key for compatibility
     # Ensure bonus from notes, equipment library or builtin fallback is present on enriched dict
     if bonus and bonus != 0:
         enriched["bonus"] = bonus
-
-    # Final fallback: if still missing critical fields, try builtin equipment lookup even if the
-    # global EQUIPMENT_LIBRARY_STATE hasn't been populated. This covers cases where the app
-    # hasn't loaded the cached equipment list yet (avoids showing empty damage for common items).
-    try:
-        if (not dmg or not dmg_type or not range_text or not props):
-            builtin = _find_builtin_equipment_match(enriched.get('name', ''))
-            if builtin:
-                if not dmg:
-                    dmg = builtin.get('damage') or builtin.get('damage_dice') or dmg
-                if not dmg_type:
-                    dmg_type = builtin.get('damage_type') or dmg_type
-                if not range_text:
-                    range_text = builtin.get('range_text') or builtin.get('range') or range_text
-                if not props:
-                    p3 = builtin.get('properties', '')
-                    if isinstance(p3, list):
-                        props = ", ".join(str(x) for x in p3)
-                    else:
-                        props = p3
-                # Propagate back to enriched dict
-                if dmg:
-                    enriched["damage"] = dmg
-                if dmg_type:
-                    enriched["damage_type"] = dmg_type
-                if range_text:
-                    enriched["range_text"] = range_text
-                if props:
-                    enriched["weapon_properties"] = props
-                # In case builtin includes a bonus value
-                if not bonus and builtin.get('bonus'):
-                    try:
-                        enriched['bonus'] = int(builtin.get('bonus'))
-                    except Exception:
-                        enriched['bonus'] = builtin.get('bonus')
-    except Exception:
-        # Be conservative — if anything goes wrong, don't interfere with enrichment
-        pass
+    
+    console.log(f"[ENRICH WEAPON] Final enriched dict for '{enriched.get('name', 'Unknown')}': damage='{enriched.get('damage', '')}', damage_type='{enriched.get('damage_type', '')}', range_text='{enriched.get('range_text', '')}', weapon_properties='{enriched.get('weapon_properties', '')}')")
 
     return enriched
 
@@ -4571,21 +4631,50 @@ def render_equipped_attack_grid():
             level = get_numeric_value("level", 1)
             proficiency = compute_proficiency(level)
             item_name = (item.get("name") or "").lower()
+            
+            # IMPORTANT: Enrich item FIRST so we have all metadata
+            enriched = _enrich_weapon_item(item)
+            
+            # Check weapon properties for finesse (use ENRICHED properties, not original item)
+            has_finesse = False
+            properties = enriched.get("properties", enriched.get("weapon_properties", []))
+            if isinstance(properties, list):
+                has_finesse = any("finesse" in str(p).lower() for p in properties)
+            elif isinstance(properties, str):
+                has_finesse = "finesse" in properties.lower()
+            
+            # Determine ability: ranged always uses DEX, finesse uses DEX if higher, otherwise STR
             ranged_keywords = ["bow", "crossbow", "ranged"]
             is_ranged = any(kw in item_name for kw in ranged_keywords)
-            ability_key = "dex" if is_ranged else "str"
+            
+            if is_ranged:
+                ability_key = "dex"
+            elif has_finesse:
+                str_score = get_numeric_value("str-score", 10)
+                dex_score = get_numeric_value("dex-score", 10)
+                ability_key = "dex" if dex_score > str_score else "str"
+            else:
+                ability_key = "str"
+            
             ability_score = get_numeric_value(f"{ability_key}-score", 10)
             ability_mod = ability_modifier(ability_score)
-            weapon_bonus = 0
-            enriched = _enrich_weapon_item(item)
+            
+            # Get weapon bonus from enriched item
             weapon_bonus = enriched.get("bonus", 0) or 0
             if not weapon_bonus:
                 match = re.search(r'\+(\d+)', item.get("name", ""))
                 if match:
                     weapon_bonus = int(match.group(1))
             
-            # Calculate to-hit value
-            to_hit = calculate_weapon_tohit(item)
+            # Check if character has proficiency with this weapon
+            character_class = get_text_value("class")
+            proficiency_classes = enriched.get("proficiency_classes", [])
+            has_proficiency = character_class in proficiency_classes if proficiency_classes else False
+            actual_proficiency = proficiency if has_proficiency else 0
+            
+            # Calculate to-hit value: ability_mod + proficiency + weapon_bonus
+            to_hit = ability_mod + actual_proficiency + weapon_bonus
+            console.log(f"[RENDER WEAPONS] {item.get('name')}: to_hit={to_hit} (ability_mod={ability_mod} + prof={actual_proficiency} [has_prof={has_proficiency}] + bonus={weapon_bonus})")
             to_hit_bonus_text = format_bonus(to_hit)
             
             # Generate tooltip using WeaponToHitValue entity
@@ -4596,7 +4685,7 @@ def render_equipped_attack_grid():
                         weapon_name=item.get("name", ""),
                         ability=ability_key,
                         ability_mod=ability_mod,
-                        proficiency=proficiency,
+                        proficiency=actual_proficiency,
                         weapon_bonus=weapon_bonus
                     )
                     tooltip_html = w2h.generate_tooltip_html()
@@ -4606,7 +4695,7 @@ def render_equipped_attack_grid():
                 # Fallback text tooltip
                 ability_name = "DEX" if is_ranged else "STR"
                 bonus_text = f" + {weapon_bonus}" if weapon_bonus > 0 else ""
-                tooltip = f"{ability_mod:+d} ({ability_name}) + {proficiency:+d} (Prof){bonus_text}"
+                tooltip = f"{ability_mod:+d} ({ability_name}) + {actual_proficiency:+d} (Prof){bonus_text}"
                 # Create simple tooltip without styling
                 tooltip_html = f'<div class="stat-tooltip"><div class="tooltip-row"><span class="tooltip-label">To Hit</span><span class="tooltip-value">{tooltip}</span></div></div>'
             
@@ -4614,13 +4703,13 @@ def render_equipped_attack_grid():
             to_hit_td.innerHTML = f'<span class="stat-value">{to_hit_bonus_text}{tooltip_html}</span>'
             tr.appendChild(to_hit_td)
             
-            # Column 3: Damage - check notes JSON and equipment library for weapon properties and bonus
+            # Column 3: Damage - use enriched item with all metadata
             dmg_td = document.createElement("td")
-            # Enrich item with any missing weapon metadata from notes/ library
-            enriched_item = _enrich_weapon_item(item)
-            dmg = enriched_item.get("damage", "")
-            dmg_type = enriched_item.get("damage_type", "")
-            dmg_bonus = enriched_item.get("bonus", 0) or item.get("bonus", 0)
+            # enriched is already computed above, reuse it
+            dmg = enriched.get("damage", "")
+            dmg_type = enriched.get("damage_type", "")
+            dmg_bonus = enriched.get("bonus", 0) or item.get("bonus", 0)
+            console.log(f"[RENDER WEAPONS] {item.get('name')}: enriched_item keys={list(enriched.keys())}, dmg='{dmg}', dmg_type='{dmg_type}', dmg_bonus={dmg_bonus}")
             
             # Notes fallback (already handled by _enrich_weapon_item) - keep compatibility
             # if needed, additional parsing could go here
@@ -4641,13 +4730,14 @@ def render_equipped_attack_grid():
             
             # Column 4: Range - prefer enriched value
             range_td = document.createElement("td")
-            range_text = enriched_item.get("range_text", "") or enriched_item.get("range", "")
+            range_text = enriched.get("range_text", "") or enriched.get("range", "")
+            console.log(f"[RENDER WEAPONS] {item.get('name')}: range_text='{range_text}' (from enriched_item)")
             range_td.textContent = range_text if range_text else "—"
             tr.appendChild(range_td)
             
             # Column 5: Properties - prefer enriched weapon_properties
             prop_td = document.createElement("td")
-            props = enriched_item.get("weapon_properties", "") or enriched_item.get("properties", "")
+            props = enriched.get("weapon_properties", "") or enriched.get("properties", "")
             # Convert list to string if needed
             if isinstance(props, list):
                 props = ", ".join(str(p) for p in props)
@@ -5260,140 +5350,87 @@ def fetch_equipment_from_open5e():
 
 
 def _get_builtin_equipment_list():
-    """Return builtin equipment as a list of objects (Weapon/Armor/Equipment/etc)."""
-    return [
-        # Melee Weapons (common PHB weapons)
-        Weapon("Mace", damage="1d6", damage_type="bludgeoning", cost="5 gp", weight="4 lb."),
-        Weapon("Longsword", damage="1d8", damage_type="slashing", cost="15 gp", weight="3 lb."),
-        Weapon("Shortsword", damage="1d6", damage_type="piercing", cost="10 gp", weight="2 lb."),
-        Weapon("Rapier", damage="1d8", damage_type="piercing", cost="25 gp", weight="2 lb.", properties="finesse"),
-        Weapon("Dagger", damage="1d4", damage_type="piercing", cost="2 gp", weight="1 lb.", properties="finesse, light"),
-        Weapon("Greataxe", damage="1d12", damage_type="slashing", cost="30 gp", weight="7 lb."),
-        Weapon("Greatsword", damage="2d6", damage_type="slashing", cost="50 gp", weight="6 lb."),
-        Weapon("Warhammer", damage="1d8", damage_type="bludgeoning", cost="15 gp", weight="2 lb."),
-        Weapon("Morningstar", damage="1d8", damage_type="piercing", cost="15 gp", weight="4 lb."),
-        Weapon("Pike", damage="1d10", damage_type="piercing", cost="5 gp", weight="18 lb."),
-        Weapon("Spear", damage="1d6", damage_type="piercing", cost="1 gp", weight="3 lb.", properties="finesse, versatile"),
-        Weapon("Club", damage="1d4", damage_type="bludgeoning", cost="0.1 gp", weight="2 lb."),
-        Weapon("Quarterstaff", damage="1d6", damage_type="bludgeoning", cost="0.2 gp", weight="4 lb.", properties="versatile"),
-        Weapon("Falchion", damage="1d8", damage_type="slashing", cost="20 gp", weight="4 lb."),
+    """Return builtin equipment from equipment.json as a list of objects."""
+    try:
+        try:
+            from assets.py.equipment_data import load_equipment_db
+        except ImportError:
+            # Fallback for different import contexts (e.g., tests)
+            try:
+                from equipment_data import load_equipment_db
+            except ImportError:
+                # If equipment_data doesn't exist, try loading JSON directly via JS
+                console.log("[EQUIPMENT] equipment_data not available, loading JSON directly")
+                try:
+                    import pyodide.http
+                    import time
+                    # Add timestamp to bust cache and get fresh data
+                    timestamp = int(time.time() * 1000)
+                    resp = pyodide.http.open_url(f"http://localhost:8080/assets/data/equipment.json?t={timestamp}")
+                    db = json.loads(resp.read())
+                except Exception as e:
+                    console.warn(f"[EQUIPMENT] Failed to load via HTTP: {e}, returning empty list")
+                    return []
+                load_equipment_db = None  # Signal that we already have db
         
-        # Ranged Weapons
-        Weapon("Longbow", damage="1d8", damage_type="piercing", range_text="150/600 ft.", cost="50 gp", weight="3 lb.", properties="ammunition, heavy, two-handed"),
-        Weapon("Shortbow", damage="1d6", damage_type="piercing", range_text="80/320 ft.", cost="25 gp", weight="2 lb.", properties="ammunition, two-handed"),
-        Weapon("Crossbow, light", damage="1d8", damage_type="piercing", range_text="80/320 ft.", cost="25 gp", weight="5 lb.", properties="ammunition, loading"),
-        Weapon("Crossbow, heavy", damage="1d10", damage_type="piercing", range_text="100/400 ft.", cost="50 gp", weight="18 lb.", properties="ammunition, heavy, loading, two-handed"),
-        Weapon("Sling", damage="1d4", damage_type="bludgeoning", range_text="30/120 ft.", cost="0.1 gp", weight="0 lb.", properties="ammunition"),
+        if load_equipment_db:
+            db = load_equipment_db()
+        # else: db already loaded above
         
-        # Armor
-        Armor("Leather", armor_class=11, cost="5 gp", weight="10 lb."),
-        Armor("Studded Leather", armor_class=12, cost="45 gp", weight="13 lb."),
-        Armor("Hide", armor_class=12, cost="10 gp", weight="12 lb."),
-        Armor("Chain Shirt", armor_class=13, cost="50 gp", weight="20 lb."),
-        Armor("Scale Mail", armor_class=14, cost="50 gp", weight="45 lb."),
-        Armor("Breastplate", armor_class=14, cost="400 gp", weight="20 lb."),
-        Armor("Half Plate", armor_class=15, cost="750 gp", weight="40 lb."),
-        Armor("Ring Mail", armor_class=14, cost="30 gp", weight="40 lb."),
-        Armor("Chain Mail", armor_class=16, cost="75 gp", weight="55 lb."),
-        Armor("Splint", armor_class=17, cost="200 gp", weight="60 lb."),
-        Armor("Plate", armor_class=18, cost="1500 gp", weight="65 lb."),
+        equipment_list = []
         
-        # Shields
-        Shield("Shield", ac_bonus="+2", cost="10 gp", weight="6 lb."),
+        # Add weapons
+        for weapon_data in db.get("weapons", []):
+            equipment_list.append(Weapon(
+                weapon_data.get("name"),
+                damage=weapon_data.get("damage", "1d4"),
+                damage_type=weapon_data.get("damage_type", ""),
+                range_text=weapon_data.get("range", "Melee"),
+                cost=weapon_data.get("cost", "0 gp"),
+                weight="varies",
+                properties=", ".join(weapon_data.get("properties", []))
+            ))
         
-        # Starter Packs
-        Equipment("Explorer's Pack", cost="10 gp", weight="59 lb."),
-        Equipment("Adventurer's Pack", cost="5 gp", weight="54 lb."),
-        Equipment("Burglar's Pack", cost="16 gp", weight="44 lb."),
-        Equipment("Diplomat's Pack", cost="39 gp", weight="46 lb."),
-        Equipment("Dungeoneer's Pack", cost="12 gp", weight="61 lb."),
-        Equipment("Entertainer's Pack", cost="40 gp", weight="38 lb."),
-        Equipment("Priest's Pack", cost="19 gp", weight="24 lb."),
-        Equipment("Scholar's Pack", cost="40 gp", weight="10 lb."),
+        # Add armor
+        for armor_data in db.get("armor", []):
+            equipment_list.append(Armor(
+                armor_data.get("name"),
+                armor_class=armor_data.get("ac", 10),
+                cost=armor_data.get("cost", "0 gp"),
+                weight="varies"
+            ))
         
-        # Adventuring Gear
-        Equipment("Rope (50 feet)", cost="1 gp", weight="10 lb."),
-        Equipment("Torch", cost="0.01 gp", weight="1 lb."),
-        Equipment("Lantern (Bullseye)", cost="12 gp", weight="2 lb."),
-        Equipment("Lantern (Hooded)", cost="5 gp", weight="2 lb."),
-        Equipment("Backpack", cost="2 gp", weight="5 lb."),
-        Equipment("Bedroll", cost="0.1 gp", weight="10 lb."),
-        Equipment("Tent", cost="2 gp", weight="20 lb."),
-        Equipment("Grappling Hook", cost="2 gp", weight="4 lb."),
-        Equipment("Caltrops (20)", cost="1 gp", weight="2 lb."),
-        Equipment("Chalk (1 piece)", cost="0.01 gp", weight="0.01 lb."),
-        Equipment("Waterskin", cost="0.5 gp", weight="1 lb."),
-        Equipment("Hempen Rope (50 feet)", cost="1 gp", weight="10 lb."),
-        Equipment("Silk Rope (50 feet)", cost="10 gp", weight="5 lb."),
-        Equipment("Crowbar", cost="2 gp", weight="5 lb."),
-        Equipment("Hammer", cost="1 gp", weight="3 lb."),
-        Equipment("Piton", cost="0.05 gp", weight="0.25 lb."),
-        Equipment("Tinderbox", cost="0.5 gp", weight="1 lb."),
-        Equipment("Candle", cost="0.01 gp", weight="0.1 lb."),
-        Equipment("Mess Kit", cost="0.2 gp", weight="1 lb."),
-        Equipment("Component Pouch", cost="25 gp", weight="2 lb."),
-        Equipment("Spellcasting Focus", cost="5-15 gp", weight="varies"),
-        Equipment("Holy Water (Flask)", cost="25 gp", weight="1 lb."),
-        Equipment("Mirror (steel)", cost="5 gp", weight="0.5 lb."),
-        Equipment("Rations (1 day)", cost="0.5 gp", weight="2 lb."),
-        Equipment("Trail Rations (1 day)", cost="0.5 gp", weight="2 lb."),
-        Equipment("Pouch", cost="0.5 gp", weight="1 lb."),
-        Equipment("Money Pouch", cost="5 gp", weight="1 lb."),
-        Equipment("Map or Scroll Case", cost="1 gp", weight="0.5 lb."),
-        Equipment("Magnifying Glass", cost="100 gp", weight="0 lb."),
-        Equipment("Playing Cards", cost="0.5 gp", weight="0 lb."),
-        Equipment("Dice Set", cost="0.1 gp", weight="0 lb."),
-        Equipment("Dominoes", cost="0.5 gp", weight="1 lb."),
-        Equipment("Ink (1 oz bottle)", cost="10 gp", weight="0 lb."),
-        Equipment("Ink Pen", cost="0.02 gp", weight="0 lb."),
-        Equipment("Parchment", cost="0.1 gp", weight="0 lb."),
-        Equipment("Paper", cost="0.2 gp", weight="0 lb."),
-        Equipment("Spyglass", cost="1000 gp", weight="1 lb."),
-        Equipment("Thieves' Tools", cost="25 gp", weight="1 lb."),
-        Equipment("Healer's Kit", cost="5 gp", weight="3 lb."),
-        Equipment("Herbalism Kit", cost="5 gp", weight="3 lb."),
-        Equipment("Disguise Kit", cost="25 gp", weight="3 lb."),
-        Equipment("Forgery Kit", cost="15 gp", weight="5 lb."),
-        Equipment("Climber's Kit", cost="25 gp", weight="12 lb."),
-        Equipment("Artisan's Tools", cost="5 gp", weight="5 lb."),
-        Equipment("Instrument (String)", cost="25 gp", weight="1 lb."),
-        Equipment("Lute", cost="35 gp", weight="2 lb."),
-        Equipment("Flute", cost="2 gp", weight="1 lb."),
-        Equipment("Drum", cost="6 gp", weight="3 lb."),
-        Equipment("Tambourine", cost="2 gp", weight="1 lb."),
-        Equipment("Pan Pipes", cost="12 gp", weight="2 lb."),
-        Equipment("Vial", cost="1 gp", weight="0 lb."),
-        Equipment("Potion of Healing", cost="50 gp", weight="0.5 lb."),
-        Equipment("Potion of Greater Healing", cost="100 gp", weight="0.5 lb."),
-        Equipment("Everburning Lantern", cost="varies", weight="2 lb."),
-        Equipment("Antitoxin (vial)", cost="50 gp", weight="0 lb."),
-        Equipment("Oil (1-pint bottle)", cost="0.1 gp", weight="1 lb."),
-        Equipment("Perfume (vial)", cost="5 gp", weight="0 lb."),
-        Equipment("Soap", cost="0.02 gp", weight="0 lb."),
-        Equipment("Sack", cost="0.01 gp", weight="0.5 lb."),
-        Equipment("Barrel", cost="0.2 gp", weight="70 lb."),
-        Equipment("Basket", cost="0.04 gp", weight="1 lb."),
-        Equipment("Bottle", cost="0.02 gp", weight="1 lb."),
-        Equipment("Box", cost="0.1 gp", weight="2 lb."),
-        Equipment("Carpet (6 sq ft)", cost="2 gp", weight="100 lb."),
-        Equipment("Chest", cost="5 gp", weight="25 lb."),
-        Equipment("Clothes, Common", cost="0.5 gp", weight="3 lb."),
-        Equipment("Clothes, Costume", cost="5 gp", weight="4 lb."),
-        Equipment("Clothes, Fine", cost="15 gp", weight="6 lb."),
-        Equipment("Clothes, Traveler's", cost="2 gp", weight="4 lb."),
-        Equipment("Dragonchess Set", cost="1 gp", weight="0.5 lb."),
-        Equipment("Lock", cost="10 gp", weight="1 lb."),
-        Equipment("Manacles", cost="2 gp", weight="6 lb."),
-        Equipment("Mirror, Pocket", cost="5 gp", weight="0.5 lb."),
+        # Add shields
+        for shield_data in db.get("shields", []):
+            equipment_list.append(Shield(
+                shield_data.get("name"),
+                ac_bonus=f"+{shield_data.get('ac_bonus', 2)}",
+                cost=shield_data.get("cost", "0 gp"),
+                weight="6 lb."
+            ))
         
-        # Magical Items (common)
-        Equipment("Ring of Protection +1", cost="varies", weight="0 lb."),
-        Equipment("Amulet of Health", cost="varies", weight="0 lb."),
-        Equipment("Cloak of Protection", cost="varies", weight="1 lb."),
-        Equipment("Wand of Magic Missiles", cost="varies", weight="1 lb."),
-        Equipment("Staff of Fire", cost="varies", weight="4 lb."),
-        Equipment("Magic Item", cost="varies", weight="0 lb."),
-    ]
+        # Add adventuring gear
+        for gear_data in db.get("adventuring_gear", []):
+            equipment_list.append(Equipment(
+                gear_data.get("name"),
+                cost=gear_data.get("cost", "0 gp"),
+                weight=f"{gear_data.get('weight', 0)} lb."
+            ))
+        
+        # Add magic items
+        for item_data in db.get("magic_items", []):
+            equipment_list.append(Equipment(
+                item_data.get("name"),
+                cost=item_data.get("cost", "varies"),
+                weight="varies"
+            ))
+        
+        console.log(f"[EQUIPMENT] Loaded {len(equipment_list)} builtin items")
+        return equipment_list
+    except Exception as e:
+        console.warn(f"[EQUIPMENT] Error loading builtin equipment: {e}")
+        # Return empty list - database will be used for search fallback
+        return []
 
 
 def _find_builtin_equipment_match(name: str):
@@ -5402,7 +5439,9 @@ def _find_builtin_equipment_match(name: str):
         import re
         name_norm = (name or "").lower().replace(',', '').strip()
         name_tokens = set(re.findall(r"\w+", name_norm))
-        for itm in _get_builtin_equipment_list():
+        builtin_list = _get_builtin_equipment_list()
+        console.log(f"[BUILTIN MATCH] Looking for '{name}' in {len(builtin_list)} builtin items")
+        for itm in builtin_list:
             itm_dict = itm.to_dict() if hasattr(itm, 'to_dict') else itm
             eq_name_raw = itm_dict.get('name', '')
             eq_name = eq_name_raw.lower().replace(',', '').strip()
@@ -5415,8 +5454,11 @@ def _find_builtin_equipment_match(name: str):
                 if name_norm in eq_name or eq_name in name_norm:
                     match = True
             if match:
+                console.log(f"[BUILTIN MATCH] FOUND: {eq_name_raw}, keys={list(itm_dict.keys())}")
                 return itm_dict
-    except Exception:
+        console.log(f"[BUILTIN MATCH] No match found for '{name}'")
+    except Exception as e:
+        console.log(f"[BUILTIN MATCH] Exception: {e}")
         pass
     return None
 
@@ -5844,6 +5886,11 @@ def submit_custom_item(_event=None):
         # Render inventory
         INVENTORY_MANAGER.render_inventory()
         console.log("PySheet: Inventory rendered")
+        
+        # If this is a weapon, re-render the attack grid to apply enrichment
+        if category.lower() == "weapons":
+            render_equipped_attack_grid()
+            console.log("PySheet: Attack grid re-rendered for new weapon")
     
     # Close modal
     modal = get_element("custom-item-modal")
@@ -5885,13 +5932,84 @@ def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str 
     # Store properties as JSON in notes field
     notes = json.dumps(extra_props) if extra_props else ""
     
-    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category="", notes=notes, source="open5e")
+    # Determine category based on item type
+    if damage or damage_type or "damage" in properties.lower():
+        category = "Weapons"
+    elif armor_class or ac_string or "armor" in properties.lower() or "ac" in properties.lower():
+        category = "Armor"
+    else:
+        category = "Adventuring Gear"
+    
+    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category=category, notes=notes, source="open5e")
     INVENTORY_MANAGER.render_inventory()
     console.log("DEBUG: submit_open5e_item calling schedule_auto_export()")
     console.log("DEBUG: submit_open5e_item completed schedule_auto_export()")
+    
+    # If this is a weapon, re-render the attack grid to apply enrichment
+    if category == "Weapons":
+        render_equipped_attack_grid()
+        console.log("DEBUG: Attack grid re-rendered for new weapon from Open5e")
+    
+    # Auto-save this item to equipment.json for future use
+    _save_item_to_equipment_db(name, damage, damage_type, range_text, properties, ac_string, armor_class, cost, weight)
 
 
-# Class Features & Feats functions
+def _save_item_to_equipment_db(name: str, damage: str = "", damage_type: str = "", range_text: str = "", 
+                               properties: str = "", ac_string: str = "", armor_class: str = "", 
+                               cost: str = "", weight: str = ""):
+    """Save an item from external source to equipment.json database"""
+    try:
+        from assets.py.equipment_data import add_weapon_to_db, add_armor_to_db, add_magic_item_to_db
+        
+        # Determine item type and save accordingly
+        if damage or damage_type or "damage" in properties.lower():
+            # It's a weapon
+            weapon = {
+                "name": name,
+                "damage": damage,
+                "damage_type": damage_type,
+                "range": range_text or "Melee",
+                "properties": [p.strip() for p in properties.split(",")] if properties else [],
+                "cost": cost,
+                "rarity": "common",
+                "source": "User Import"
+            }
+            if add_weapon_to_db(weapon):
+                console.log(f"✓ Saved {name} to equipment database")
+        
+        elif ac_string or armor_class or "armor" in name.lower():
+            # It's armor
+            try:
+                ac_value = int(armor_class) if armor_class else 10
+            except:
+                ac_value = 10
+            
+            armor = {
+                "name": name,
+                "ac": ac_value,
+                "type": "light",
+                "cost": cost,
+                "rarity": "common",
+                "source": "User Import"
+            }
+            if add_armor_to_db(armor):
+                console.log(f"✓ Saved {name} to equipment database")
+        
+        else:
+            # It's a magic item or other gear
+            item = {
+                "name": name,
+                "type": "wondrous_item",
+                "cost": cost,
+                "weight": weight,
+                "rarity": "uncommon",
+                "source": "User Import"
+            }
+            if add_magic_item_to_db(item):
+                console.log(f"✓ Saved {name} to equipment database")
+    
+    except Exception as e:
+        console.warn(f"Could not save {name} to equipment database: {e}")
 
 CLASS_FEATURES_DATABASE = {
     "cleric": {
@@ -6729,3 +6847,4 @@ if document is not None:
             loop.create_task(_auto_load_weapons())
     except Exception as e:
         console.warn(f"DEBUG: Could not schedule _auto_load_weapons: {e}")
+

@@ -1,0 +1,487 @@
+{
+  "weapons": [
+    {
+      "name": "Dagger",
+      "damage": "1d4",
+      "damage_type": "piercing",
+      "properties": ["finesse", "light", "thrown"],
+      "range": "Melee (20/60)",
+      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Ranger", "Rogue", "Warlock"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "2 gp"
+    },
+    {
+      "name": "Greataxe",
+      "damage": "1d12",
+      "damage_type": "slashing",
+      "properties": ["heavy", "two-handed"],
+      "range": "Melee",
+      "proficiency_classes": ["Barbarian", "Fighter"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "30 gp"
+    },
+    {
+      "name": "Longsword",
+      "damage": "1d8",
+      "damage_type": "slashing",
+      "properties": ["versatile"],
+      "range": "Melee",
+      "versatile_damage": "1d10",
+      "proficiency_classes": ["Fighter", "Paladin", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "15 gp"
+    },
+    {
+      "name": "Rapier",
+      "damage": "1d8",
+      "damage_type": "piercing",
+      "properties": ["finesse", "light"],
+      "range": "Melee",
+      "proficiency_classes": ["Bard", "Fighter", "Rogue"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "25 gp"
+    },
+    {
+      "name": "Shortsword",
+      "damage": "1d6",
+      "damage_type": "piercing",
+      "properties": ["finesse", "light"],
+      "range": "Melee",
+      "proficiency_classes": ["Bard", "Fighter", "Rogue"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "10 gp"
+    },
+    {
+      "name": "Greatclub",
+      "damage": "1d8",
+      "damage_type": "bludgeoning",
+      "properties": ["two-handed"],
+      "range": "Melee",
+      "proficiency_classes": ["Barbarian"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "2 sp"
+    },
+    {
+      "name": "Mace",
+      "damage": "1d6",
+      "damage_type": "bludgeoning",
+      "properties": [],
+      "range": "Melee",
+      "proficiency_classes": ["Cleric", "Fighter", "Paladin", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "5 gp"
+    },
+    {
+      "name": "Quarterstaff",
+      "damage": "1d6",
+      "damage_type": "bludgeoning",
+      "properties": ["versatile"],
+      "range": "Melee",
+      "versatile_damage": "1d8",
+      "proficiency_classes": ["Bard", "Cleric", "Druid", "Fighter", "Monk", "Ranger", "Rogue"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "2 sp"
+    },
+    {
+      "name": "Scimitar",
+      "damage": "1d6",
+      "damage_type": "slashing",
+      "properties": ["finesse", "light"],
+      "range": "Melee",
+      "proficiency_classes": ["Bard", "Fighter", "Ranger", "Rogue"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "25 gp"
+    },
+    {
+      "name": "Spear",
+      "damage": "1d6",
+      "damage_type": "piercing",
+      "properties": ["thrown", "versatile"],
+      "range": "Melee (20/60)",
+      "versatile_damage": "1d8",
+      "proficiency_classes": ["Barbarian", "Bard", "Cleric", "Fighter", "Monk", "Paladin", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "1 gp"
+    },
+    {
+      "name": "Handaxe",
+      "damage": "1d6",
+      "damage_type": "slashing",
+      "properties": ["light", "thrown"],
+      "range": "Melee (20/60)",
+      "proficiency_classes": ["Barbarian", "Bard", "Fighter", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "5 gp"
+    },
+    {
+      "name": "Light Crossbow",
+      "damage": "1d8",
+      "damage_type": "piercing",
+      "properties": ["ammunition", "loading", "two-handed"],
+      "range": "ranged (80/320)",
+      "proficiency_classes": ["Bard", "Fighter", "Ranger", "Rogue"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "25 gp"
+    },
+    {
+      "name": "Shortbow",
+      "damage": "1d6",
+      "damage_type": "piercing",
+      "properties": ["ammunition", "two-handed"],
+      "range": "ranged (80/320)",
+      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Ranger", "Rogue"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "25 gp"
+    },
+    {
+      "name": "Longbow",
+      "damage": "1d8",
+      "damage_type": "piercing",
+      "properties": ["ammunition", "heavy", "two-handed"],
+      "range": "ranged (150/600)",
+      "proficiency_classes": ["Bard", "Fighter", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "50 gp"
+    },
+    {
+      "name": "Flail",
+      "damage": "1d8",
+      "damage_type": "bludgeoning",
+      "properties": [],
+      "range": "Melee",
+      "proficiency_classes": ["Fighter"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "10 gp"
+    },
+    {
+      "name": "Hand Crossbow",
+      "damage": "1d6",
+      "damage_type": "piercing",
+      "properties": ["ammunition", "light", "loading"],
+      "range": "ranged (30/120)",
+      "proficiency_classes": ["Bard", "Fighter", "Ranger", "Rogue", "Warlock"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "75 gp"
+    },
+    {
+      "name": "Halberd",
+      "damage": "1d10",
+      "damage_type": "slashing",
+      "properties": ["heavy", "reach", "two-handed"],
+      "range": "Melee (10 ft reach)",
+      "proficiency_classes": ["Fighter"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "20 gp"
+    },
+    {
+      "name": "Javelin",
+      "damage": "1d6",
+      "damage_type": "piercing",
+      "properties": ["melee", "thrown"],
+      "range": "Melee (30/120)",
+      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "5 sp"
+    }
+  ],
+  "armor": [
+    {
+      "name": "Leather",
+      "ac": 11,
+      "type": "light",
+      "dex_bonus": true,
+      "proficiency_classes": ["Bard", "Cleric", "Druid", "Fighter", "Monk", "Ranger", "Rogue", "Warlock"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "5 gp"
+    },
+    {
+      "name": "Studded Leather",
+      "ac": 12,
+      "type": "light",
+      "dex_bonus": true,
+      "proficiency_classes": ["Bard", "Cleric", "Druid", "Fighter", "Monk", "Ranger", "Rogue", "Warlock"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "45 gp"
+    },
+    {
+      "name": "Hide",
+      "ac": 12,
+      "type": "medium",
+      "dex_bonus": true,
+      "max_dex_bonus": 2,
+      "proficiency_classes": ["Barbarian", "Cleric", "Druid", "Fighter", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "10 gp"
+    },
+    {
+      "name": "Chain Shirt",
+      "ac": 13,
+      "type": "medium",
+      "dex_bonus": true,
+      "max_dex_bonus": 2,
+      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Paladin", "Ranger", "Rogue"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "50 gp"
+    },
+    {
+      "name": "Scale Mail",
+      "ac": 14,
+      "type": "medium",
+      "dex_bonus": true,
+      "max_dex_bonus": 2,
+      "stealth_disadvantage": true,
+      "proficiency_classes": ["Cleric", "Fighter", "Paladin", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "50 gp"
+    },
+    {
+      "name": "Breastplate",
+      "ac": 14,
+      "type": "medium",
+      "dex_bonus": true,
+      "max_dex_bonus": 2,
+      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Paladin", "Ranger", "Rogue"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "400 gp"
+    },
+    {
+      "name": "Half Plate",
+      "ac": 15,
+      "type": "medium",
+      "dex_bonus": true,
+      "max_dex_bonus": 2,
+      "stealth_disadvantage": true,
+      "proficiency_classes": ["Cleric", "Fighter", "Paladin", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "750 gp"
+    },
+    {
+      "name": "Plate",
+      "ac": 18,
+      "type": "heavy",
+      "dex_bonus": false,
+      "min_strength": 15,
+      "stealth_disadvantage": true,
+      "proficiency_classes": ["Cleric", "Fighter", "Paladin"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "1500 gp"
+    },
+    {
+      "name": "Chain Mail",
+      "ac": 16,
+      "type": "heavy",
+      "dex_bonus": false,
+      "min_strength": 13,
+      "stealth_disadvantage": true,
+      "proficiency_classes": ["Cleric", "Fighter", "Paladin"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "75 gp"
+    },
+    {
+      "name": "Splint",
+      "ac": 17,
+      "type": "heavy",
+      "dex_bonus": false,
+      "min_strength": 15,
+      "stealth_disadvantage": true,
+      "proficiency_classes": ["Cleric", "Fighter", "Paladin"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "200 gp"
+    }
+  ],
+  "shields": [
+    {
+      "name": "Shield",
+      "ac_bonus": 2,
+      "type": "shield",
+      "proficiency_classes": ["Barbarian", "Bard", "Cleric", "Fighter", "Paladin", "Ranger"],
+      "rarity": "common",
+      "source": "PHB",
+      "cost": "10 gp"
+    }
+  ],
+  "magic_items": [
+    {
+      "name": "Rapier +1",
+      "base_weapon": "Rapier",
+      "bonus": 1,
+      "rarity": "uncommon",
+      "source": "DMG"
+    },
+    {
+      "name": "Rapier +2",
+      "base_weapon": "Rapier",
+      "bonus": 2,
+      "rarity": "rare",
+      "source": "DMG"
+    },
+    {
+      "name": "Rapier +3",
+      "base_weapon": "Rapier",
+      "bonus": 3,
+      "rarity": "very rare",
+      "source": "DMG"
+    },
+    {
+      "name": "Longsword +1",
+      "base_weapon": "Longsword",
+      "bonus": 1,
+      "rarity": "uncommon",
+      "source": "DMG"
+    },
+    {
+      "name": "Longsword +2",
+      "base_weapon": "Longsword",
+      "bonus": 2,
+      "rarity": "rare",
+      "source": "DMG"
+    },
+    {
+      "name": "Longsword +3",
+      "base_weapon": "Longsword",
+      "bonus": 3,
+      "rarity": "very rare",
+      "source": "DMG"
+    },
+    {
+      "name": "Dagger +1",
+      "base_weapon": "Dagger",
+      "bonus": 1,
+      "rarity": "uncommon",
+      "source": "DMG"
+    },
+    {
+      "name": "Shortbow +1",
+      "base_weapon": "Shortbow",
+      "bonus": 1,
+      "rarity": "uncommon",
+      "source": "DMG"
+    },
+    {
+      "name": "Everburning Lantern",
+      "type": "wondrous_item",
+      "rarity": "uncommon",
+      "description": "A hooded lantern that sheds bright light in a 30-foot radius and dim light for an additional 30 feet. It burns without any fuel.",
+      "source": "DMG"
+    },
+    {
+      "name": "Boots of Speed",
+      "type": "wondrous_item",
+      "rarity": "uncommon",
+      "description": "While you wear these boots, your walking speed is doubled, and you gain a +2 bonus to AC when you use your action to dash.",
+      "source": "DMG"
+    },
+    {
+      "name": "Cloak of Invisibility",
+      "type": "wondrous_item",
+      "rarity": "legendary",
+      "description": "While wearing this cloak, you can pull its hood over your head to cause yourself and anything you are wearing or carrying to become invisible.",
+      "source": "DMG"
+    },
+    {
+      "name": "Ring of Protection",
+      "type": "ring",
+      "ac_bonus": 1,
+      "rarity": "uncommon",
+      "description": "You gain a +1 bonus to AC and saving throws while wearing this ring.",
+      "source": "DMG"
+    },
+    {
+      "name": "Ring of Spell Storing",
+      "type": "ring",
+      "rarity": "rare",
+      "description": "This ring stores spells cast into it, up to 5 levels worth of spells.",
+      "source": "DMG"
+    }
+  ],
+  "adventuring_gear": [
+    {
+      "name": "Backpack",
+      "type": "gear",
+      "weight": 5,
+      "cost": "2 gp"
+    },
+    {
+      "name": "Bedroll",
+      "type": "gear",
+      "weight": 7,
+      "cost": "1 gp"
+    },
+    {
+      "name": "Rope (50 feet)",
+      "type": "gear",
+      "weight": 10,
+      "cost": "1 gp"
+    },
+    {
+      "name": "Torch",
+      "type": "gear",
+      "weight": 1,
+      "cost": "1 cp"
+    },
+    {
+      "name": "Lantern (Hooded)",
+      "type": "gear",
+      "weight": 2,
+      "cost": "5 gp"
+    },
+    {
+      "name": "Waterskin",
+      "type": "gear",
+      "weight": 5,
+      "cost": "5 sp"
+    },
+    {
+      "name": "Rations (10 days)",
+      "type": "gear",
+      "weight": 10,
+      "cost": "5 gp"
+    },
+    {
+      "name": "Thieves' Tools",
+      "type": "tools",
+      "weight": 1,
+      "cost": "25 gp"
+    },
+    {
+      "name": "Healer's Kit",
+      "type": "gear",
+      "weight": 3,
+      "cost": "5 gp"
+    },
+    {
+      "name": "Musical Instrument (Lute)",
+      "type": "instrument",
+      "weight": 1,
+      "cost": "35 gp"
+    }
+  ]
+}
