@@ -1,14 +1,5 @@
 """Test that domain bonus spells are added correctly when domain is selected."""
 
-import sys
-from pathlib import Path
-
-# Add assets/py to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
-
-import pytest
-
-
 # Extract domain bonus spells data
 DOMAIN_BONUS_SPELLS = {
     "life": {

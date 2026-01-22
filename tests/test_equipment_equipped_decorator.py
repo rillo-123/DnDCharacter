@@ -6,11 +6,6 @@ Tests that the star decorator appears on the correct item when equipped/unequipp
 import unittest
 import json
 from unittest.mock import MagicMock, patch
-import sys
-from pathlib import Path
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
 from equipment_management import InventoryManager
 

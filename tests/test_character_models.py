@@ -1,11 +1,6 @@
 """Unit tests for D&D character models."""
 
 import pytest
-import sys
-from pathlib import Path
-
-# Add assets/py to path so we can import character_models
-sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
 from character_models import (
     Character,

@@ -4,13 +4,6 @@ These tests cover the SpellcastingManager, spell filtering, domain bonuses,
 and other spell-related GUI operations without requiring PyScript/DOM.
 """
 
-import pytest
-import sys
-from pathlib import Path
-
-# Add assets/py to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
-
 from character_models import (
     Character,
     Cleric,

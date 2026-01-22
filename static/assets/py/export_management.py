@@ -104,7 +104,7 @@ except (ImportError, AttributeError):
 
 AUTO_EXPORT_DELAY_MS = 2000
 AUTO_EXPORT_MAX_EVENTS = 15
-MAX_EXPORTS_PER_CHARACTER = 20
+MAX_EXPORTS_PER_CHARACTER = 100  # Increased to preserve more character history
 EXPORT_PRUNE_DAYS = 30
 
 # Note: LOCAL_STORAGE_KEY is defined in character.py (keep in sync)
@@ -300,6 +300,13 @@ def prune_old_exports(directory_handle, max_keep: int = MAX_EXPORTS_PER_CHARACTE
 
 
 async def _prune_old_exports_from_directory(directory_handle):
+    """DISABLED: Do not delete any export files.
+    
+    This function is intentionally disabled to preserve all character exports.
+    Pruning has caused unexpected data loss in the past.
+    """
+    # Intentionally disabled - preserve all exports
+    return
     """Prune exports older than EXPORT_PRUNE_DAYS from the directory.
     
     Rules:
@@ -1054,8 +1061,44 @@ async def export_character(_event=None, *, auto: bool = False):
         console.error(f"PySheet: export failed - {exc}")
         import traceback
         console.error(f"[DEBUG] Traceback: {traceback.format_exc()}")
+        # Fallback: download to browser
+        try:
+            _trigger_browser_download(payload, proposed_filename)
+        except Exception as download_exc:
+            console.error(f"PySheet: browser download also failed - {download_exc}")
     
     fade_indicator()
+
+
+def _trigger_browser_download(payload: str, filename: str):
+    """Trigger browser download of JSON file as fallback when backend is unavailable."""
+    try:
+        if window is None or document is None:
+            return
+        
+        # Create blob from JSON string
+        from js import Blob, URL as JSURL  # type: ignore
+        
+        blob = Blob.new([payload], {"type": "application/json"})
+        url = JSURL.createObjectURL(blob)
+        
+        # Create temporary download link
+        link = document.createElement("a")
+        link.href = url
+        link.download = filename
+        link.style.display = "none"
+        
+        document.body.appendChild(link)
+        link.click()
+        
+        # Clean up
+        document.body.removeChild(link)
+        JSURL.revokeObjectURL(url)
+        
+        console.log(f"PySheet: exported character JSON to browser download ({filename})")
+    except Exception as exc:
+        console.error(f"PySheet: browser download failed - {exc}")
+        raise
 
 
 def reset_character(_event=None):

@@ -5,7 +5,7 @@ Contains inventory management, equipment rendering, and class features/domains d
 
 import json
 import re
-from typing import Union, Optional
+from typing import Optional
 from html import escape
 
 # Import Entity from same package
@@ -108,6 +108,94 @@ def get_armor_ac(armor_name: str) -> int:
         if armor_pattern in name_lower:
             return ac_value
     return None
+
+# =============================================================================
+# Equipment Database Loading
+# =============================================================================
+
+# Cache for loaded equipment data
+_EQUIPMENT_DATABASE = None
+
+def get_equipment_database():
+    """Load equipment data from equipment.json."""
+    global _EQUIPMENT_DATABASE
+    if _EQUIPMENT_DATABASE is not None:
+        console.log(f"[EQUIPMENT] Using cached database")
+        return _EQUIPMENT_DATABASE
+    
+    console.log("[EQUIPMENT] Loading equipment.json...")
+    
+    try:
+        import json
+        from pyodide.http import open_url
+        
+        # Try to load equipment.json from the static assets path
+        try:
+            console.log("[EQUIPMENT] Attempting load with open_url...")
+            content = open_url("assets/data/equipment.json").read()
+            _EQUIPMENT_DATABASE = json.loads(content)
+            console.log(f"[EQUIPMENT] ✓ Loaded database: {len(_EQUIPMENT_DATABASE.get('weapons', []))} weapons, {len(_EQUIPMENT_DATABASE.get('armor', []))} armor")
+            return _EQUIPMENT_DATABASE
+        except Exception as e:
+            console.error(f"[EQUIPMENT] open_url failed: {e}")
+            raise
+    except ImportError:
+        console.warn("[EQUIPMENT] pyodide.http not available, trying XMLHttpRequest")
+        try:
+            import json
+            from js import XMLHttpRequest
+            
+            console.log("[EQUIPMENT] Attempting load with XMLHttpRequest...")
+            xhr = XMLHttpRequest.new()
+            xhr.open("GET", "/assets/data/equipment.json", False)
+            xhr.send(None)
+            
+            if xhr.status == 200:
+                _EQUIPMENT_DATABASE = json.loads(xhr.responseText)
+                console.log(f"[EQUIPMENT] ✓ Loaded via XHR: {len(_EQUIPMENT_DATABASE.get('weapons', []))} weapons")
+                return _EQUIPMENT_DATABASE
+            else:
+                console.error(f"[EQUIPMENT] XHR failed with status {xhr.status}")
+        except Exception as e:
+            console.error(f"[EQUIPMENT] XMLHttpRequest failed: {e}")
+    except Exception as e:
+        console.error(f"[EQUIPMENT] Unexpected error: {e}")
+    
+    # Fallback to empty database
+    console.warn("[EQUIPMENT] Falling back to empty database")
+    _EQUIPMENT_DATABASE = {"weapons": [], "armor": [], "shields": [], "magic_items": []}
+    return _EQUIPMENT_DATABASE
+
+
+def get_weapon_data_from_database(weapon_name: str) -> dict:
+    """Look up weapon data from equipment.json by name."""
+    db = get_equipment_database()
+    
+    console.log(f"[EQUIPMENT] get_weapon_data_from_database('{weapon_name}')")
+    console.log(f"[EQUIPMENT] Database loaded: weapons={len(db.get('weapons', []))}, armor={len(db.get('armor', []))}")
+    
+    if not db or "weapons" not in db or len(db["weapons"]) == 0:
+        console.warn(f"[EQUIPMENT] Empty database, cannot find '{weapon_name}'")
+        return {}
+    
+    # Exact match (case-insensitive)
+    for weapon in db["weapons"]:
+        if weapon.get("name", "").lower() == weapon_name.lower():
+            console.log(f"[EQUIPMENT] ✓ Found exact match for '{weapon_name}': damage={weapon.get('damage')}")
+            return weapon
+    
+    # Partial match (all words from search must appear in weapon name)
+    name_lower = weapon_name.lower()
+    for weapon in db["weapons"]:
+        weapon_name_lower = weapon.get("name", "").lower()
+        if all(word in weapon_name_lower for word in name_lower.split()) or \
+           all(word in name_lower for word in weapon_name_lower.split()):
+            console.log(f"[EQUIPMENT] ✓ Found partial match: '{weapon_name}' -> '{weapon.get('name')}': damage={weapon.get('damage')}")
+            return weapon
+    
+    console.log(f"[EQUIPMENT] ✗ No match found for '{weapon_name}'")
+    return {}
+
 
 # =============================================================================
 # Format Utility Functions
@@ -349,7 +437,7 @@ class InventoryManager:
     
     # Common item categories for auto-detection
     ARMOR_KEYWORDS = ["armor", "plate", "mail", "leather", "chain", "scale", "shield", "helmet", "breastplate"]
-    WEAPON_KEYWORDS = ["sword", "axe", "spear", "bow", "staff", "mace", "hammer", "dagger", "knife", "blade", "rapier", "wand"]
+    WEAPON_KEYWORDS = ["sword", "axe", "spear", "bow", "crossbow", "staff", "mace", "hammer", "dagger", "knife", "blade", "rapier", "wand"]
     AMMO_KEYWORDS = ["arrow", "bolt", "ammo", "ammunition", "shot"]
     TOOL_KEYWORDS = ["tool", "kit", "instrument", "lock pick", "thieves'", "healer's"]
     POTION_KEYWORDS = ["potion", "elixir", "oil", "poison", "cure", "healing"]
@@ -414,7 +502,14 @@ class InventoryManager:
     def add_item(self, name: str, cost: str = "", weight: str = "", qty: int = 1, 
                  category: str = "", notes: str = "", source: str = "custom") -> str:
         """Add an item to inventory and return its ID."""
-        item_id = str(len(self.items))
+        import time
+        import random
+        # Generate a truly unique ID: timestamp + random component
+        # This avoids conflicts when items are added/removed
+        timestamp = int(time.time() * 1000000)
+        random_part = random.randint(100000, 999999)
+        item_id = f"{timestamp}_{random_part}"
+        
         if not category:
             category = self._infer_category(name)
         
@@ -552,16 +647,6 @@ class InventoryManager:
                 # Build body content with expandable properties
                 body_html = ''
                 
-                # Show weapon/armor properties if available
-                if extra_props.get("damage"):
-                    body_html += f'<div class="inventory-item-field"><label>Damage</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("damage")))}</div></div>'
-                if extra_props.get("damage_type"):
-                    body_html += f'<div class="inventory-item-field"><label>Damage Type</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("damage_type")))}</div></div>'
-                if extra_props.get("range"):
-                    body_html += f'<div class="inventory-item-field"><label>Range</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("range")))}</div></div>'
-                if extra_props.get("properties"):
-                    body_html += f'<div class="inventory-item-field"><label>Properties/Contents</label><div style="color: #bfdbfe;">{escape(str(extra_props.get("properties")))}</div></div>'
-                
                 # For armor items, show ONLY editable AC field
                 if category == "Armor":
                     ac_val = extra_props.get("armor_class", "")
@@ -570,25 +655,43 @@ class InventoryManager:
                     bonus_val = extra_props.get("bonus", 0)
                     body_html += f'<div class="inventory-item-field"><label>Bonus</label><input type="number" data-item-bonus="{item_id}" value="{bonus_val}" placeholder="0" style="width: 80px;"></div>'
                 
-                # For weapon items, add bonus spinner
+                # For weapon items, put all properties on one line
                 if category == "Weapons":
                     bonus_val = extra_props.get("bonus", 0)
-                    body_html += f'<div class="inventory-item-field"><label>Bonus</label><input type="number" data-item-bonus="{item_id}" value="{bonus_val}" placeholder="0" style="width: 80px;"></div>'
-                
-                # Show notes if present (after we cleared it for prop parsing)
-                if notes:
-                    body_html += f'<div class="inventory-item-field"><label>Notes</label><div style="color: #bfdbfe;">{escape(notes)}</div></div>'
-                
-                # Special handling for Magic Items being imported
-                if name == "Unnamed Magic Item":
-                    body_html += f'<div class="inventory-item-field" style="background-color: #1e293b; padding: 12px; border-radius: 4px; border: 2px solid #3b82f6;">'
-                    body_html += f'<label style="color: #60a5fa;"><strong>📡 Import Magic Item from URL</strong></label>'
-                    body_html += f'<input id="magic-item-url-{item_id}" type="text" placeholder="https://roll20.net/compendium/..." style="width: 100%; padding: 8px; margin-top: 8px; font-family: monospace; font-size: 0.9em; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">'
-                    body_html += f'<button id="magic-item-fetch-{item_id}" type="button" style="width: 100%; padding: 8px; margin-top: 8px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">Fetch Data</button>'
-                    body_html += f'</div>'
-                
-                # Quantity field - useful for all items
-                body_html += f'<div class="inventory-item-field"><label>Quantity</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" style="width: 80px;"></div>'
+                    damage = extra_props.get("damage", "")
+                    damage_type = extra_props.get("damage_type", "")
+                    range_val = extra_props.get("range", "")
+                    properties = extra_props.get("properties", "")
+                    
+                    # Fallback to equipment.json if data not in inventory item
+                    if not damage or not damage_type or not range_val or not properties:
+                        db_weapon = get_weapon_data_from_database(name)
+                        if db_weapon:
+                            if not damage:
+                                damage = db_weapon.get("damage", "")
+                            if not damage_type:
+                                damage_type = db_weapon.get("damage_type", "")
+                            if not range_val:
+                                range_val = db_weapon.get("range", "")
+                            if not properties:
+                                properties = db_weapon.get("properties", "")
+                                if isinstance(properties, list):
+                                    properties = ", ".join(properties)
+                    
+                    input_style_short = 'style="width: 100%; padding: 0.4rem; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.375rem; background-color: rgba(15, 23, 42, 0.8); color: #cbd5f5; box-sizing: border-box; font-size: 0.9rem;"'
+                    label_style = 'style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;"'
+                    
+                    body_html += '<div style="display: flex; gap: 0.75rem; margin-bottom: 1rem; overflow-x: auto;">'
+                    body_html += f'<div style="flex: 0 1 auto; min-width: 10px;"><label {label_style}>Qty</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" {input_style_short}></div>'
+                    body_html += f'<div style="flex: 0 1 auto; min-width: 10px;"><label {label_style}>Bonus</label><input type="number" data-item-bonus="{item_id}" value="{bonus_val}" placeholder="0" {input_style_short}></div>'
+                    body_html += f'<div style="flex: 0 1 auto; min-width: 140px;"><label {label_style}>Damage</label><input type="text" data-item-damage="{item_id}" value="{escape(str(damage))}" {input_style_short}></div>'
+                    body_html += f'<div style="flex: 0 1 auto; min-width: 140px;"><label {label_style}>Type</label><input type="text" data-item-damage-type="{item_id}" value="{escape(str(damage_type))}" {input_style_short}></div>'
+                    body_html += f'<div style="flex: 0 1 auto; min-width: 150px;"><label {label_style}>Range</label><input type="text" data-item-range="{item_id}" value="{escape(str(range_val))}" {input_style_short}></div>'
+                    body_html += f'<div style="flex: 0 1 auto; min-width: 240px;"><label {label_style}>Properties</label><input type="text" data-item-properties="{item_id}" value="{escape(str(properties))}" {input_style_short}></div>'
+                    body_html += '</div>'
+                else:
+                    # Quantity field for non-weapon items
+                    body_html += f'<div class="inventory-item-field"><label>Quantity</label><input type="number" min="1" value="{qty}" data-item-qty="{item_id}" style="width: 80px;"></div>'
                 
                 # Build category dropdown with current category selected
                 category_options = [
@@ -814,6 +917,58 @@ class InventoryManager:
                 return handler
             proxy = create_proxy(make_equipped_handler())
             checkbox.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Weapon damage field
+        damage_inputs = inventory_list.querySelectorAll("[data-item-damage]")
+        for damage_input in damage_inputs:
+            def make_damage_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-damage")
+                    if item_id:
+                        self._handle_weapon_property_change(event, item_id, "damage")
+                return handler
+            proxy = create_proxy(make_damage_handler())
+            damage_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Weapon damage type field
+        damage_type_inputs = inventory_list.querySelectorAll("[data-item-damage-type]")
+        for dt_input in damage_type_inputs:
+            def make_damage_type_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-damage-type")
+                    if item_id:
+                        self._handle_weapon_property_change(event, item_id, "damage_type")
+                return handler
+            proxy = create_proxy(make_damage_type_handler())
+            dt_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Weapon range field
+        range_inputs = inventory_list.querySelectorAll("[data-item-range]")
+        for range_input in range_inputs:
+            def make_range_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-range")
+                    if item_id:
+                        self._handle_weapon_property_change(event, item_id, "range")
+                return handler
+            proxy = create_proxy(make_range_handler())
+            range_input.addEventListener("change", proxy)
+            _EVENT_PROXIES.append(proxy)
+        
+        # Weapon properties field
+        props_inputs = inventory_list.querySelectorAll("[data-item-properties]")
+        for props_input in props_inputs:
+            def make_props_handler():
+                def handler(event):
+                    item_id = event.target.getAttribute("data-item-properties")
+                    if item_id:
+                        self._handle_weapon_property_change(event, item_id, "properties")
+                return handler
+            proxy = create_proxy(make_props_handler())
+            props_input.addEventListener("change", proxy)
             _EVENT_PROXIES.append(proxy)
         
         # Magic Item fetch buttons
@@ -1172,6 +1327,24 @@ class InventoryManager:
                         if weapons_mgr:
                             console.log(f"[EQUIPMENT] Re-rendering weapons grid after equip toggle")
                             weapons_mgr.render()
+                        # Also call render_equipped_attack_grid from character module for Skills tab
+                        # Use setTimeout to ensure state is flushed first
+                        if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'render_equipped_attack_grid'):
+                            try:
+                                import asyncio
+                                # Schedule with a small delay to allow state to sync
+                                def do_render():
+                                    try:
+                                        _CHAR_MODULE_REF.render_equipped_attack_grid()
+                                        console.log(f"[EQUIPMENT] Re-rendered attack grid for equipped weapon")
+                                    except Exception as e:
+                                        console.warn(f"[EQUIPMENT] Could not call render_equipped_attack_grid: {e}")
+                                
+                                # Call via JS setTimeout to yield control
+                                from js import window
+                                window.setTimeout(create_proxy(do_render), 50)
+                            except Exception as e:
+                                console.warn(f"[EQUIPMENT] Could not schedule render_equipped_attack_grid: {e}")
                     
                     if item_category in ["armor", "shield"]:
                         armor_mgr = get_armor_manager()
@@ -1193,6 +1366,61 @@ class InventoryManager:
         except Exception as e:
             console.error(f"CRITICAL ERROR in _handle_equipped_toggle: {e}")
 
+    
+    def _handle_weapon_property_change(self, event, item_id: str, prop_name: str):
+        """Handle changes to weapon properties (damage, damage_type, range, properties)."""
+        try:
+            input_elem = event.target
+            new_value = input_elem.value.strip()
+            
+            # Get the item and update its extra properties
+            item = self.get_item(item_id)
+            if item:
+                try:
+                    # Parse existing notes to preserve other properties
+                    notes_str = item.get("notes", "")
+                    if notes_str and notes_str.startswith("{"):
+                        extra_props = json.loads(notes_str)
+                    else:
+                        extra_props = {}
+                except:
+                    extra_props = {}
+                
+                # Update the specific property
+                if new_value:
+                    extra_props[prop_name] = new_value
+                else:
+                    # Remove the property if empty
+                    if prop_name in extra_props:
+                        del extra_props[prop_name]
+                
+                # Save back to notes
+                notes = json.dumps(extra_props) if extra_props else ""
+                self.update_item(item_id, {"notes": notes})
+                self.render_inventory()  # Update display
+                
+                # Save to localStorage directly
+                try:
+                    from js import window
+                    char_data = window.localStorage.getItem("pysheet.character.v1")
+                    if char_data:
+                        data = json.loads(char_data)
+                        # Update inventory in the saved state
+                        data["inventory"] = {"items": self.items}
+                        window.localStorage.setItem("pysheet.character.v1", json.dumps(data))
+                except Exception as e:
+                    console.error(f"[WEAPON-PROP] Error saving to localStorage: {e}")
+                
+                # Trigger autosave through character module
+                if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+                    try:
+                        _EXPORT_MODULE_REF.schedule_auto_export()
+                    except Exception as e:
+                        console.error(f"[WEAPON-PROP] Error scheduling autosave: {e}")
+                
+                console.log(f"[WEAPON-PROP] Updated {item.get('name')} {prop_name} = {new_value}")
+        except Exception as e:
+            console.error(f"ERROR in _handle_weapon_property_change: {e}")
     
     def _fetch_magic_item(self, item_id: str, url: str):
         """Fetch magic item data from URL and update the item"""

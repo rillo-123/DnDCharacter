@@ -796,6 +796,16 @@
         <section id="tab-manage" class="tab-panel">
             <div class="panel-grid">
                 <section class="card actions">
+                    <h2>Character</h2>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <label style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <strong>Active Character:</strong>
+                            <select id="character-switcher" style="padding: 0.5rem; border: 1px solid #475569; border-radius: 0.25rem; background-color: #1e293b; color: #e2e8f0; cursor: pointer;">
+                                <option value="">-- Loading characters --</option>
+                            </select>
+                        </label>
+                    </div>
+                    
                     <h2>Rest & Recovery</h2>
                     <div class="actions-row">
                         <button id="long-rest-btn" type="button" py-click="reset_spell_slots">Long Rest</button>

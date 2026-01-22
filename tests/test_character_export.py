@@ -4,13 +4,7 @@ These tests focus on the pure Python logic for collecting and exporting
 character data, without depending on DOM/PyScript functionality.
 """
 
-import pytest
-import sys
 import json
-from pathlib import Path
-
-# Add assets/py to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
 from character_models import (
     Character,

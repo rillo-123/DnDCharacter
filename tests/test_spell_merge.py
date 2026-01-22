@@ -1,9 +1,5 @@
 """Test spell merging from fallback list into Open5e results."""
 import sys
-import os
-
-# Add the assets/py directory to the path so we can import character module
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'assets', 'py'))
 
 # Mock the PyScript/JS dependencies before importing
 class MockConsole:

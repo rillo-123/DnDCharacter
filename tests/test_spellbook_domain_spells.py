@@ -1,11 +1,5 @@
 """Test that domain spells are automatically added to the spellbook."""
 
-import sys
-from pathlib import Path
-
-# Add assets/py to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
-
 import pytest
 
 

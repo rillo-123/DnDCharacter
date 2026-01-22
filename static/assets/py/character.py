@@ -7,7 +7,7 @@ import json
 import re
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from html import escape
 from math import floor
 from pathlib import Path
@@ -4407,8 +4407,6 @@ def _enrich_weapon_item(item: dict) -> dict:
     dmg_type = enriched.get("damage_type", "")
     range_text = enriched.get("range_text", "") or enriched.get("range", "")
     props = enriched.get("weapon_properties", "") or enriched.get("properties", "")
-    
-    console.log(f"[ENRICH WEAPON] Starting enrichment of '{enriched.get('name', 'Unknown')}': initial dmg='{dmg}', range='{range_text}', props='{props}'")
 
     # Try notes JSON
     bonus = enriched.get("bonus", 0) or 0
@@ -4440,7 +4438,6 @@ def _enrich_weapon_item(item: dict) -> dict:
     # ALWAYS try builtin equipment first for weapons - it's most reliable for properties/finesse
     builtin = _find_builtin_equipment_match(enriched.get('name', ''))
     if builtin:
-        console.log(f"[ENRICH] Builtin returned: name={builtin.get('name')}, keys={list(builtin.keys())}, properties={builtin.get('properties', 'KEY_NOT_FOUND')}")
         if not dmg:
             dmg = builtin.get('damage') or builtin.get('damage_dice') or dmg
         if not dmg_type:
@@ -4459,7 +4456,6 @@ def _enrich_weapon_item(item: dict) -> dict:
                 bonus = int(builtin.get('bonus'))
             except Exception:
                 bonus = builtin.get('bonus')
-        console.log(f"[ENRICH] Found builtin match: {builtin.get('name')}, properties={props}")
 
     # If still missing fields, try to look up in equipment library by normalized name
     if (not dmg or not dmg_type or not range_text or not props) and EQUIPMENT_LIBRARY_STATE.get("equipment"):
@@ -4482,7 +4478,6 @@ def _enrich_weapon_item(item: dict) -> dict:
                     if name_norm in eq_name or eq_name in name_norm:
                         match = True
                 if match:
-                    console.log(f"[ENRICH] Found library match for {enriched.get('name')}: {eq_name_raw}")
                     if not dmg:
                         dmg = eq.get("damage") or eq.get("damage_dice") or dmg
                     if not dmg_type:
@@ -4541,10 +4536,8 @@ def _enrich_weapon_item(item: dict) -> dict:
                         # ignore malformed notes
                         pass
 
-                    console.log(f"[ENRICH] Applied damage={dmg}, type={dmg_type}, range={range_text}, props={props}")
                     break
         except Exception as e:
-            console.log(f"[ENRICH] Error during library lookup: {e}")
             pass
 
     # Assign back to enriched dict under expected keys
@@ -4561,18 +4554,13 @@ def _enrich_weapon_item(item: dict) -> dict:
     # Ensure bonus from notes, equipment library or builtin fallback is present on enriched dict
     if bonus and bonus != 0:
         enriched["bonus"] = bonus
-    
-    console.log(f"[ENRICH WEAPON] Final enriched dict for '{enriched.get('name', 'Unknown')}': damage='{enriched.get('damage', '')}', damage_type='{enriched.get('damage_type', '')}', range_text='{enriched.get('range_text', '')}', weapon_properties='{enriched.get('weapon_properties', '')}')")
 
     return enriched
 
 
 def render_equipped_attack_grid():
     """Render grid of equipped weapons and armor in Skills tab right pane."""
-    console.log("[RENDER WEAPONS] render_equipped_attack_grid() called")
-    
     if INVENTORY_MANAGER is None:
-        console.log("[RENDER WEAPONS] INVENTORY_MANAGER is None, returning")
         return
     
     # Get equipped WEAPONS only (not armor) from inventory
@@ -4666,15 +4654,74 @@ def render_equipped_attack_grid():
                 if match:
                     weapon_bonus = int(match.group(1))
             
-            # Check if character has proficiency with this weapon
-            character_class = get_text_value("class")
-            proficiency_classes = enriched.get("proficiency_classes", [])
-            has_proficiency = character_class in proficiency_classes if proficiency_classes else False
+            # Check proficiency - prioritize checkbox setting over class proficiency
+            # If user has explicitly set proficient checkbox, use that
+            has_proficiency = item.get("proficient", None)  # Will be True/False/None
+            
+            if has_proficiency is None:
+                # No checkbox set, fall back to class proficiency check
+                character_class = get_text_value("class")
+                weapon_profs_text = get_weapon_proficiencies_for_class(character_class)
+                weapon_name = item.get("name", "").lower()
+                
+                console.log(f"[RENDER WEAPONS] {item.get('name')}: class={character_class}, profs_text='{weapon_profs_text}'")
+                
+                # Classify the weapon based on enriched properties
+                is_simple = any(kw in weapon_name for kw in ["dagger", "quarterstaff", "hand axe", "light hammer", "mace", "sickle", "spear", "unarmed", "club", "crossbow, light"])
+                is_martial = any(kw in weapon_name for kw in ["longsword", "rapier", "scimitar", "shortsword", "pike", "polearm", "halberd", "lance", "warhammer", "greatsword", "greataxe", "flail", "glaive", "morningstar"])
+                
+                # Check if ranged (for proper classification)
+                ranged_keywords = ["bow", "crossbow", "ranged", "range"]
+                is_ranged_weapon = any(kw in weapon_name for kw in ranged_keywords)
+                
+                # Build weapon classification strings
+                weapon_classifications = []
+                if is_simple:
+                    weapon_classifications.append("simple" if not is_ranged_weapon else "simple ranged")
+                    if not is_ranged_weapon:
+                        weapon_classifications.append("simple melee")
+                if is_martial:
+                    weapon_classifications.append("martial" if not is_ranged_weapon else "martial ranged")
+                    if not is_ranged_weapon:
+                        weapon_classifications.append("martial melee")
+                
+                console.log(f"[RENDER WEAPONS] {item.get('name')}: classifications={weapon_classifications}, is_simple={is_simple}, is_martial={is_martial}, is_ranged={is_ranged_weapon}")
+                
+                # Check if weapon matches any proficiency category
+                has_proficiency = False
+                if weapon_profs_text:
+                    profs = [p.strip().lower() for p in weapon_profs_text.split(",") if p.strip()]
+                    console.log(f"[RENDER WEAPONS] {item.get('name')}: parsed proficiencies={profs}")
+                    
+                    # Direct match: check if any weapon classification is in the proficiency list
+                    for classification in weapon_classifications:
+                        if classification in profs:
+                            has_proficiency = True
+                            console.log(f"[RENDER WEAPONS] {item.get('name')}: matched classification '{classification}'")
+                            break
+                    
+                    # Fallback: old keyword matching for backward compatibility
+                    if not has_proficiency:
+                        for prof in profs:
+                            if any(keyword in weapon_name for keyword in prof.split()):
+                                has_proficiency = True
+                                console.log(f"[RENDER WEAPONS] {item.get('name')}: matched prof '{prof}' (keyword fallback)")
+                                break
+                else:
+                    # No proficiency text defined - assume proficiency (most weapons are proficient)
+                    has_proficiency = True
+                    console.log(f"[RENDER WEAPONS] {item.get('name')}: no proficiency text, assuming proficient")
+                
+                console.log(f"[RENDER WEAPONS] {item.get('name')}: has_proficiency={has_proficiency} (from class check)")
+            else:
+                console.log(f"[RENDER WEAPONS] {item.get('name')}: has_proficiency={has_proficiency} (from checkbox)")
+            
             actual_proficiency = proficiency if has_proficiency else 0
+            proficiency_source = "checkbox" if item.get("proficient", None) is not None else "class"
             
             # Calculate to-hit value: ability_mod + proficiency + weapon_bonus
             to_hit = ability_mod + actual_proficiency + weapon_bonus
-            console.log(f"[RENDER WEAPONS] {item.get('name')}: to_hit={to_hit} (ability_mod={ability_mod} + prof={actual_proficiency} [has_prof={has_proficiency}] + bonus={weapon_bonus})")
+            console.log(f"[RENDER WEAPONS] {item.get('name')}: to_hit={to_hit} (ability_mod={ability_mod} + prof={actual_proficiency} [prof={has_proficiency}, source={proficiency_source}] + bonus={weapon_bonus})")
             to_hit_bonus_text = format_bonus(to_hit)
             
             # Generate tooltip using WeaponToHitValue entity
@@ -4800,7 +4847,7 @@ def _create_equipment_row(item: dict) -> any:
         rightDiv = document.createElement("div")
         rightDiv.style.display = "flex"
         rightDiv.style.alignItems = "center"
-        rightDiv.style.gap = "0.5rem"
+        rightDiv.style.gap = "1rem"
         
         if is_equipable(item):
             equippedLabel = document.createElement("label")
@@ -4825,6 +4872,37 @@ def _create_equipment_row(item: dict) -> any:
             equippedLabel.appendChild(equippedText)
             rightDiv.appendChild(equippedLabel)
             
+            # Add proficient checkbox right after equipped (for weapons and magic items)
+            if item.get("category", "").lower() in ["weapons", "weapon", "magic items", "magic item"]:
+                proficientLabel = document.createElement("label")
+                proficientLabel.style.display = "flex"
+                proficientLabel.style.alignItems = "center"
+                proficientLabel.style.gap = "0.5rem"
+                proficientLabel.style.cursor = "pointer"
+                proficientLabel.style.userSelect = "none"
+                proficientLabel.style.color = "#60a5fa"
+                
+                proficientCheckbox = document.createElement("input")
+                proficientCheckbox.type = "checkbox"
+                proficientCheckbox.className = "equipment-proficient-check"
+                proficientCheckbox.checked = bool(item.get("proficient", False))
+                proficientCheckbox.setAttribute("data-item-field", "proficient")
+                proficientCheckbox.style.cursor = "pointer"
+                
+                proficientText = document.createElement("span")
+                proficientText.textContent = "Proficient"
+                proficientText.style.fontSize = "0.85rem"
+                
+                proficientLabel.appendChild(proficientCheckbox)
+                proficientLabel.appendChild(proficientText)
+                rightDiv.appendChild(proficientLabel)
+                
+                # Add event listener to checkbox
+                item_id = item.get("id")
+                proxy = create_proxy(lambda e, iid=item_id: handle_equipment_input(e, iid))
+                proficientCheckbox.addEventListener("change", proxy)
+                _EVENT_PROXIES.append(proxy)
+            
             # Store reference to checkbox for event handling
             item["_checkbox_element"] = equippedCheckbox
         
@@ -4839,32 +4917,91 @@ def _create_equipment_row(item: dict) -> any:
         detailsContent.style.marginTop = "0.5rem"
         
         # Input fields in a grid
-        fieldsGrid = document.createElement("div")
-        fieldsGrid.style.display = "grid"
-        fieldsGrid.style.gridTemplateColumns = "1fr 1fr"
-        fieldsGrid.style.gap = "1rem"
-        fieldsGrid.style.marginBottom = "1rem"
-        
-        # Name field
+        # Row 1: Name (full width)
+        nameFieldDiv = document.createElement("div")
+        nameFieldDiv.style.marginBottom = "1rem"
         nameField = _create_equipment_field("Name", "name", item)
+        nameFieldDiv.appendChild(nameField)
+        detailsContent.appendChild(nameFieldDiv)
+        
+        # Row 2: Qty, Cost, Weight, Bonus (using flexbox)
+        fieldsRowDiv = document.createElement("div")
+        fieldsRowDiv.style.display = "flex"
+        fieldsRowDiv.style.flexWrap = "wrap"
+        fieldsRowDiv.style.gap = "1rem"
+        fieldsRowDiv.style.marginBottom = "1rem"
+        
         # Qty field
         qtyField = _create_equipment_field("Qty", "qty", item)
+        qtyField.style.flex = "1 1 calc(25% - 0.75rem)"
+        qtyField.style.minWidth = "100px"
         # Cost field
         costField = _create_equipment_field("Cost (ea)", "cost", item)
+        costField.style.flex = "1 1 calc(25% - 0.75rem)"
+        costField.style.minWidth = "100px"
         # Weight field
         weightField = _create_equipment_field("Weight (ea)", "weight", item)
+        weightField.style.flex = "1 1 calc(25% - 0.75rem)"
+        weightField.style.minWidth = "100px"
+        # Bonus field
+        bonusField = _create_equipment_field("Bonuz", "bonus", item)
+        bonusField.style.flex = "1 1 calc(25% - 0.75rem)"
+        bonusField.style.minWidth = "100px"
         
-        fieldsGrid.appendChild(nameField)
-        fieldsGrid.appendChild(qtyField)
-        fieldsGrid.appendChild(costField)
-        fieldsGrid.appendChild(weightField)
+        fieldsRowDiv.appendChild(qtyField)
+        fieldsRowDiv.appendChild(costField)
+        fieldsRowDiv.appendChild(weightField)
+        fieldsRowDiv.appendChild(bonusField)
         
-        detailsContent.appendChild(fieldsGrid)
+        detailsContent.appendChild(fieldsRowDiv)
         
         # Notes field (full width)
         notesField = _create_equipment_field("Notes", "notes", item)
         notesField.style.gridColumn = "1 / -1"
         detailsContent.appendChild(notesField)
+        
+        # Weapon detail fields (only for weapons and magic items)
+        category_lower = item.get("category", "").lower()
+        console.log(f"_create_equipment_row: item '{item.get('name')}' category='{category_lower}' (raw='{item.get('category')}')")
+        if category_lower in ["weapons", "weapon", "magic items", "magic item"]:
+            console.log(f"_create_equipment_row: Adding weapon fields for '{item.get('name')}'")
+            weaponFieldsSection = document.createElement("div")
+            weaponFieldsSection.style.marginTop = "1.5rem"
+            weaponFieldsSection.style.paddingTop = "1rem"
+            weaponFieldsSection.style.borderTop = "1px solid rgba(148, 163, 184, 0.2)"
+            
+            # Weapon label
+            weaponLabel = document.createElement("div")
+            weaponLabel.style.fontSize = "0.85rem"
+            weaponLabel.style.color = "#60a5fa"
+            weaponLabel.style.marginBottom = "0.75rem"
+            weaponLabel.textContent = "Weapon Details"
+            weaponFieldsSection.appendChild(weaponLabel)
+            
+            # Weapon detail fields grid (4 columns: Damage, Type, Range, Properties)
+            weaponFieldsGrid = document.createElement("div")
+            weaponFieldsGrid.style.display = "grid"
+            weaponFieldsGrid.style.gridTemplateColumns = "1fr 1fr 1fr 2fr"
+            weaponFieldsGrid.style.gap = "1rem"
+            
+            # Damage field
+            damageField = _create_equipment_field("Damage", "damage", item)
+            # Damage Type field
+            damageTypeField = _create_equipment_field("Type", "damage_type", item)
+            # Range field
+            rangeField = _create_equipment_field("Range", "range_text", item)
+            # Properties field
+            propertiesField = _create_equipment_field("Properties", "properties", item)
+            
+            weaponFieldsGrid.appendChild(damageField)
+            weaponFieldsGrid.appendChild(damageTypeField)
+            weaponFieldsGrid.appendChild(rangeField)
+            weaponFieldsGrid.appendChild(propertiesField)
+            
+            weaponFieldsSection.appendChild(weaponFieldsGrid)
+            detailsContent.appendChild(weaponFieldsSection)
+        else:
+            console.log(f"_create_equipment_row: Skipping weapon fields for '{item.get('name')}' (category check failed)")
         
         # Remove button
         removeBtn = document.createElement("button")
@@ -4901,17 +5038,16 @@ def _create_equipment_row(item: dict) -> any:
 def _create_equipment_field(label: str, field_name: str, item: dict):
     """Create a labeled input field for equipment item"""
     container = document.createElement("div")
+    container.style.display = "flex"
+    container.style.flexDirection = "column"
+    container.style.gap = "0.25rem"
+    container.style.width = "100%"
     
     labelEl = document.createElement("label")
-    labelEl.style.display = "flex"
-    labelEl.style.flexDirection = "column"
-    labelEl.style.gap = "0.5rem"
-    
-    span = document.createElement("span")
-    span.style.fontSize = "0.85rem"
-    span.style.color = "#94a3b8"
-    span.textContent = label
-    labelEl.appendChild(span)
+    labelEl.style.fontSize = "0.85rem"
+    labelEl.style.color = "#94a3b8"
+    labelEl.textContent = label
+    container.appendChild(labelEl)
     
     if field_name == "qty":
         inp = document.createElement("input")
@@ -4930,29 +5066,36 @@ def _create_equipment_field(label: str, field_name: str, item: dict):
         inp.step = "0.01"
         inp.min = "0"
         inp.value = format_weight(item.get(field_name, 0))
+    elif field_name == "bonus":
+        inp = document.createElement("input")
+        inp.type = "number"
+        inp.value = str(item.get(field_name, 0))
     else:
         inp = document.createElement("input")
         inp.type = "text"
         inp.value = str(item.get(field_name, ""))
     
     inp.setAttribute("data-item-field", field_name)
+    inp.style.width = "100%"
     inp.style.padding = "0.5rem"
     inp.style.borderRadius = "0.375rem"
     inp.style.border = "1px solid rgba(148, 163, 184, 0.3)"
     inp.style.backgroundColor = "rgba(15, 23, 42, 0.8)"
     inp.style.color = "#cbd5f5"
+    inp.style.boxSizing = "border-box"
     
     item_id = item.get("id")
     proxy = create_proxy(lambda e, iid=item_id: handle_equipment_input(e, iid))
     inp.addEventListener("input", proxy)
     _EVENT_PROXIES.append(proxy)
     
-    labelEl.appendChild(inp)
     container.appendChild(labelEl)
+    container.appendChild(inp)
     return container
 
 
 def render_equipment_table(items: list[dict]):
+    console.log(f"[DEBUG] render_equipment_table() CALLED with {len(items)} items")
     tbody = get_element("equipment-table-body")
     # Get wrapper by class since it doesn't have an id
     wrapper = document.querySelector(".equipment-table-wrapper")
@@ -5030,7 +5173,12 @@ def handle_equipment_input(event=None, item_id: str = None):
         return
     
     field_name = event.target.getAttribute("data-item-field")
-    new_value = event.target.value
+    
+    # Handle checkbox inputs (e.g., proficient)
+    if event.target.type == "checkbox":
+        new_value = event.target.checked
+    else:
+        new_value = event.target.value
     
     # Find item and update field
     for item in INVENTORY_MANAGER.items:
@@ -5039,12 +5187,29 @@ def handle_equipment_input(event=None, item_id: str = None):
                 item[field_name] = int(new_value) if new_value else 0
             elif field_name in ["cost", "weight"]:
                 item[field_name] = float(new_value) if new_value else 0.0
+            elif field_name == "bonus":
+                # Try to parse as int, fallback to string
+                try:
+                    item[field_name] = int(new_value) if new_value else 0
+                except Exception:
+                    item[field_name] = new_value
+            elif field_name == "proficient":
+                item[field_name] = bool(new_value)
             else:
                 item[field_name] = new_value
+            console.log(f"[EQUIPMENT] Updated {item.get('name')} field '{field_name}' = {item[field_name]}")
             break
     
     # Update totals display
     update_equipment_totals()
+    
+    # Re-render attack grid if proficiency or bonus changed for equipped items
+    if field_name in ["proficient", "bonus", "damage", "damage_type", "range_text"]:
+        for item in INVENTORY_MANAGER.items:
+            if item.get("id") == item_id:
+                if item.get("equipped"):
+                    render_equipped_attack_grid()
+                break
     
     # Auto-save
 def remove_equipment_item(item_id: str):
@@ -5095,6 +5260,14 @@ def get_equipment_items_from_data(data: dict) -> list:
             "cost": cost_val,
             "weight": weight_val,
             "notes": it.get("notes", ""),
+            "category": it.get("category", ""),
+            "equipped": it.get("equipped", False),
+            "proficient": it.get("proficient", False),
+            "damage": it.get("damage", ""),
+            "damage_type": it.get("damage_type", ""),
+            "range_text": it.get("range_text", "") or it.get("range", ""),
+            "properties": it.get("properties", ""),
+            "bonus": it.get("bonus", 0),
         })
     return sanitized
 
@@ -5738,6 +5911,53 @@ def show_equipment_details(name: str, cost: str, weight: str):
     pass
 
 
+def _infer_equipment_category(name: str) -> str:
+    """Infer equipment category from item name."""
+    name_lower = name.lower()
+    
+    # Check for magic items first
+    magic_keywords = ["+1", "+2", "+3", "magical", "magic", "enchanted", "ring of", "cloak of", "amulet of", "wand of", "staff of"]
+    if any(kw in name_lower for kw in magic_keywords):
+        return "Magic Items"
+    
+    # Weapons
+    weapon_keywords = ["sword", "axe", "spear", "bow", "crossbow", "staff", "mace", "hammer", "dagger", "knife", "blade", "rapier", "wand", "glaive", "halberd", "lance", "pike", "scimitar", "sickle", "shortsword", "longsword", "greataxe", "greatclub", "greatsword", "hand axe"]
+    if any(kw in name_lower for kw in weapon_keywords):
+        return "Weapons"
+    
+    # Armor
+    armor_keywords = ["armor", "plate", "mail", "leather", "chain", "scale", "helmet", "breastplate", "studded", "brigandine"]
+    if any(kw in name_lower for kw in armor_keywords):
+        return "Armor"
+    
+    # Shields
+    if "shield" in name_lower:
+        return "Armor"
+    
+    # Ammunition
+    ammo_keywords = ["arrow", "bolt", "ammo", "ammunition", "shot"]
+    if any(kw in name_lower for kw in ammo_keywords):
+        return "Ammunition"
+    
+    # Potions
+    potion_keywords = ["potion", "elixir", "oil", "poison", "cure", "healing"]
+    if any(kw in name_lower for kw in potion_keywords):
+        return "Potions"
+    
+    # Tools
+    tool_keywords = ["tool", "kit", "instrument", "lock pick", "thieves", "healer", "alchemist", "carpenter", "smith", "weaver"]
+    if any(kw in name_lower for kw in tool_keywords):
+        return "Tools"
+    
+    # Mounts & Vehicles
+    mount_keywords = ["horse", "mule", "donkey", "camel", "mount", "vehicle", "cart", "boat", "ship"]
+    if any(kw in name_lower for kw in mount_keywords):
+        return "Mounts & Vehicles"
+    
+    # Default to Adventuring Gear
+    return "Adventuring Gear"
+
+
 def select_equipment_item(name: str, cost: str, weight: str):
     """Add selected item to equipment table"""
     console.log(f"select_equipment_item called: {name}, {cost}, {weight}")
@@ -5764,7 +5984,10 @@ def select_equipment_item(name: str, cost: str, weight: str):
     
     console.log(f"Parsed: cost={cost_numeric}, weight={weight_numeric}")
     
-    new_item = {"id": generate_id("item"), "name": name, "qty": 1, "cost": cost_numeric, "weight": weight_numeric, "notes": ""}
+    # Infer category from name
+    category = _infer_equipment_category(name)
+    
+    new_item = {"id": generate_id("item"), "name": name, "qty": 1, "cost": cost_numeric, "weight": weight_numeric, "notes": "", "category": category}
     existing = get_equipment_items_from_dom()
     console.log(f"Existing items: {len(existing)}")
     items = existing + [new_item]
@@ -6425,6 +6648,10 @@ def handle_input_event(event=None):
             set_form_value(prof_id, True)
     
     update_calculations()
+    
+    # Trigger autosave on character input changes
+    trigger_auto_export("handle_input_event")
+    
     if SPELL_LIBRARY_STATE.get("loaded"):
         target_id = ""
         if event is not None and hasattr(event, "target"):

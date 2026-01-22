@@ -8,12 +8,6 @@ This test file validates the logic patterns and data structures that should be i
 
 import unittest
 import json
-import sys
-import os
-from pathlib import Path
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
 # Import equipment classes
 # Note: character.py imports from 'js' which is PyScript-specific

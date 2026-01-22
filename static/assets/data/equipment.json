@@ -6,7 +6,7 @@
       "damage_type": "piercing",
       "properties": ["finesse", "light", "thrown"],
       "range": "Melee (20/60)",
-      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Ranger", "Rogue", "Warlock"],
+      "proficiency_classes": ["Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Warlock"],
       "rarity": "common",
       "source": "PHB",
       "cost": "2 gp"
@@ -73,7 +73,7 @@
       "damage_type": "bludgeoning",
       "properties": [],
       "range": "Melee",
-      "proficiency_classes": ["Cleric", "Fighter", "Paladin", "Ranger"],
+      "proficiency_classes": ["Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Warlock"],
       "rarity": "common",
       "source": "PHB",
       "cost": "5 gp"
@@ -119,7 +119,7 @@
       "damage_type": "slashing",
       "properties": ["light", "thrown"],
       "range": "Melee (20/60)",
-      "proficiency_classes": ["Barbarian", "Bard", "Fighter", "Ranger"],
+      "proficiency_classes": ["Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Warlock"],
       "rarity": "common",
       "source": "PHB",
       "cost": "5 gp"
@@ -130,7 +130,7 @@
       "damage_type": "piercing",
       "properties": ["ammunition", "loading", "two-handed"],
       "range": "ranged (80/320)",
-      "proficiency_classes": ["Bard", "Fighter", "Ranger", "Rogue"],
+      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Ranger", "Rogue"],
       "rarity": "common",
       "source": "PHB",
       "cost": "25 gp"
@@ -152,7 +152,7 @@
       "damage_type": "piercing",
       "properties": ["ammunition", "heavy", "two-handed"],
       "range": "ranged (150/600)",
-      "proficiency_classes": ["Bard", "Fighter", "Ranger"],
+      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Ranger"],
       "rarity": "common",
       "source": "PHB",
       "cost": "50 gp"
@@ -174,7 +174,7 @@
       "damage_type": "piercing",
       "properties": ["ammunition", "light", "loading"],
       "range": "ranged (30/120)",
-      "proficiency_classes": ["Bard", "Fighter", "Ranger", "Rogue", "Warlock"],
+      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Ranger", "Rogue", "Warlock"],
       "rarity": "common",
       "source": "PHB",
       "cost": "75 gp"
@@ -185,7 +185,7 @@
       "damage_type": "slashing",
       "properties": ["heavy", "reach", "two-handed"],
       "range": "Melee (10 ft reach)",
-      "proficiency_classes": ["Fighter"],
+      "proficiency_classes": ["Fighter", "Paladin"],
       "rarity": "common",
       "source": "PHB",
       "cost": "20 gp"
@@ -196,7 +196,7 @@
       "damage_type": "piercing",
       "properties": ["melee", "thrown"],
       "range": "Melee (30/120)",
-      "proficiency_classes": ["Bard", "Cleric", "Fighter", "Ranger"],
+      "proficiency_classes": ["Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Warlock"],
       "rarity": "common",
       "source": "PHB",
       "cost": "5 sp"

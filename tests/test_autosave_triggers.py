@@ -5,13 +5,8 @@ This test verifies that every interactive element that changes character state
 (inputs, buttons, checkboxes, selects) triggers the auto-export function.
 """
 
-import unittest
 from unittest.mock import MagicMock, patch, call
-import sys
-from pathlib import Path
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
+import unittest
 
 
 class TestAutoSaveTriggers(unittest.TestCase):
