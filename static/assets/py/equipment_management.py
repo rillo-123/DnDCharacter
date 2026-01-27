@@ -738,7 +738,7 @@ class InventoryManager:
         
         # Register event handlers via centralized event listener
         try:
-            from equipment_event_manager import register_all_events
+            from managers import register_all_events
             register_all_events()
         except ImportError as e:
             console.warn(f"[EQUIPMENT] Could not import equipment_event_manager: {e}")
@@ -1024,8 +1024,8 @@ class InventoryManager:
         
         # Sync weapons and armor grids if removed item was a weapon or armor
         try:
-            from weapons_manager import get_weapons_manager
-            from armor_manager import get_armor_manager
+            from managers import get_weapons_manager
+            from managers import get_armor_manager
             
             weapons_mgr = get_weapons_manager()
             if weapons_mgr:
@@ -1258,7 +1258,7 @@ class InventoryManager:
             # Re-render armor manager to show updated AC
             try:
                 console.log("[AC-CHANGE] Re-rendering armor manager")
-                from armor_manager import get_armor_manager
+                from managers import get_armor_manager
                 armor_mgr = get_armor_manager()
                 if armor_mgr:
                     armor_mgr.render()

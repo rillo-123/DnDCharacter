@@ -321,7 +321,7 @@ def _ensure_manager_loaded(module_name: str, attr_name: str, http_url: str | Non
 
 # Try standard import first
 try:
-    from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library
+    from managers import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library
     console.log("DEBUG: spellcasting module imported successfully on first try")
 except ImportError as e:
     console.log("DEBUG: *** FALLBACK 1 TRIGGERED ***")
@@ -335,7 +335,7 @@ except ImportError as e:
             sys.path.insert(0, str(assets_py))
             console.log(f"DEBUG: Added {assets_py} to sys.path[0]")
         
-        from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library
+        from managers import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library
         console.log("DEBUG: spellcasting module imported successfully on retry")
     except ImportError as e2:
         # Fallback 2: Try HTTP fetch with open_url
@@ -386,7 +386,7 @@ except ImportError as e:
             def sync_prepared_spells_with_library(): return None
 
 try:
-    from inventory_manager import (
+    from managers import (
         InventoryManager,
         Item,
         Weapon,
@@ -1183,7 +1183,7 @@ INVENTORY_MANAGER = InventoryManager() if InventoryManager is not None else None
 # CharacterManager will be initialized after DEFAULT_STATE is defined
 # See initialization below at module load
 try:
-    from character_manager import initialize_character_manager
+    from managers import initialize_character_manager
 except ImportError:
     initialize_character_manager = None
 
@@ -1192,7 +1192,7 @@ CHARACTER_MANAGER = None
 # Initialize event listener for inventory events
 if INVENTORY_MANAGER is not None:
     try:
-        from equipment_event_manager import initialize_event_listener
+        from managers import initialize_event_listener
         initialize_event_listener(INVENTORY_MANAGER)
         console.log("DEBUG: Event listener initialized successfully")
     except Exception as e:
@@ -2165,7 +2165,7 @@ def generate_ac_tooltip() -> tuple[int, str]:
     
     # Use armor_manager as single source of truth for AC calculation
     try:
-        from armor_manager import calculate_total_ac_from_armor_manager
+        from managers import calculate_total_ac_from_armor_manager
         total_ac = calculate_total_ac_from_armor_manager(INVENTORY_MANAGER, character_stats)
         console.log(f"[AC-CALC] Total AC from armor_manager: {total_ac}")
     except ImportError as e:
@@ -2225,7 +2225,7 @@ def generate_ac_tooltip() -> tuple[int, str]:
                 equipped_armor = item_name
                 # Calculate armor AC (includes DEX modifier)
                 try:
-                    from armor_manager import ArmorEntity
+                    from managers import ArmorEntity
                     armor_entity = ArmorEntity(item, character_stats)
                     equipped_armor_ac = armor_entity.calculate_total_ac()
                 except Exception:

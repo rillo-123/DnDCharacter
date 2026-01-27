@@ -17,8 +17,8 @@ import copy
 import re
 from typing import Any, Dict, Iterable, Iterator, Mapping, MutableMapping, Optional, Tuple
 
-# Import from manager modules
-from class_manager import (
+# Import from manager modules (organized in managers package)
+from managers import (
     CharacterClassInfo,
     CLASS_REGISTRY,
     get_class_info,
@@ -28,8 +28,6 @@ from class_manager import (
     Bard,
     Cleric,
     CharacterFactory,
-)
-from race_manager import (
     RACE_ABILITY_BONUSES,
     get_race_ability_bonuses,
 )

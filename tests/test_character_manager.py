@@ -2,9 +2,7 @@
 
 import unittest
 from character_models import Character
-from character_manager import CharacterManager, initialize_character_manager
-from weapons_manager import WeaponEntity
-from armor_manager import ArmorEntity
+from managers import CharacterManager, initialize_character_manager, WeaponEntity, ArmorEntity
 
 
 class TestCharacterManagerClass(unittest.TestCase):
