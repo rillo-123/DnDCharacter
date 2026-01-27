@@ -16,9 +16,14 @@ This makes it easy to:
 
 import json
 import re
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union, Any
 
 from entity_manager import EntityManager
+
+try:
+    from character_models import Character
+except ImportError:
+    Character = None
 
 try:
     from tooltip_values import WeaponToHitValue
@@ -44,15 +49,25 @@ except ImportError:
 class WeaponEntity(EntityManager):
     """Represents a single weapon with all its display properties."""
     
-    def __init__(self, weapon_data: Dict = None, character_stats: Dict = None):
+    def __init__(self, weapon_data: Dict = None, character_stats: Union[Dict, Any] = None):
         """Initialize weapon entity.
         
         Args:
             weapon_data: Raw weapon data from inventory
-            character_stats: Character ability scores and proficiency for calculations
+            character_stats: Either a Character instance or a dict with ability scores and proficiency
         """
         super().__init__(weapon_data)
-        self.character_stats = character_stats or {}
+        # Normalize character_stats to dict
+        if character_stats is None:
+            self.character_stats = {}
+        elif hasattr(character_stats, 'get_stats_dict'):
+            # It's a Character instance
+            self.character_stats = character_stats.get_stats_dict()
+        elif isinstance(character_stats, dict):
+            # It's already a dict
+            self.character_stats = character_stats
+        else:
+            self.character_stats = {}
     
     @property
     def final_display_value(self) -> str:

@@ -26,9 +26,14 @@ Data Flow:
 """
 
 import json
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union, Any
 from entity_manager import EntityManager
 from game_constants import ARMOR_AC_VALUES
+
+try:
+    from character_models import Character
+except ImportError:
+    Character = None
 
 try:
     from js import console, document
@@ -188,10 +193,20 @@ class ArmorEntity(EntityManager):
     It never modifies the underlying inventory item.
     """
     
-    def __init__(self, armor_data: Dict, character_stats: Dict = None):
+    def __init__(self, armor_data: Dict, character_stats: Union[Dict, Any] = None):
         super().__init__(armor_data)
         self.data = ArmorData(armor_data)  # Read-only data accessor
-        self.character_stats = character_stats or {}
+        # Normalize character_stats to dict
+        if character_stats is None:
+            self.character_stats = {}
+        elif hasattr(character_stats, 'get_stats_dict'):
+            # It's a Character instance
+            self.character_stats = character_stats.get_stats_dict()
+        elif isinstance(character_stats, dict):
+            # It's already a dict
+            self.character_stats = character_stats
+        else:
+            self.character_stats = {}
     
     # === Display Properties ===
     
@@ -357,9 +372,19 @@ class ArmorCollectionManager:
     This class just reflects those changes in the Skills tab armor table.
     """
     
-    def __init__(self, inventory_manager=None, character_stats: Dict = None):
+    def __init__(self, inventory_manager=None, character_stats: Union[Dict, Any] = None):
         self.inventory_manager = inventory_manager
-        self.character_stats = character_stats or {}
+        # Normalize character_stats to dict
+        if character_stats is None:
+            self.character_stats = {}
+        elif hasattr(character_stats, 'get_stats_dict'):
+            # It's a Character instance
+            self.character_stats = character_stats.get_stats_dict()
+        elif isinstance(character_stats, dict):
+            # It's already a dict
+            self.character_stats = character_stats
+        else:
+            self.character_stats = {}
         self.armor_pieces: List[ArmorEntity] = []
         
         self.grid_element = self._get_element("armor-grid")

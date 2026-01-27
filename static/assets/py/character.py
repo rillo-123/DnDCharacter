@@ -1180,6 +1180,10 @@ SPELL_LIBRARY_STATE["loaded"] = True
 
 INVENTORY_MANAGER = InventoryManager() if InventoryManager is not None else None
 
+# CHARACTER_MANAGER will be initialized after DEFAULT_STATE is defined
+# See initialization below at module load
+CHARACTER_MANAGER = None
+
 # Initialize event listener for inventory events
 if INVENTORY_MANAGER is not None:
     try:
@@ -1729,6 +1733,11 @@ DEFAULT_STATE = {
 def clone_default_state() -> dict:
     """Return a deep copy of the default state template."""
     return copy.deepcopy(DEFAULT_STATE)
+
+
+# Initialize global CHARACTER_MANAGER (single source of truth for character stats)
+# This must happen after DEFAULT_STATE is defined
+CHARACTER_MANAGER = Character(clone_default_state()) if Character is not None else None
 
 
 def get_element(element_id):
@@ -7090,18 +7099,30 @@ if document is not None:
         )
 
         console.log("[DEBUG] Initializing weapons and armor managers")
-        # Get character stats for managers
-        level = get_numeric_value("level", 1)
-        char_stats = {
-            "str": get_numeric_value("str-score", 10),
-            "dex": get_numeric_value("dex-score", 10),
-            "proficiency": compute_proficiency(level)
-        }
-        weapons_mgr = initialize_weapons_manager(INVENTORY_MANAGER, char_stats)
-        weapons_mgr.render()
-        armor_mgr = initialize_armor_manager(INVENTORY_MANAGER, char_stats)
-        armor_mgr.render()
-        console.log("[DEBUG] Weapons and armor managers initialized and rendered")
+        # Update CHARACTER_MANAGER from form (it's the single source of truth)
+        if CHARACTER_MANAGER is not None:
+            level = get_numeric_value("level", 1)
+            CHARACTER_MANAGER.level = level
+            CHARACTER_MANAGER.attributes.str = get_numeric_value("str-score", 10)
+            CHARACTER_MANAGER.attributes.dex = get_numeric_value("dex-score", 10)
+            weapons_mgr = initialize_weapons_manager(INVENTORY_MANAGER, CHARACTER_MANAGER)
+            weapons_mgr.render()
+            armor_mgr = initialize_armor_manager(INVENTORY_MANAGER, CHARACTER_MANAGER)
+            armor_mgr.render()
+            console.log("[DEBUG] Weapons and armor managers initialized and rendered with CHARACTER_MANAGER")
+        else:
+            # Fallback to dict-based initialization if CHARACTER_MANAGER not available
+            level = get_numeric_value("level", 1)
+            char_stats = {
+                "str": get_numeric_value("str-score", 10),
+                "dex": get_numeric_value("dex-score", 10),
+                "proficiency": compute_proficiency(level)
+            }
+            weapons_mgr = initialize_weapons_manager(INVENTORY_MANAGER, char_stats)
+            weapons_mgr.render()
+            armor_mgr = initialize_armor_manager(INVENTORY_MANAGER, char_stats)
+            armor_mgr.render()
+            console.log("[DEBUG] Weapons and armor managers initialized and rendered with dict")
     except Exception as e:
         console.error(f"[DEBUG] Error initializing managers: {e}")
         # Fallback to old method

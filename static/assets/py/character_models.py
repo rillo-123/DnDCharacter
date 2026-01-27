@@ -505,6 +505,36 @@ class Character:
         return 10 + wis_mod + prof_bonus
 
     # ------------------------------------------------------------------
+    # manager helper methods
+    # ------------------------------------------------------------------
+    def get_ability_modifier(self, ability: str) -> int:
+        """Get ability modifier for a specific ability.
+        
+        Args:
+            ability: Ability key ('str', 'dex', 'con', 'int', 'wis', 'cha')
+        
+        Returns:
+            Ability modifier (-5 to +5 typical range)
+        """
+        score = self._abilities[ability]
+        return (score - 10) // 2
+    
+    def get_stats_dict(self) -> Dict[str, int]:
+        """Get a dict representation of character stats for managers.
+        
+        This provides compatibility for managers that expect a dict,
+        while the Character instance is the single source of truth.
+        
+        Returns:
+            Dict with keys: str, dex, proficiency
+        """
+        return {
+            "str": self._abilities.str,
+            "dex": self._abilities.dex,
+            "proficiency": self.proficiency_bonus
+        }
+    
+    # ------------------------------------------------------------------
     # derived helpers
     # ------------------------------------------------------------------
     def header_summary(self) -> str:
