@@ -115,12 +115,12 @@ def test_spellcasting_findable_after_path_update():
     
     # Try importing
     try:
-        import spellcasting
-        print(f"[OK] Can import spellcasting")
+        import spellcasting_manager
+        print(f"[OK] Can import spellcasting_manager")
         print(f"      Location: {spellcasting.__file__}")
         return True
     except ImportError as e:
-        print(f"[FAIL] Cannot import spellcasting: {e}")
+        print(f"[FAIL] Cannot import spellcasting_manager: {e}")
         return False
 
 
@@ -175,7 +175,7 @@ def test_pyscript_fetches_via_http():
     print("""
 PyScript's module loading mechanism:
 
-1. Module requested: from spellcasting import SpellcastingManager
+1. Module requested: from spellcasting_manager import SpellcastingManager
 2. PyScript/Pyodide looks for spellcasting module
 3. Checks standard library first
 4. Checks sys.path directories next

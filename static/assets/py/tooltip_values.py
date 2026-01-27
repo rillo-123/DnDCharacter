@@ -6,7 +6,7 @@ different parts of the character sheet (ability scores, weapon attacks, etc.)
 using inheritance and composition.
 """
 
-from typing import List, Optional, Dict
+from typing import List
 
 
 class TooltipValue:
@@ -85,7 +85,7 @@ class AbilityScoreValue(TooltipValue):
         # Add components
         self.add_component(f"Base {self.ability}", base_score)
         if race_bonus:
-            self.add_component(f"Race bonus", race_bonus)
+            self.add_component("Race bonus", race_bonus)
     
     def generate_tooltip_html(self) -> str:
         """Generate HTML tooltip for ability score breakdown."""

@@ -518,7 +518,7 @@ class TestWeaponsGridIntegration:
         """Verify that when a weapon is submitted, notes field contains all properties."""
         import sys
         sys.path.insert(0, 'static/assets/py')
-        from equipment_management import InventoryManager
+        from inventory_manager import InventoryManager
         
         # Create inventory manager
         inventory = InventoryManager()
@@ -565,7 +565,7 @@ class TestWeaponsGridIntegration:
         """Verify fallback weapon definitions have correct damage in to_dict()."""
         import sys
         sys.path.insert(0, 'static/assets/py')
-        from equipment_management import Weapon
+        from inventory_manager import Weapon
         
         # Create a crossbow like in the fallback list
         crossbow = Weapon("Crossbow, light", damage="1d8", damage_type="piercing", 
@@ -589,7 +589,7 @@ class TestWeaponsGridIntegration:
         """Verify complete equip/unequip workflow with inventory manager."""
         import sys
         sys.path.insert(0, 'static/assets/py')
-        from equipment_management import InventoryManager
+        from inventory_manager import InventoryManager
         
         # Create inventory
         inventory = InventoryManager()
@@ -661,7 +661,7 @@ class TestWeaponsGridIntegration:
         """Verify that grid rendering only uses equipped weapons."""
         import sys
         sys.path.insert(0, 'static/assets/py')
-        from equipment_management import InventoryManager
+        from inventory_manager import InventoryManager
         
         inventory = InventoryManager()
         
@@ -692,7 +692,7 @@ class TestWeaponsGridIntegration:
         """Verify that unequipping a weapon removes it from the displayed grid."""
         import sys
         sys.path.insert(0, 'static/assets/py')
-        from equipment_management import InventoryManager
+        from inventory_manager import InventoryManager
         
         inventory = InventoryManager()
         
@@ -718,7 +718,7 @@ class TestWeaponsGridIntegration:
         """Verify that re-equipping a weapon adds it back to the grid."""
         import sys
         sys.path.insert(0, 'static/assets/py')
-        from equipment_management import InventoryManager
+        from inventory_manager import InventoryManager
         
         inventory = InventoryManager()
         

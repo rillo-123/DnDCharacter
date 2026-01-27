@@ -20,7 +20,7 @@ def test_domain_spell_workflow():
     print("=" * 70)
     
     try:
-        from spellcasting import (
+        from spellcasting_manager import (
             SPELL_LIBRARY_STATE, 
             SpellcastingManager,
             set_spell_library_data
@@ -96,7 +96,7 @@ def test_export_import_workflow():
     print("=" * 70)
     
     try:
-        from spellcasting import (
+        from spellcasting_manager import (
             SPELL_LIBRARY_STATE, 
             SpellcastingManager,
             set_spell_library_data

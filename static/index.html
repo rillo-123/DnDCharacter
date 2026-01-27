@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.7.1/core.css">
     <script type="module" src="https://pyscript.net/releases/2024.7.1/core.js"></script>
     <link rel="stylesheet" href="assets/css/styles.css">
+    <!-- Console logger - captures all console output to downloadable file -->
+    <script src="assets/js/console-logger.js"></script>
 </head>
 <body>
     <header class="app-header">
@@ -550,7 +552,7 @@
                         </thead>
                         <tbody id="armor-grid">
                             <tr id="armor-empty-state">
-                                <td colspan="6" style="text-align: center; padding: 1rem;">No armor equipped. Add armor from your equipment inventory.</td>
+                                <td colspan="6" style="text-align: center; padding: 1rem;">No armor in inventory. Add armor from the Equipment tab.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -569,7 +571,7 @@
                                 <tbody>
                                     <tr>
                                         <td class="combat-label">Armor Class</td>
-                                        <td class="combat-readonly"><span id="armor_class">10</span></td>
+                                        <td class="combat-readonly"><span id="total_armor_class">10</span></td>
                                     </tr>
                                     <tr>
                                         <td class="combat-label">Initiative</td>

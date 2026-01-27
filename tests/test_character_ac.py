@@ -124,7 +124,8 @@ class TestCalculateArmorClass:
                 "name": "Shield +1",
                 "category": "Armor",
                 "equipped": True,
-                "notes": json.dumps({"bonus": 1})
+                # armor_class contains TOTAL AC (base 2 + bonus 1 = 3)
+                "notes": json.dumps({"armor_class": 3, "bonus": 1})
             }
         ]
         
@@ -139,7 +140,7 @@ class TestCalculateArmorClass:
                 mock_get.side_effect = side_effect
                 
                 ac = calculate_armor_class()
-                # Should be: 15 (armor) + 2 (shield base) + 1 (shield bonus) = 18
+                # Should be: 15 (armor) + 3 (shield total) = 18
                 assert ac == 18, f"Expected AC 18 (15 + 3), got {ac}"
     
     def test_breastplate_with_low_dex(self):

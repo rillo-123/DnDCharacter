@@ -71,7 +71,7 @@ def test_initialize_captures_modules_not_functions(mock_console):
     
     try:
         # Import after mocking
-        from equipment_management import initialize_module_references
+        from inventory_manager import initialize_module_references
         
         # This should work with module references
         initialize_module_references()

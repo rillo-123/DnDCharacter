@@ -12,7 +12,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
-from equipment_management import InventoryManager
+from inventory_manager import InventoryManager
 from tooltip_values import WeaponToHitValue
 
 

@@ -1,87 +1,284 @@
 """
-Armor Management - Manages armor entities and displays armor grid.
+Armor Management - Refactored for clarity and maintainability.
+
+Design Principles:
+1. Single Source of Truth: Equipment table (inventory) is THE source of truth
+   - Users add/edit items via Equipment tab
+   - armor_manager only READS from inventory, never modifies
+   - Multiple data sources (Open5e, manual entry) can populate inventory
+   - armor_manager doesn't care HOW data got there, just displays what's there
+
+2. Separation of Concerns: Data access, calculation, and display are separate
+   - ArmorData: Reads from inventory item (notes JSON > direct fields > defaults)
+   - ArmorEntity: Calculates AC with DEX modifiers
+   - ArmorCollectionManager: Renders UI table
+
+3. Explicit Types: Shield vs Armor is always explicit
+4. Simple Methods: Each method has one clear purpose
 
 Architecture:
-- ArmorEntity: Represents a single armor with display properties
-- ArmorCollectionManager: Manages a collection of armor entities and renders them
-- Each armor entity has properties like final_name, final_ac, final_type, etc.
-- The manager just orchestrates - the entity knows how to display itself
+- ArmorData: Pure data extraction from inventory item (read-only)
+- ArmorEntity: Business logic for AC calculations and display (read-only)
+- ArmorCollectionManager: Renders armor/shield table from inventory (read-only display)
 
-This follows the same pattern as WeaponsManager for consistency.
+Data Flow:
+  User adds item → Equipment Table (inventory) → armor_manager reads → Display
 """
 
 import json
-import re
 from typing import Optional, Dict, List
-
 from entity_manager import EntityManager
+from game_constants import ARMOR_AC_VALUES
 
 try:
     from js import console, document
 except ImportError:
-    # Mock for testing
     class _MockConsole:
         @staticmethod
-        def log(msg):
-            print(f"[ARMOR] {msg}")
-        
+        def log(msg): print(f"[ARMOR] {msg}")
         @staticmethod
-        def error(msg):
-            print(f"[ARMOR ERROR] {msg}")
-    
+        def error(msg): print(f"[ARMOR ERROR] {msg}")
     console = _MockConsole()
 
 
-class ArmorEntity(EntityManager):
-    """Represents a single armor piece with all its display properties."""
+class ArmorData:
+    """Pure data accessor - extracts armor data from inventory item.
     
-    def __init__(self, armor_data: Dict = None, character_stats: Dict = None):
-        """Initialize armor entity.
+    READ-ONLY: This class never modifies the inventory item.
+    It only reads data with clear priority: notes JSON > direct fields > defaults
+    
+    The inventory item is the source of truth maintained by inventory_manager.
+    """
+    
+    def __init__(self, item: Dict):
+        self.item = item  # Reference to inventory item (read-only)
+        self._notes_cache = None
+    
+    @property
+    def notes(self) -> Dict:
+        """Parse notes JSON once and cache."""
+        if self._notes_cache is None:
+            try:
+                notes_str = self.item.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    self._notes_cache = json.loads(notes_str)
+                else:
+                    self._notes_cache = {}
+            except Exception:
+                self._notes_cache = {}
+        return self._notes_cache
+    
+    @property
+    def name(self) -> str:
+        return self.item.get("name", "Unknown Armor")
+    
+    @property
+    def item_id(self) -> str:
+        return self.item.get("id", "unknown")
+    
+    @property
+    def is_equipped(self) -> bool:
+        return self.item.get("equipped", False)
+    
+    @property
+    def is_shield(self) -> bool:
+        """Determine if this item is a shield."""
+        # Check armor_type in notes first
+        armor_type = self.notes.get("armor_type", "").lower()
+        if armor_type == "shield":
+            return True
         
-        Args:
-            armor_data: Raw armor data from inventory
-            character_stats: Character ability scores and proficiency for calculations
+        # Check direct field
+        armor_type = self.item.get("armor_type", "").lower()
+        if armor_type == "shield":
+            return True
+        
+        # Check name as fallback
+        if "shield" in self.name.lower():
+            return True
+        
+        return False
+    
+    @property
+    def base_ac(self) -> int:
+        """Get base AC value (without any modifiers).
+        
+        For armor: The armor's base AC (e.g., 14 for Breastplate)
+        For shields: The shield's AC bonus (e.g., 2 for normal Shield)
         """
+        # Priority: notes > direct field > default
+        ac = self.notes.get("armor_class", None)
+        if ac is not None:
+            try:
+                return int(ac)
+            except (ValueError, TypeError):
+                pass
+        
+        ac = self.item.get("armor_class", None)
+        if ac is not None:
+            try:
+                return int(ac) if ac else 0
+            except (ValueError, TypeError):
+                pass
+        
+        # Default: shields get +2 if no AC specified
+        if self.is_shield:
+            return 2
+        
+        return 0
+    
+    @property
+    def armor_type(self) -> str:
+        """Get armor type: Light, Medium, Heavy, or Shield."""
+        # Priority: notes > direct field > infer from name
+        armor_type = self.notes.get("armor_type", "")
+        if not armor_type:
+            armor_type = self.item.get("armor_type", "")
+        
+        if armor_type:
+            return armor_type
+        
+        # Infer from name if not explicitly set
+        name_lower = self.name.lower()
+        if "shield" in name_lower:
+            return "Shield"
+        elif any(x in name_lower for x in ["breastplate", "scale", "chain shirt", "half plate"]):
+            return "Medium"
+        elif any(x in name_lower for x in ["plate", "chain mail", "splint", "ring mail"]):
+            return "Heavy"
+        elif any(x in name_lower for x in ["leather", "padded", "studded"]):
+            return "Light"
+        
+        return "Unknown"
+    
+    @property
+    def material(self) -> str:
+        """Get armor material."""
+        material = self.notes.get("material", "")
+        if not material:
+            material = self.item.get("material", "")
+        return material if material else "—"
+    
+    @property
+    def stealth_disadvantage(self) -> bool:
+        """Check if armor imposes stealth disadvantage."""
+        return self.armor_type.lower() == "heavy"
+    
+    @property
+    def cost(self) -> str:
+        """Get armor cost."""
+        cost = self.notes.get("cost", "")
+        if not cost:
+            cost = self.item.get("cost", "")
+        return cost if cost else "—"
+    
+    @property
+    def weight(self) -> str:
+        """Get armor weight."""
+        weight = self.notes.get("weight", "")
+        if not weight:
+            weight = self.item.get("weight", "")
+        return weight if weight else "—"
+
+
+class ArmorEntity(EntityManager):
+    """Business logic for armor - handles AC calculations and display formatting.
+    
+    READ-ONLY: This class only reads from inventory data and calculates derived values.
+    It never modifies the underlying inventory item.
+    """
+    
+    def __init__(self, armor_data: Dict, character_stats: Dict = None):
         super().__init__(armor_data)
+        self.data = ArmorData(armor_data)  # Read-only data accessor
         self.character_stats = character_stats or {}
+    
+    # === Display Properties ===
     
     @property
     def final_display_value(self) -> str:
-        """Return the armor name for primary display."""
-        return self.final_name
+        return self.data.name
     
     @property
-    def final_name(self) -> str:
-        """Armor name from entity."""
-        return self.entity.get("name", "Unknown")
+    def display_name(self) -> str:
+        return self.data.name
+    
+    @property
+    def display_ac(self) -> str:
+        """AC for table display.
+        
+        Armor: Base AC (e.g., "14")
+        Shield: Bonus with + (e.g., "+2")
+        """
+        if self.data.is_shield:
+            ac = self.data.base_ac
+            return f"+{ac}" if ac > 0 else "—"
+        else:
+            ac = self.data.base_ac
+            return str(ac) if ac > 0 else "—"
     
     @property
     def final_ac(self) -> str:
-        """Formatted armor class value."""
-        ac = self._calculate_ac()
+        """Total AC with DEX modifier included (for compatibility with tests and calculations).
+        
+        Returns formatted string: "15", "17", "3" (shield), or "—"
+        Note: Shields return plain number, not +3 format (that's only for display_ac)
+        """
+        ac = self.calculate_total_ac()
         return str(ac) if ac > 0 else "—"
     
     @property
+    def display_type(self) -> str:
+        return self.data.armor_type
+    
+    @property
+    def display_material(self) -> str:
+        return self.data.material
+    
+    @property
+    def display_stealth(self) -> str:
+        return "Disadvantage" if self.data.stealth_disadvantage else "Normal"
+    
+    @property
+    def display_cost(self) -> str:
+        return self.data.cost
+    
+    @property
+    def display_weight(self) -> str:
+        return self.data.weight
+    
+    # === Context String Methods ===
+    
+    def item_info_string_equipment_list_ctx(self) -> str:
+        """Return a compact string suitable for the equipment list context.
+        
+        Example: "Leather Armor - 10 gp - 10 lb."
+        """
+        return f"{self.display_name} - {self.display_cost} - {self.display_weight}"
+    
+    def item_info_string_character_sheet_ctx(self) -> str:
+        """Return a compact string suitable for character sheet context.
+        
+        Example: "Leather Armor (AC 13)"
+        """
+        return f"{self.display_name} (AC {self.final_ac})"
+    
+    # === Backward Compatibility Properties ===
+    
+    @property
+    def final_name(self) -> str:
+        """Backward compatibility: alias for display_name."""
+        return self.display_name
+    
+    @property
     def final_armor_type(self) -> str:
-        """Type of armor (Light, Medium, Heavy, or Shield)."""
-        armor_type = self.entity.get("armor_type", "")
-        
-        # Try to get from notes JSON if not in direct field
-        if not armor_type:
-            try:
-                notes_str = self.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    armor_type = notes_data.get("armor_type", "")
-            except Exception:
-                pass
-        
-        return armor_type if armor_type else "—"
+        """Backward compatibility: alias for display_type."""
+        return self.display_type
     
     @property
     def final_armor_class(self) -> str:
-        """Full AC description (Light Armor 12, Heavy Armor 16, etc)."""
-        armor_type = self.final_armor_type
+        """Backward compatibility: Full AC description (e.g., 'Medium Armor 15')."""
+        armor_type = self.display_type
         ac = self.final_ac
         
         if armor_type == "—" or ac == "—":
@@ -91,160 +288,250 @@ class ArmorEntity(EntityManager):
     
     @property
     def final_material(self) -> str:
-        """Material composition (Leather, Chain Mail, Plate, etc)."""
-        material = self.entity.get("material", "")
-        
-        # Try to get from notes JSON if not in direct field
-        if not material:
-            try:
-                notes_str = self.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    material = notes_data.get("material", "")
-            except Exception:
-                pass
-        
-        return material if material else "—"
-
-    @property
-    def final_cost(self) -> str:
-        """Formatted cost string for equipment lists (e.g., '15 gp')."""
-        cost = self.entity.get("cost", "")
-        if not cost:
-            try:
-                notes_str = self.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    cost = notes_data.get("cost", "")
-            except Exception:
-                pass
-        return cost if cost else "—"
-
-    @property
-    def final_weight(self) -> str:
-        """Formatted weight string for equipment lists (e.g., '3 lb.')."""
-        weight = self.entity.get("weight", "")
-        if not weight:
-            try:
-                notes_str = self.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    weight = notes_data.get("weight", "")
-            except Exception:
-                pass
-        return weight if weight else "—"
-
-    def item_info_string_equipment_list_ctx(self) -> str:
-        """Return a compact string suitable for the equipment list context.
-
-        Example: "Leather Armor - 10 gp - 10 lb."""
-        return f"{self.final_name} - {self.final_cost} - {self.final_weight}"
-
-    def item_info_string_character_sheet_ctx(self) -> str:
-        """Return a compact string suitable for character sheet context.
-
-        Example: "Leather Armor (AC 13)"""
-        return f"{self.final_name} (AC {self.final_ac})"    
+        """Backward compatibility: alias for display_material."""
+        return self.display_material
+    
     @property
     def final_stealth(self) -> str:
-        """Stealth disadvantage indicator."""
-        stealth = self.entity.get("stealth_disadvantage", False)
+        """Backward compatibility: alias for display_stealth."""
+        return self.display_stealth
+    
+    # === Calculation Methods ===
+    
+    def calculate_total_ac(self) -> int:
+        """Calculate total AC including DEX modifier.
         
-        # Try to get from notes JSON if not in direct field
-        if not stealth:
-            try:
-                notes_str = self.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    stealth = notes_data.get("stealth_disadvantage", False)
-            except Exception:
-                pass
+        Used by character.py for total AC calculation.
         
-        return "Disadvantage" if stealth else "—"
+        Returns:
+            For armor: base AC + DEX modifier (capped by type)
+            For shields: base AC bonus
+        """
+        if self.data.is_shield:
+            return self.data.base_ac
+        
+        base = self.data.base_ac
+        if base <= 0:
+            return 0
+        
+        # Add DEX modifier based on armor type
+        armor_type = self.data.armor_type.lower()
+        
+        if "light" in armor_type:
+            # Light armor: full DEX modifier
+            dex_mod = self._get_dex_modifier()
+            return base + max(0, dex_mod)
+        
+        elif "medium" in armor_type:
+            # Medium armor: DEX capped at +2
+            dex_mod = self._get_dex_modifier()
+            dex_mod = max(0, min(2, dex_mod))
+            return base + dex_mod
+        
+        else:
+            # Heavy armor: no DEX modifier
+            return base
+    
+    def _get_dex_modifier(self) -> int:
+        """Get character's DEX modifier."""
+        dex_score = self.character_stats.get("dex", 10)
+        return (dex_score - 10) // 2
     
     def _calculate_ac(self) -> int:
-        """Calculate armor class based on armor type and character stats.
-        
-        For light/medium armor, may add DEX modifier.
-        For heavy armor, no DEX added.
-        For shields, return the bonus value (not a standalone AC).
-        """
-        try:
-            base_ac = 0
-            armor_name = self.entity.get("name", "Unknown")
-            
-            # Check notes first (user-modified values take priority)
-            try:
-                notes_str = self.entity.get("notes", "")
-                console.log(f"[CALC-AC] {armor_name}: notes_str='{notes_str}'")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    base_ac = notes_data.get("armor_class", 0)
-                    if base_ac:
-                        console.log(f"[CALC-AC] {armor_name}: Found armor_class={base_ac} in notes")
-            except Exception as e:
-                console.log(f"[CALC-AC] {armor_name}: Error parsing notes: {e}")
-            
-            # If not in notes, get from direct field
-            if not base_ac:
-                base_ac = self.entity.get("armor_class", 0)
-                console.log(f"[CALC-AC] {armor_name}: Using direct armor_class={base_ac}")
-            
-            if base_ac <= 0:
-                console.log(f"[CALC-AC] {armor_name}: AC is 0 or less, returning 0")
-                return 0
-            
-            # Determine if we add DEX modifier
-            armor_type = self.final_armor_type.lower()
-            add_dex = "light" in armor_type or "medium" in armor_type
-            
-            if add_dex and "heavy" not in armor_type and "shield" not in armor_type:
-                # Get DEX modifier
-                dex_score = self.character_stats.get("dex", 10)
-                dex_mod = (dex_score - 10) // 2
-                
-                # Only add positive DEX modifiers (don't subtract for low DEX)
-                # Medium armor caps at +2, light armor adds full DEX
-                if "medium" in armor_type and dex_mod > 2:
-                    dex_mod = 2  # Cap medium armor DEX at +2
-                elif dex_mod < 0:
-                    dex_mod = 0  # Never subtract for low DEX
-                
-                final_ac = base_ac + dex_mod
-                console.log(f"[CALC-AC] {armor_name}: {armor_type} armor: base {base_ac} + dex {dex_mod} = {final_ac}")
-                return final_ac
-            
-            console.log(f"[CALC-AC] {armor_name}: {armor_type} armor: final AC = {base_ac}")
-            return base_ac
-        except Exception as e:
-            console.error(f"[CALC-AC] Error calculating AC: {e}")
-            return 0
+        """Backward compatibility: alias for calculate_total_ac()."""
+        return self.calculate_total_ac()
 
 
 class ArmorCollectionManager:
-    """Manages a collection of armor entities and renders armor grid."""
+    """Manages the armor table UI - renders all armor/shields from inventory.
     
-    def __init__(self, inventory_manager=None):
-        """Initialize armor collection manager.
-        
-        Args:
-            inventory_manager: Reference to InventoryManager instance
-        """
+    READ-ONLY VIEWER: This class reads from inventory_manager and displays armor.
+    
+    Data Flow:
+      inventory_manager (source of truth) → armor_manager (read & display)
+    
+    The ONLY way this modifies inventory is through the equipped checkbox,
+    which calls inventory_manager.update_item() - the proper API.
+    
+    Users add/edit armor in Equipment tab, which updates inventory_manager.
+    This class just reflects those changes in the Skills tab armor table.
+    """
+    
+    def __init__(self, inventory_manager=None, character_stats: Dict = None):
         self.inventory_manager = inventory_manager
-        self.grid_element = None
-        self.empty_state_element = None
+        self.character_stats = character_stats or {}
         self.armor_pieces: List[ArmorEntity] = []
-        self.character_stats: Dict = {}
-    
-    def initialize(self, character_stats: Dict = None):
-        """Initialize grid elements and character stats. Call after DOM is ready."""
+        
         self.grid_element = self._get_element("armor-grid")
         self.empty_state_element = self._get_element("armor-empty-state")
-        self.character_stats = character_stats or {}
+        
         if self.grid_element:
             console.log("[ARMOR] ArmorCollectionManager initialized")
         else:
             console.error("[ARMOR] armor-grid element not found")
+    
+    # === AC Calculation Properties (Single Source of Truth) ===
+    
+    @property
+    def armor_ac(self) -> int:
+        """Get AC from equipped armor piece only (includes DEX modifier if applicable).
+        
+        Returns:
+            - If armor equipped: base armor AC + DEX modifier (capped by armor type)
+            - If no armor: 0 (unarmored AC calculated separately)
+        """
+        if not self.inventory_manager:
+            return 0
+        
+        for item in self.inventory_manager.items:
+            if not item.get("equipped"):
+                continue
+            
+            category = item.get("category", "").lower()
+            if category not in ["armor", "armour", "shield"]:
+                continue
+            
+            armor_entity = ArmorEntity(item, self.character_stats)
+            
+            if not armor_entity.data.is_shield:
+                # Found equipped armor piece
+                return armor_entity.calculate_total_ac()
+        
+        return 0  # No armor equipped
+    
+    @property
+    def shield_ac(self) -> int:
+        """Get total AC bonus from equipped shields.
+        
+        Returns:
+            Sum of all equipped shield AC values (typically 2 per shield)
+        """
+        if not self.inventory_manager:
+            return 0
+        
+        total_shield_bonus = 0
+        
+        for item in self.inventory_manager.items:
+            if not item.get("equipped"):
+                continue
+            
+            category = item.get("category", "").lower()
+            if category not in ["armor", "armour", "shield"]:
+                continue
+            
+            armor_entity = ArmorEntity(item, self.character_stats)
+            
+            if armor_entity.data.is_shield:
+                total_shield_bonus += armor_entity.data.base_ac
+        
+        return total_shield_bonus
+    
+    @property
+    def other_ac(self) -> int:
+        """Get AC from non-armor sources (shields, magic items, etc.).
+        
+        Currently this is just shields, but could be extended for rings,
+        cloaks, or other AC-granting items.
+        
+        Returns:
+            Total AC bonus from shields and other non-armor sources
+        """
+        return self.shield_ac
+    
+    @property
+    def total_ac(self) -> int:
+        """Get complete AC calculation (armor + shields + modifiers).
+        
+        This is the authoritative AC calculation:
+        - If armor equipped: armor AC (with DEX) + shield AC
+        - If no armor: unarmored AC (10 + DEX) + shield AC
+        
+        Returns:
+            Total AC value for the character
+        """
+        if not self.inventory_manager:
+            # No inventory - use unarmored AC
+            dex_mod = (self.character_stats.get("dex", 10) - 10) // 2
+            return 10 + dex_mod
+        
+        armor_ac = self.armor_ac
+        
+        if armor_ac > 0:
+            # Wearing armor: use armor AC + shields
+            base_ac = armor_ac
+        else:
+            # Not wearing armor: use unarmored AC (10 + DEX)
+            dex_mod = (self.character_stats.get("dex", 10) - 10) // 2
+            base_ac = 10 + dex_mod
+        
+        total = base_ac + self.shield_ac
+        return max(1, total)
+    
+    # === Armor List Properties ===
+    
+    @property
+    def equipped_armor_items(self) -> List[ArmorEntity]:
+        """Get list of equipped armor/shield entities for armor table.
+        
+        Returns:
+            List of ArmorEntity objects for equipped armor and shields.
+            Each entity has properties like final_name, final_ac, final_armor_type.
+        """
+        if not self.inventory_manager:
+            return []
+        
+        equipped = []
+        for item in self.inventory_manager.items:
+            category = item.get("category", "").lower()
+            is_armor = category in ["armor", "armour", "shield"]
+            
+            if is_armor and item.get("equipped"):
+                armor = ArmorEntity(item, self.character_stats)
+                equipped.append(armor)
+        
+        return equipped
+    
+    @property
+    def unequipped_armor_items(self) -> List[ArmorEntity]:
+        """Get list of unequipped armor/shield entities (in backpack).
+        
+        Returns:
+            List of ArmorEntity objects for armor/shields not currently equipped.
+        """
+        if not self.inventory_manager:
+            return []
+        
+        unequipped = []
+        for item in self.inventory_manager.items:
+            category = item.get("category", "").lower()
+            is_armor = category in ["armor", "armour", "shield"]
+            
+            if is_armor and not item.get("equipped"):
+                armor = ArmorEntity(item, self.character_stats)
+                unequipped.append(armor)
+        
+        return unequipped
+    
+    @property
+    def all_armor_items(self) -> List[ArmorEntity]:
+        """Get list of all armor/shield entities (equipped + unequipped).
+        
+        Returns:
+            List of all ArmorEntity objects in inventory.
+        """
+        if not self.inventory_manager:
+            return []
+        
+        all_items = []
+        for item in self.inventory_manager.items:
+            category = item.get("category", "").lower()
+            is_armor = category in ["armor", "armour", "shield"]
+            
+            if is_armor:
+                armor = ArmorEntity(item, self.character_stats)
+                all_items.append(armor)
+        
+        return all_items
     
     def _get_element(self, element_id: str):
         """Get element by ID, with fallback for testing."""
@@ -254,7 +541,7 @@ class ArmorCollectionManager:
             return None
     
     def render(self):
-        """Render armor grid based on equipped armor in inventory."""
+        """Render armor table showing all armor/shields from inventory."""
         if not self.grid_element or not self.inventory_manager:
             return
         
@@ -262,156 +549,102 @@ class ArmorCollectionManager:
         
         # Build armor entities from inventory
         self._build_armor_entities()
-        console.log(f"[ARMOR] Built {len(self.armor_pieces)} armor entities")
+        console.log(f"[ARMOR] Found {len(self.armor_pieces)} armor/shield items")
         
-        # Clear old armor rows (preserve empty state row)
-        self._clear_armor_rows()
+        # Clear table
+        self._clear_table()
         
-        # If no armor, show empty state
+        # Show empty state if no armor
         if not self.armor_pieces:
             self._show_empty_state()
             return
         
-        # Hide empty state and render armor
+        # Render armor rows
         self._hide_empty_state()
-        self._render_armor_rows()
+        for armor in self.armor_pieces:
+            row = self._create_armor_row(armor)
+            self.grid_element.appendChild(row)
     
     def _build_armor_entities(self):
-        """Build ArmorEntity objects from equipped armor in inventory."""
+        """Build ArmorEntity objects from all armor/shields in inventory."""
         self.armor_pieces = []
         if not self.inventory_manager:
             return
         
         for item in self.inventory_manager.items:
             category = item.get("category", "").lower()
-            # Accept both armor/armour and shield (UK/US insensitive)
             is_armor = category in ["armor", "armour", "shield"]
-            if item.get("equipped") and is_armor:
+            
+            if is_armor:
                 armor = ArmorEntity(item, self.character_stats)
                 self.armor_pieces.append(armor)
     
-    def _clear_armor_rows(self):
+    def _clear_table(self):
         """Remove all armor rows except empty state."""
         if not self.grid_element:
             return
         
-        rows_to_remove = []
-        for row in self.grid_element.querySelectorAll("tr"):
+        rows = list(self.grid_element.children)
+        for row in rows:
             if row.id != "armor-empty-state":
-                rows_to_remove.append(row)
-        
-        for row in rows_to_remove:
-            row.remove()
+                self.grid_element.removeChild(row)
     
     def _show_empty_state(self):
-        """Show the empty state message."""
         if self.empty_state_element:
             self.empty_state_element.style.display = "table-row"
     
     def _hide_empty_state(self):
-        """Hide the empty state message."""
         if self.empty_state_element:
             self.empty_state_element.style.display = "none"
     
-    def _render_armor_rows(self):
-        """Render table rows for all armor entities.
-        
-        Separates armor and shields, combining AC calculation:
-        - Show main armor with final AC (armor AC + DEX + shield bonus)
-        - Show shield as a separate row with bonus value only
-        """
-        if not self.grid_element:
-            return
-        
-        # Separate armor and shields
-        armor_pieces = [a for a in self.armor_pieces if "shield" not in a.final_armor_type.lower()]
-        shields = [a for a in self.armor_pieces if "shield" in a.final_armor_type.lower()]
-        
-        # Get total shield bonus
-        total_shield_bonus = 0
-        for shield in shields:
-            # Shields have base +2 bonus, plus any magical bonus
-            try:
-                notes_str = shield.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    bonus = notes_data.get("bonus", 0)
-                else:
-                    bonus = 0
-            except:
-                bonus = 0
-            
-            shield_bonus = 2 + bonus  # Base +2 plus magical bonus
-            total_shield_bonus += shield_bonus
-            console.log(f"[ARMOR] Shield '{shield.entity.get('name')}': +{shield_bonus} (base +2 + bonus {bonus})")
-        
-        # Render armor with combined AC (armor + shield bonuses)
-        for armor in armor_pieces:
-            row = self._create_armor_row(armor, total_shield_bonus)
-            self.grid_element.appendChild(row)
-        
-        # Render shields as separate rows (showing bonus only)
-        for shield in shields:
-            row = self._create_shield_row(shield)
-            self.grid_element.appendChild(row)
-    
-    def _create_armor_row(self, armor: ArmorEntity, shield_bonus: int = 0) -> object:
-        """Create a table row for an armor entity with equipped checkbox.
-        
-        Args:
-            armor: The armor entity to render
-            shield_bonus: Additional AC bonus from shields (will be added to armor AC)
-        """
+    def _create_armor_row(self, armor: ArmorEntity) -> object:
+        """Create a table row for an armor or shield."""
         try:
             row = document.createElement("tr")
-            armor_id = armor.entity.get('id', 'unknown')
-            armor_name = armor.entity.get('name', 'Unknown')
-            base_ac = int(armor.final_ac) if armor.final_ac != "—" else 0
-            final_ac = base_ac + shield_bonus if base_ac > 0 else 0
-            final_ac_str = str(final_ac) if final_ac > 0 else "—"
+            row.id = f"armor-row-{armor.data.item_id}"
             
-            row.id = f"armor-row-{armor_id}"
-            
-            console.log(f"[RENDER-ARMOR] Creating row for {armor_name}: base AC={base_ac}, shield_bonus={shield_bonus}, final AC={final_ac}")
-            
-            # Column 1: Armor name
+            # Column 1: Name
             name_td = document.createElement("td")
-            name_td.textContent = armor.final_name
+            name_td.textContent = armor.display_name
+            if armor.data.is_shield:
+                name_td.style.color = "green"
             row.appendChild(name_td)
             
-            # Column 2: AC (including shield bonus)
+            # Column 2: AC
             ac_td = document.createElement("td")
-            ac_td.textContent = final_ac_str
-            console.log(f"[RENDER-ARMOR] Set AC cell text to: {final_ac_str}")
+            ac_td.textContent = armor.display_ac
             row.appendChild(ac_td)
             
-            # Column 3: Armor Type
+            # Column 3: Type
             type_td = document.createElement("td")
-            type_td.textContent = armor.final_armor_type
+            type_td.textContent = armor.display_type
             row.appendChild(type_td)
             
             # Column 4: Material
             material_td = document.createElement("td")
-            material_td.textContent = armor.final_material
+            material_td.textContent = armor.display_material
             row.appendChild(material_td)
             
             # Column 5: Stealth
             stealth_td = document.createElement("td")
-            stealth_td.textContent = armor.final_stealth
+            stealth_td.textContent = armor.display_stealth
+            if armor.data.stealth_disadvantage:
+                stealth_td.style.color = "red"
             row.appendChild(stealth_td)
             
             # Column 6: Equipped checkbox
             equipped_td = document.createElement("td")
             equipped_td.style.textAlign = "center"
+            
             checkbox = document.createElement("input")
             checkbox.type = "checkbox"
-            checkbox.checked = armor.entity.get("equipped", False)
+            checkbox.checked = armor.data.is_equipped
             checkbox.style.cursor = "pointer"
-            checkbox.id = f"armor-equipped-{armor.entity.get('id', 'unknown')}"
+            checkbox.id = f"armor-equipped-{armor.data.item_id}"
             
-            # Add event handler for equip/unequip
-            armor_id = armor.entity.get("id")
-            checkbox.addEventListener("change", lambda event: self._handle_armor_equipped_change(event, armor_id))
+            # Event handler
+            checkbox.addEventListener("change", 
+                lambda event: self._handle_equipped_change(event, armor.data.item_id))
             
             equipped_td.appendChild(checkbox)
             row.appendChild(equipped_td)
@@ -421,106 +654,49 @@ class ArmorCollectionManager:
             console.error(f"[ARMOR] Error creating armor row: {e}")
             return document.createElement("tr")
     
-    def _create_shield_row(self, shield: ArmorEntity) -> object:
-        """Create a table row for a shield showing only the AC bonus."""
-        try:
-            row = document.createElement("tr")
-            shield_id = shield.entity.get('id', 'unknown')
-            shield_name = shield.entity.get('name', 'Unknown')
-            
-            # Calculate shield bonus
-            try:
-                notes_str = shield.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    bonus = notes_data.get("bonus", 0)
-                else:
-                    bonus = 0
-            except Exception:
-                bonus = 0
-            
-            shield_bonus = 2 + bonus  # Base +2 plus magical bonus
-            shield_bonus_str = f"+{shield_bonus}"
-            
-            row.id = f"armor-row-{shield_id}"
-            
-            console.log(f"[RENDER-ARMOR] Creating shield row for {shield_name}: bonus={shield_bonus}")
-            
-            # Column 1: Shield name
-            name_td = document.createElement("td")
-            name_td.textContent = shield_name
-            row.appendChild(name_td)
-            
-            # Column 2: AC Bonus (not full AC, just the bonus)
-            ac_td = document.createElement("td")
-            ac_td.textContent = shield_bonus_str
-            ac_td.style.color = "#90EE90"  # Light green to differentiate from armor AC
-            row.appendChild(ac_td)
-            
-            # Column 3: Type (Shield)
-            type_td = document.createElement("td")
-            type_td.textContent = "Shield"
-            row.appendChild(type_td)
-            
-            # Column 4: Material
-            material_td = document.createElement("td")
-            material_td.textContent = shield.final_material
-            row.appendChild(material_td)
-            
-            # Column 5: Stealth (usually "—" for shields)
-            stealth_td = document.createElement("td")
-            stealth_td.textContent = "—"
-            row.appendChild(stealth_td)
-            
-            # Column 6: Equipped checkbox
-            equipped_td = document.createElement("td")
-            equipped_td.style.textAlign = "center"
-            checkbox = document.createElement("input")
-            checkbox.type = "checkbox"
-            checkbox.checked = shield.entity.get("equipped", False)
-            checkbox.style.cursor = "pointer"
-            checkbox.id = f"armor-equipped-{shield.entity.get('id', 'unknown')}"
-            
-            # Add event handler for equip/unequip
-            shield_id = shield.entity.get("id")
-            checkbox.addEventListener("change", lambda event: self._handle_armor_equipped_change(event, shield_id))
-            
-            equipped_td.appendChild(checkbox)
-            row.appendChild(equipped_td)
-            
-            return row
-        except Exception as e:
-            console.error(f"[ARMOR] Error creating shield row: {e}")
-            return document.createElement("tr")
-    
-    def _handle_armor_equipped_change(self, event, armor_id: str):
-        """Handle armor equipped checkbox change."""
+    def _handle_equipped_change(self, event, armor_id: str):
+        """Handle armor equipped checkbox change.
+        
+        This is the ONLY place armor_manager modifies inventory data.
+        It properly goes through inventory_manager.update_item() API.
+        
+        Updates inventory (source of truth) → triggers recalculation → re-renders
+        """
         try:
             if not self.inventory_manager:
                 return
             
             is_equipped = event.target.checked
             
-            # Update the armor item's equipped status
+            # Update inventory through proper API (source of truth)
             self.inventory_manager.update_item(armor_id, {"equipped": is_equipped})
             
-            # Recalculate AC and trigger character update
+            # Recalculate character AC
             try:
-                from character import calculate_armor_class, update_calculations
-                calculate_armor_class()
-                update_calculations()
-            except Exception:
-                pass
+                import sys
+                char_module = sys.modules.get('character')
+                if char_module:
+                    calc_ac = getattr(char_module, 'calculate_armor_class', None)
+                    update_calc = getattr(char_module, 'update_calculations', None)
+                    if calc_ac:
+                        calc_ac()
+                    if update_calc:
+                        update_calc()
+                else:
+                    console.warn("[ARMOR] character module not in sys.modules")
+            except Exception as e:
+                console.error(f"[ARMOR] Error updating calculations: {e}")
             
-            # Re-render the armor grid
+            # Re-render
             self.render()
             
             console.log(f"[ARMOR] Armor {armor_id} equipped: {is_equipped}")
         except Exception as e:
-            console.error(f"[ARMOR] Error handling armor equipped change: {e}")
+            console.error(f"[ARMOR] Error handling equipped change: {e}")
 
 
-# Global instance
+# === Global Instance ===
+
 _ARMOR_MANAGER: Optional[ArmorCollectionManager] = None
 
 
@@ -529,16 +705,168 @@ def get_armor_manager() -> Optional[ArmorCollectionManager]:
     return _ARMOR_MANAGER
 
 
-def initialize_armor_manager(inventory_manager, character_stats: Dict = None):
-    """Initialize the global armor manager.
+def calculate_total_ac_from_armor_manager(inventory_manager, character_stats: Dict) -> int:
+    """Calculate total AC using armor_manager logic (single source of truth).
     
-    Call this once during application startup.
+    This is the authoritative AC calculation that uses the same logic as the armor table.
+    Now simplified to use the ArmorCollectionManager properties.
     
     Args:
-        inventory_manager: InventoryManager instance
-        character_stats: Character ability scores and proficiency
+        inventory_manager: Inventory manager with armor/shield items
+        character_stats: Character stats dict with 'dex' key
+    
+    Returns:
+        Total AC = armor AC + shield AC, or unarmored AC if no armor
     """
+    if not inventory_manager:
+        # No inventory - use unarmored AC
+        dex_mod = (character_stats.get("dex", 10) - 10) // 2
+        return 10 + dex_mod
+    
+    # Create temporary manager to use properties
+    temp_manager = ArmorCollectionManager(inventory_manager, character_stats)
+    
+    # Use the properties for calculation
+    total_ac = temp_manager.total_ac
+    
+    console.log(f"[ARMOR-AC] Total AC: {temp_manager.armor_ac} (armor) + {temp_manager.shield_ac} (shields) = {total_ac}")
+    return total_ac
+
+
+# === Manager Set Methods (for event handlers) ===
+
+def set_armor_ac(inventory_manager, item_id: str, ac_value: int) -> bool:
+    """
+    Set the armor_class value for an armor/shield item.
+    
+    Args:
+        inventory_manager: The inventory manager instance
+        item_id: The item ID to update
+        ac_value: The new AC value (total, including bonuses)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        item = inventory_manager.get_item(item_id)
+        if not item:
+            console.error(f"[ARMOR-SET] Item {item_id} not found")
+            return False
+        
+        # Parse existing notes to preserve other properties
+        notes_str = item.get("notes", "")
+        if notes_str and notes_str.startswith("{"):
+            extra_props = json.loads(notes_str)
+        else:
+            extra_props = {}
+        
+        # Update armor_class
+        extra_props["armor_class"] = ac_value
+        
+        # Save back to notes
+        notes = json.dumps(extra_props) if extra_props else ""
+        inventory_manager.update_item(item_id, {"notes": notes})
+        
+        console.log(f"[ARMOR-SET] Set AC for {item.get('name')} to {ac_value}")
+        return True
+    except Exception as e:
+        console.error(f"[ARMOR-SET] Error setting AC: {e}")
+        return False
+
+
+def set_armor_bonus(inventory_manager, item_id: str, bonus_value: int) -> bool:
+    """
+    Set the magical bonus for an armor/shield item and auto-calculate total AC.
+    
+    This is the preferred method for bonus changes as it handles all calculation logic.
+    
+    Args:
+        inventory_manager: The inventory manager instance
+        item_id: The item ID to update
+        bonus_value: The magical bonus value (+0, +1, +2, etc.)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        item = inventory_manager.get_item(item_id)
+        if not item:
+            console.error(f"[ARMOR-SET] Item {item_id} not found")
+            return False
+        
+        # Parse existing notes to preserve other properties
+        notes_str = item.get("notes", "")
+        if notes_str and notes_str.startswith("{"):
+            extra_props = json.loads(notes_str)
+        else:
+            extra_props = {}
+        
+        # Determine if this is a shield
+        armor_name = item.get("name", "").lower()
+        is_shield = "shield" in armor_name
+        
+        if bonus_value != 0:
+            # Store bonus in notes
+            extra_props["bonus"] = bonus_value
+            
+            if is_shield:
+                # Shields: base AC is 2, total = base + bonus
+                total_ac = 2 + bonus_value
+                extra_props["armor_class"] = total_ac
+                console.log(f"[ARMOR-SET] Shield {item.get('name')}: AC = 2 + {bonus_value} = {total_ac}")
+            else:
+                # Regular armor: find base AC from ARMOR_AC_VALUES
+                base_ac = None
+                for armor_key, ac_value in ARMOR_AC_VALUES.items():
+                    if armor_key in armor_name:
+                        base_ac = ac_value
+                        break
+                if base_ac is None:
+                    base_ac = 10  # Default fallback
+                total_ac = base_ac + bonus_value
+                extra_props["armor_class"] = total_ac
+                console.log(f"[ARMOR-SET] Armor {item.get('name')}: AC = {base_ac} + {bonus_value} = {total_ac}")
+        else:
+            # bonus_value is 0, remove bonus and reset to base
+            if "bonus" in extra_props:
+                del extra_props["bonus"]
+            
+            if is_shield:
+                extra_props["armor_class"] = 2
+                console.log(f"[ARMOR-SET] Shield {item.get('name')}: Reset to base AC 2")
+            else:
+                # For armor, reset to base AC
+                base_ac = None
+                for armor_key, ac_value in ARMOR_AC_VALUES.items():
+                    if armor_key in armor_name:
+                        base_ac = ac_value
+                        break
+                if base_ac:
+                    extra_props["armor_class"] = base_ac
+                    console.log(f"[ARMOR-SET] Armor {item.get('name')}: Reset to base AC {base_ac}")
+                elif "armor_class" in extra_props:
+                    del extra_props["armor_class"]
+        
+        # Save back to notes
+        notes = json.dumps(extra_props) if extra_props else ""
+        inventory_manager.update_item(item_id, {"notes": notes})
+        
+        console.log(f"[ARMOR-SET] Set bonus for {item.get('name')} to {bonus_value}")
+        return True
+    except Exception as e:
+        console.error(f"[ARMOR-SET] Error setting bonus: {e}")
+        return False
+
+
+def initialize_armor_manager(inventory_manager, character_stats: Dict = None):
+    """Initialize the global armor manager."""
     global _ARMOR_MANAGER
-    _ARMOR_MANAGER = ArmorCollectionManager(inventory_manager)
-    _ARMOR_MANAGER.initialize(character_stats)
+    _ARMOR_MANAGER = ArmorCollectionManager(inventory_manager, character_stats)
+    console.log("[ARMOR] Armor manager initialized")
     return _ARMOR_MANAGER
+
+
+def render_armor_grid():
+    """Render the armor grid (public API)."""
+    if _ARMOR_MANAGER:
+        _ARMOR_MANAGER.render()

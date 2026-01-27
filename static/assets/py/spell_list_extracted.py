@@ -388,20 +388,21 @@ def set_spell_library_data(spells: list[dict] | None):
     
     # Log if duplicates were removed
     if len(deduplicated) < len(spell_list):
-        removed_count = len(spell_list) - len(deduplicated)
-        LOGGER.info(f"Removed {removed_count} duplicate spell entries")
+        _removed_count = len(spell_list) - len(deduplicated)
+        # LOGGER.info(f"Removed {_removed_count} duplicate spell entries")
     
-    SPELL_LIBRARY_STATE["spells"] = deduplicated
-    SPELL_LIBRARY_STATE["spell_map"] = {
-        spell.get("slug"): spell
-        for spell in deduplicated
-        if isinstance(spell, dict) and spell.get("slug")
-    }
+    # SPELL_LIBRARY_STATE["spells"] = deduplicated
+    # SPELL_LIBRARY_STATE["spell_map"] = {
+    #     spell.get("slug"): spell
+    #     for spell in deduplicated
+    #     if isinstance(spell, dict) and spell.get("slug")
+    # }
+    return deduplicated
 
 
 # Pre-populate with fallback spells so old saved spells can get their details at render time
 set_spell_library_data(LOCAL_SPELLS_FALLBACK)
 # Mark spell library as loaded so domain spells can auto-populate on page load
-SPELL_LIBRARY_STATE["loaded"] = True
+# SPELL_LIBRARY_STATE["loaded"] = True
 
 

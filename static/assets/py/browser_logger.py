@@ -91,7 +91,7 @@ class BrowserLogger:
     def get_stats():
         """Get statistics about stored logs."""
         logs_data = BrowserLogger._load_logs()
-        now = datetime.now()
+        _now = datetime.now()
         
         # Calculate oldest log date
         oldest_log = None

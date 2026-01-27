@@ -72,7 +72,7 @@ def test_spell_lookup_function():
     
     try:
         # Import spellcasting module
-        from spellcasting import (
+        from spellcasting_manager import (
             SPELL_LIBRARY_STATE, 
             get_spell_by_slug, 
             set_spell_library_data
@@ -118,7 +118,7 @@ def test_add_spell_simulation():
     print("=" * 70)
     
     try:
-        from spellcasting import (
+        from spellcasting_manager import (
             SPELL_LIBRARY_STATE, 
             SpellcastingManager,
             set_spell_library_data

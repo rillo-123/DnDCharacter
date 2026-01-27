@@ -10,7 +10,7 @@ import json
 sys.path.insert(0, 'static/assets/py')
 
 import pytest
-from equipment_management import InventoryManager
+from inventory_manager import InventoryManager
 
 
 class TestWeaponsRemovalSync:

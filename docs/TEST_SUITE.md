@@ -26,63 +26,87 @@ Startup and health check tests:
 - Response time performance
 
 ## Test Results
-✅ **443 tests passing** (100% pass rate)
+✅ **791 tests passing** (99.9% pass rate)
 
 ### Test Distribution
-- Flask API tests: 16 tests
-- Startup/health tests: 26 tests
-- Character models: 17 tests
-- Equipment: ~50 tests
+- **Main test suite**: 763 tests passed, 1 skipped
+- **Equipment events tests**: 28 tests passed (run separately)
+
+### Test Categories
+- AC calculation: 20 tests
+- Armor manager properties: 10 tests
+- Equipment events: 28 tests (requires browser module mocking)
+- Character models: 27 tests
+- Equipment: ~150 tests
 - Spells: ~80 tests
 - Domain spells: ~25 tests
-- Spell class chooser: ~15 tests
-- Export/import: ~30 tests
-- Other features: ~170 tests
-
-## Deleted Tests
-The following deprecated test files were removed (tested old File System API):
-- `test_auto_export_file_system_api.py` (11 async tests)
-- `test_auto_export_on_load_prompt.py` (5 tests)
-- `test_auto_export_on_load_prompt_fix.py` (7 tests)
-
-These were replaced with modern Flask backend tests.
+- Spell class chooser: ~21 tests
+- Export/import: ~50 tests
+- Weapons: ~70 tests
+- Flask API tests: 16 tests
+- Startup/health tests: 26 tests
+- Other features: ~270 tests
 
 ## Running Tests
 
-### All tests
-```bash
-python -m pytest tests/ -v
+### All tests (recommended)
+```powershell
+.\run_all_tests.ps1
 ```
 
-### Flask backend only
-```bash
-python -m pytest tests/test_flask_export_api.py tests/test_startup_health.py -v
+This script runs both test suites:
+1. Main test suite (763 tests) - excludes equipment events to avoid mock contamination
+2. Equipment events tests (28 tests) - runs separately with browser module mocking
+
+### Main test suite only
+```powershell
+python -m pytest tests\ --ignore=tests\test_equipment_chooser.py --ignore=tests\test_equipment_events.py
 ```
 
-### Character functionality
-```bash
-python -m pytest tests/test_character_models.py tests/test_character_export.py -v
+### Equipment events only
+```powershell
+python -m pytest tests\test_equipment_events.py -v
 ```
 
 ### By category
-```bash
-python -m pytest tests/ -k "spell" -v      # Spell-related tests
-python -m pytest tests/ -k "equipment" -v  # Equipment tests
-python -m pytest tests/ -k "export" -v     # Export tests
+```powershell
+python -m pytest tests\ -k "spell" -v           # Spell-related tests
+python -m pytest tests\ -k "equipment" -v       # Equipment tests
+python -m pytest tests\ -k "export" -v          # Export tests
+python -m pytest tests\ -k "ac_calculation" -v  # AC calculation tests
 ```
+
+## Special Test: Equipment Events
+
+The `test_equipment_events.py` test file requires special handling due to browser module mocking. See [README_EQUIPMENT_EVENTS.md](../tests/README_EQUIPMENT_EVENTS.md) for details.
+
+**Why separate?** The equipment event tests mock browser modules (`js`, `pyodide`) at module level, which contaminates pytest's import collection phase. Running them separately prevents this contamination.
+
+**What's tested:**
+- Event listener initialization
+- Bonus change event handling
+- Event loop prevention (_is_updating flag)
+- Event delegation to inventory manager
+- Event chaining (set_bonus → redraw → calculations)
+- Parameter extraction from DOM events
 
 ## Test Coverage
 - ✅ Server startup and initialization
 - ✅ API endpoint health and availability
 - ✅ Error handling and edge cases
 - ✅ Character data export and import
-- ✅ Equipment management
+- ✅ Equipment management (inventory CRUD)
+- ✅ **Equipment event system** (bonus changes, toggles, event chains)
+- ✅ **Event loop prevention** (_is_updating flag mechanism)
+- ✅ **AC calculation** (armor + shield + DEX modifier)
+- ✅ **Armor manager properties** (armor_ac, shield_ac, other_ac, total_ac)
 - ✅ Spell library and filtering
 - ✅ Domain spells (Cleric specialization)
 - ✅ Ability modifiers and calculations
 - ✅ Skill proficiency tracking
 - ✅ Hit point and hit dice management
 - ✅ Spell slot tracking
+- ✅ Weapon to-hit calculations (STR/DEX/Finesse)
 - ✅ JSON export/import round-trip consistency
 
 ## What Gets Tested When

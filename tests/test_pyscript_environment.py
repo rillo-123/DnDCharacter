@@ -1,6 +1,6 @@
 """
 Test module loading in PyScript environment and local testing.
-Diagnoses why spellcasting module can't be imported in PyScript.
+Diagnoses why spellcasting_manager module can't be imported in PyScript.
 """
 
 import sys
@@ -31,18 +31,18 @@ def test_module_sys_path():
 
 
 def test_module_import_direct():
-    """Try to import spellcasting directly."""
+    """Try to import spellcasting_manager directly."""
     print("\n=== TEST: Direct import ===")
     try:
-        import spellcasting
-        print("✓ spellcasting imported successfully")
-        print(f"  Location: {spellcasting.__file__}")
+        import spellcasting_manager
+        print("✓ spellcasting_manager imported successfully")
+        print(f"  Location: {spellcasting_manager.__file__}")
         return True
     except ModuleNotFoundError as e:
-        print(f"✗ spellcasting import failed: {e}")
+        print(f"✗ spellcasting_manager import failed: {e}")
         return False
     except ImportError as e:
-        print(f"✗ spellcasting import error: {e}")
+        print(f"✗ spellcasting_manager import error: {e}")
         return False
 
 
@@ -58,9 +58,9 @@ def test_module_sys_path_add():
         print(f"✓ Added to sys.path[0]")
     
     try:
-        import spellcasting
-        print("✓ spellcasting imported successfully after path update")
-        print(f"  Location: {spellcasting.__file__}")
+        import spellcasting_manager
+        print("✓ spellcasting_manager imported successfully after path update")
+        print(f"  Location: {spellcasting_manager.__file__}")
         
         # Check for required attributes
         required_attrs = [
@@ -71,13 +71,13 @@ def test_module_sys_path_add():
         ]
         
         for attr in required_attrs:
-            has_attr = hasattr(spellcasting, attr)
+            has_attr = hasattr(spellcasting_manager, attr)
             status = "✓" if has_attr else "✗"
             print(f"  {status} {attr}")
         
         return True
     except Exception as e:
-        print(f"✗ spellcasting import still failed: {e}")
+        print(f"✗ spellcasting_manager import still failed: {e}")
         return False
 
 
@@ -136,10 +136,10 @@ def test_character_import():
 
 
 def test_spellcasting_syntax():
-    """Check spellcasting.py for syntax errors."""
-    print("\n=== TEST: spellcasting.py syntax ===")
+    """Check spellcasting_manager.py for syntax errors."""
+    print("\n=== TEST: spellcasting_manager.py syntax ===")
     
-    spellcasting_file = Path(__file__).parent.parent / "assets" / "py" / "spellcasting.py"
+    spellcasting_file = Path(__file__).parent.parent / "assets" / "py" / "spellcasting_manager.py"
     print(f"File: {spellcasting_file}")
     print(f"Exists: {spellcasting_file.exists()}")
     
@@ -152,7 +152,7 @@ def test_spellcasting_syntax():
             code = f.read()
         
         compile(code, str(spellcasting_file), 'exec')
-        print("✓ spellcasting.py syntax is valid")
+        print("✓ spellcasting_manager.py syntax is valid")
         
         # Check for the specific issue
         if 'PACT_MAGIC_TABLE_OLD,' in code:
@@ -186,11 +186,11 @@ def test_pyscript_import_mechanism():
     # 1. Check current working directory
     cwd = Path.cwd()
     print(f"\n1. Current working directory: {cwd}")
-    print(f"   Has assets/py/spellcasting.py: {(cwd / 'assets' / 'py' / 'spellcasting.py').exists()}")
+    print(f"   Has assets/py/spellcasting_manager.py: {(cwd / 'assets' / 'py' / 'spellcasting_manager.py').exists()}")
     
-    # 2. Check if spellcasting.py is in root
+    # 2. Check if spellcasting_manager.py is in root
     print(f"\n2. Root directory: {cwd}")
-    print(f"   Has spellcasting.py: {(cwd / 'spellcasting.py').exists()}")
+    print(f"   Has spellcasting_manager.py: {(cwd / 'spellcasting_manager.py').exists()}")
     
     # 3. Check PYTHONPATH
     pythonpath = os.environ.get('PYTHONPATH', 'Not set')
@@ -225,11 +225,11 @@ def test_import_order_issue():
         return False
     
     try:
-        print("\n2. Importing spellcasting...")
-        import spellcasting
-        print("   ✓ spellcasting imported")
+        print("\n2. Importing spellcasting_manager...")
+        import spellcasting_manager
+        print("   ✓ spellcasting_manager imported")
     except Exception as e:
-        print(f"   ✗ spellcasting failed: {e}")
+        print(f"   ✗ spellcasting_manager failed: {e}")
         import traceback
         traceback.print_exc()
         return False

@@ -52,12 +52,12 @@ def test_spell_class_display_names_not_empty():
 def test_spellcasting_manager_imports():
     """Test that spellcasting module can be imported."""
     try:
-        from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE
+        from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE
         assert SpellcastingManager is not None, "SpellcastingManager should not be None"
         assert SPELL_LIBRARY_STATE is not None, "SPELL_LIBRARY_STATE should not be None"
         print("[PASS] SpellcastingManager imports successfully")
     except ImportError as e:
-        raise AssertionError(f"Failed to import spellcasting: {e}")
+        raise AssertionError(f"Failed to import spellcasting_manager: {e}")
 
 
 def test_character_module_with_spellcasting():

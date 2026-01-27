@@ -10,7 +10,7 @@ import json
 import re
 import sys
 import importlib
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 import asyncio
 
@@ -25,7 +25,7 @@ except ImportError:
     # Non-PyScript environment (testing)
     window = None
     _js_module_available = False
-    create_proxy = lambda x: x
+    def create_proxy(x): return x
     create_once_callable = None
     JsException = Exception
 
@@ -285,7 +285,7 @@ def estimate_export_cleanup():
         return None
 
 
-def prune_old_exports(directory_handle, max_keep: int = MAX_EXPORTS_PER_CHARACTER):
+def prune_old_exports(directory_handle, max_keep: int = MAX_EXPORTS_PER_CHARACTER):  # noqa: directory_handle unused (function disabled)
     """Remove old exports, keeping only the most recent per character.
     
     This is a browser-based version that attempts to prune from the directory.
@@ -299,106 +299,19 @@ def prune_old_exports(directory_handle, max_keep: int = MAX_EXPORTS_PER_CHARACTE
         return False
 
 
-async def _prune_old_exports_from_directory(directory_handle):
+async def _prune_old_exports_from_directory(directory_handle):  # noqa: directory_handle unused (function disabled)
     """DISABLED: Do not delete any export files.
     
     This function is intentionally disabled to preserve all character exports.
     Pruning has caused unexpected data loss in the past.
+    
+    Original implementation preserved below for reference:
+    - Deleted files older than 30 days
+    - Always kept the most recent export for EACH character
+    - Format: <name>_<class>_lvl<level>_YYYYMMDD_HHMM.json
     """
     # Intentionally disabled - preserve all exports
     return
-    """Prune exports older than EXPORT_PRUNE_DAYS from the directory.
-    
-    Rules:
-    - Delete files older than 30 days
-    - BUT always keep the most recent export for EACH character (never delete all for a character)
-    - Each character's most recent backup is protected
-    
-    Format: <name>_<class>_lvl<level>_YYYYMMDD_HHMM.json
-    Only works if directory_handle supports async iteration (desktop/Chrome).
-    """
-    if directory_handle is None:
-        return
-    
-    try:
-        cutoff_date = datetime.now() - timedelta(days=EXPORT_PRUNE_DAYS)
-        pruned_count = 0
-        all_files = []  # Collect all JSON files with their dates and character name
-        
-        # Attempt to iterate and collect files
-        try:
-            async for entry in directory_handle.entries():
-                if not entry.name.endswith(".json"):
-                    continue
-                
-                # Match format: <name>_<class>_lvl<level>_YYYYMMDD_HHMM.json
-                match = re.search(r'_(\d{8})_(\d{4})\.json$', entry.name)
-                if not match:
-                    continue
-                
-                date_str, time_str = match.groups()
-                try:
-                    file_date = datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M")
-                    character_name = _extract_character_name_from_filename(entry.name)
-                    all_files.append((entry.name, file_date, character_name))
-                except (ValueError, JsException):
-                    continue
-        except (AttributeError, TypeError):
-            # Try alternative method using keys()
-            try:
-                file_names = await directory_handle.keys()
-                for entry_name in file_names:
-                    if not entry_name.endswith(".json"):
-                        continue
-                    
-                    match = re.search(r'_(\d{8})_(\d{4})\.json$', entry_name)
-                    if not match:
-                        continue
-                    
-                    date_str, time_str = match.groups()
-                    try:
-                        file_date = datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M")
-                        character_name = _extract_character_name_from_filename(entry_name)
-                        all_files.append((entry_name, file_date, character_name))
-                    except (ValueError, JsException):
-                        continue
-            except (AttributeError, JsException):
-                pass
-        
-        # Group files by character name
-        files_by_character = {}
-        for filename, file_date, character_name in all_files:
-            if character_name not in files_by_character:
-                files_by_character[character_name] = []
-            files_by_character[character_name].append((filename, file_date))
-        
-        # For each character, keep the most recent and delete old ones
-        for character_name, files in files_by_character.items():
-            # Sort by date (newest first)
-            files.sort(key=lambda x: x[1], reverse=True)
-            
-            # Protect the most recent export for this character
-            most_recent_for_character = files[0][0] if files else None
-            
-            for filename, file_date in files:
-                # Never delete the most recent export for this character
-                if filename == most_recent_for_character:
-                    continue
-                
-                # Only delete if file is older than cutoff date
-                if file_date < cutoff_date:
-                    try:
-                        await directory_handle.removeEntry(filename)
-                        pruned_count += 1
-                        console.log(f"PySheet: pruned old export {filename}")
-                    except Exception as exc:
-                        console.warn(f"PySheet: could not delete {filename}: {exc}")
-        
-        if pruned_count > 0:
-            console.log(f"PySheet: pruned {pruned_count} exports older than {EXPORT_PRUNE_DAYS} days (protected most recent for each character)")
-    
-    except Exception as exc:
-        console.warn(f"PySheet: error during export pruning: {exc}")
 
 
 # ===================================================================
@@ -580,14 +493,14 @@ async def _write_auto_export_file(handle, payload: str):
     """Write payload to file handle."""
     try:
         console.log(f"[DEBUG] _write_auto_export_file: handle={handle}, payload length={len(payload)}")
-        console.log(f"[DEBUG] Calling createWritable() on handle...")
+        console.log("[DEBUG] Calling createWritable() on handle...")
         writable = await handle.createWritable()
         console.log(f"[DEBUG] createWritable() succeeded, writable={writable}")
         console.log(f"[DEBUG] Writing {len(payload)} bytes...")
         await writable.write(payload)
-        console.log(f"[DEBUG] Write completed, closing writable...")
+        console.log("[DEBUG] Write completed, closing writable...")
         await writable.close()
-        console.log(f"[DEBUG] Writable closed successfully")
+        console.log("[DEBUG] Writable closed successfully")
     except Exception as exc:
         console.error(f"[DEBUG] _write_auto_export_file error: {type(exc).__name__}: {exc}")
         raise RuntimeError(f"failed to write auto-export file ({exc})")
@@ -681,9 +594,9 @@ async def _attempt_persistent_export(
             # Fallback: try to remove the file first, then create it
             if is_not_found:
                 try:
-                    console.log(f"[DEBUG] NotFoundError detected, attempting to remove existing file first...")
+                    console.log("[DEBUG] NotFoundError detected, attempting to remove existing file first...")
                     await _AUTO_EXPORT_DIRECTORY_HANDLE.removeEntry(proposed_filename)
-                    console.log(f"[DEBUG] File removed, retrying getFileHandle...")
+                    console.log("[DEBUG] File removed, retrying getFileHandle...")
                     file_handle = await _AUTO_EXPORT_DIRECTORY_HANDLE.getFileHandle(
                         proposed_filename,
                         {"create": True},
@@ -703,9 +616,9 @@ async def _attempt_persistent_export(
         
         if file_handle is not None:
             try:
-                console.log(f"[DEBUG] Calling _write_auto_export_file for directory handle...")
+                console.log("[DEBUG] Calling _write_auto_export_file for directory handle...")
                 await _write_auto_export_file(file_handle, payload)
-                console.log(f"[DEBUG] _write_auto_export_file succeeded for directory")
+                console.log("[DEBUG] _write_auto_export_file succeeded for directory")
             except Exception as exc:
                 console.warn(f"PySheet: auto-export write failed for directory target ({exc})")
                 if auto:
@@ -760,11 +673,19 @@ def save_character(_event=None):
         return
     
     try:
-        # Import from character module - will be provided by parent
-        from character import collect_character_data
-        data = collect_character_data()
-        storage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
-        console.log("PySheet: character saved to localStorage")
+        # Get character module from sys.modules
+        import sys
+        char_module = sys.modules.get('character')
+        if char_module:
+            collect_data = getattr(char_module, 'collect_character_data', None)
+            if collect_data:
+                data = collect_data()
+                storage.setItem(LOCAL_STORAGE_KEY, json.dumps(data))
+                console.log("PySheet: character saved to localStorage")
+            else:
+                console.error("PySheet: collect_character_data not found")
+        else:
+            console.error("PySheet: character module not in sys.modules")
     except Exception as exc:
         console.error(f"PySheet: failed to save character - {exc}")
 
@@ -1016,7 +937,7 @@ async def export_character(_event=None, *, auto: bool = False):
             headers_obj["Content-Type"] = "application/json"
             options.headers = headers_obj
             
-            console.log(f"[DEBUG] Fetch options created with headers")
+            console.log("[DEBUG] Fetch options created with headers")
         except Exception as e:
             console.error(f"[DEBUG] Failed to create proper options object: {e}")
             console.error(f"[DEBUG] Error type: {type(e)}")
@@ -1036,12 +957,12 @@ async def export_character(_event=None, *, auto: bool = False):
                 }})'''
                 options = js_eval(js_code)
                 console.log("[DEBUG] Created options via JS eval")
-            except:
+            except Exception:
                 # Final fallback - just return error
                 console.error("[DEBUG] All fetch options creation methods failed")
                 return
         
-        console.log(f"[DEBUG] About to call fetch")
+        console.log("[DEBUG] About to call fetch")
         
         # POST to backend
         response = await fetch_func("/api/export", options)
@@ -1113,10 +1034,19 @@ def reset_character(_event=None):
     
     try:
         storage.removeItem(LOCAL_STORAGE_KEY)
-        from character import populate_form, clone_default_state, schedule_auto_export
-        populate_form(clone_default_state())
-        schedule_auto_export()
-        console.log("PySheet: character reset to defaults")
+        import sys
+        char_module = sys.modules.get('character')
+        if char_module:
+            populate_form = getattr(char_module, 'populate_form', None)
+            clone_default = getattr(char_module, 'clone_default_state', None)
+            schedule_auto = getattr(char_module, 'schedule_auto_export', None)
+            if populate_form and clone_default:
+                populate_form(clone_default())
+            if schedule_auto:
+                schedule_auto()
+            console.log("PySheet: character reset to defaults")
+        else:
+            console.error("PySheet: character module not in sys.modules")
     except Exception as exc:
         console.error(f"PySheet: failed to reset character - {exc}")
 
@@ -1185,7 +1115,8 @@ def handle_import(event):
                 console.log(f"[IMPORT] JSON parsed: {data.get('identity', {}).get('name')}")
                 
                 # Get populate_form function
-                import sys, importlib
+                import sys
+                import importlib
                 # Prefer injected back-reference from character.py if available
                 character_module = globals().get("CHARACTER_MODULE")
                 if character_module is None:
@@ -1336,7 +1267,7 @@ def schedule_auto_export():
     
     # If auto-export is disabled, don't actually schedule the export timer
     if _AUTO_EXPORT_DISABLED:
-        console.log(f"DEBUG: Change detected but auto-export disabled. Recording indicator shown for UX.")
+        console.log("DEBUG: Change detected but auto-export disabled. Recording indicator shown for UX.")
         return
     
     console.log(f"DEBUG: schedule_auto_export called! Event count: {_AUTO_EXPORT_EVENT_COUNT}")
@@ -1378,7 +1309,7 @@ def schedule_auto_export():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             _AUTO_EXPORT_TIMER_ID = loop.create_task(_delayed_export())
-            console.log(f"DEBUG: Created new event loop and scheduled auto-export")
+            console.log("DEBUG: Created new event loop and scheduled auto-export")
         except Exception as exc:
             console.error(f"PySheet: failed to schedule auto-export with asyncio - {exc}")
 
@@ -1395,7 +1326,7 @@ def prompt_for_auto_export_on_load_sync(api_available: bool = None, confirm_meth
     """
     global _AUTO_EXPORT_SETUP_PROMPTED, _AUTO_EXPORT_DIRECTORY_HANDLE
     
-    console.log(f"[DEBUG] prompt_for_auto_export_on_load_sync: checking preconditions")
+    console.log("[DEBUG] prompt_for_auto_export_on_load_sync: checking preconditions")
     console.log(f"[DEBUG] - api_available (captured): {api_available}")
     console.log(f"[DEBUG] - confirm_method (captured): {confirm_method is not None}")
     console.log(f"[DEBUG] - directory_picker_method (captured): {directory_picker_method is not None}")
@@ -1407,7 +1338,7 @@ def prompt_for_auto_export_on_load_sync(api_available: bool = None, confirm_meth
     console.log(f"[DEBUG] - _AUTO_EXPORT_DIRECTORY_HANDLE={_AUTO_EXPORT_DIRECTORY_HANDLE is not None}")
     
     if not supports_api:
-        console.log(f"[DEBUG] Returning early: File System API not supported")
+        console.log("[DEBUG] Returning early: File System API not supported")
         return
     
     # Skip if already configured or already prompted

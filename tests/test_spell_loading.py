@@ -18,7 +18,7 @@ def test_load_prepared_spells():
     print("\n=== TEST: Load prepared spells from export ===")
     
     try:
-        from spellcasting import SpellcastingManager
+        from spellcasting_manager import SpellcastingManager
         
         # Load export file
         export_file = Path(__file__).parent.parent / "exports" / "Enwer_Cleric_lvl9_20251126_2147.json"
@@ -70,7 +70,7 @@ def test_normalize_prepared_entry():
     print("\n=== TEST: _normalize_prepared_entry ===")
     
     try:
-        from spellcasting import SpellcastingManager
+        from spellcasting_manager import SpellcastingManager
         
         manager = SpellcastingManager()
         
@@ -119,7 +119,7 @@ def test_render_spellbook_with_data():
     print("\n=== TEST: render_spellbook with data ===")
     
     try:
-        from spellcasting import SpellcastingManager
+        from spellcasting_manager import SpellcastingManager
         import json
         
         # Load export
@@ -159,7 +159,7 @@ def test_get_element_calls():
     print("\n=== TEST: DOM element requirements for render_spellbook ===")
     
     try:
-        from spellcasting import SpellcastingManager, get_element
+        from spellcasting_manager import SpellcastingManager, get_element
         import json
         
         # Load export

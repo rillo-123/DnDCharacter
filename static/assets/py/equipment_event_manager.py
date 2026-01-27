@@ -323,8 +323,49 @@ class EquipmentEventListener:
                 # Always clear flag, even if error occurs
                 self._is_updating = False
         else:
-            # For weapons/other items, delegate to inventory manager
-            self.inventory_manager._handle_bonus_change(event, item_id)
+            # For weapons/other items: handle bonus and update UI
+            self._is_updating = True
+            try:
+                # Update the item bonus in inventory
+                self.inventory_manager._handle_bonus_change(event, item_id)
+                
+                # Re-render inventory list
+                self.inventory_manager.redraw_armor_items()
+                
+                # Re-render weapons grid if this is a weapon
+                if category == "Weapons":
+                    import sys
+                    weapons_mgr_module = sys.modules.get('weapons_manager')
+                    if weapons_mgr_module:
+                        get_mgr_func = getattr(weapons_mgr_module, 'get_weapons_manager', None)
+                        if get_mgr_func:
+                            weapons_mgr = get_mgr_func()
+                            if weapons_mgr:
+                                weapons_mgr.render()
+                                console.log("[EVENT-LISTENER] Re-rendered weapons-grid table")
+                        else:
+                            console.warn("[EVENT-LISTENER] get_weapons_manager not found")
+                    else:
+                        console.warn("[EVENT-LISTENER] weapons_manager not in sys.modules")
+                
+                # Update calculations and trigger export
+                try:
+                    import sys
+                    char_module = sys.modules.get('character')
+                    if char_module:
+                        update_func = getattr(char_module, 'update_calculations', None)
+                        if update_func:
+                            update_func()
+                            console.log("[EVENT-LISTENER] Called update_calculations from sys.modules")
+                        
+                        trigger_export_func = getattr(char_module, 'trigger_auto_export', None)
+                        if trigger_export_func:
+                            trigger_export_func("weapon_bonus_change")
+                            console.log("[EVENT-LISTENER] Triggered auto-export")
+                except Exception as e2:
+                    console.error(f"[EVENT-LISTENER] Error calling update_calculations: {e2}")
+            finally:
+                self._is_updating = False
     
     def on_toggle_item(self, event, item_id: str):
         """Handle item expand/collapse toggle."""

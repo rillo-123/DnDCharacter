@@ -70,7 +70,7 @@ def sync_prepared_spells_with_library():
     pass
 """
     
-    spellcasting = _load_module_from_http("spellcasting", "http://localhost:8080/assets/py/spellcasting.py", spellcasting_code)
+    spellcasting = _load_module_from_http("spellcasting", "http://localhost:8080/assets/py/spellcasting_manager.py", spellcasting_code)
     assert spellcasting is not None, "spellcasting module should load"
     assert hasattr(spellcasting, 'SpellcastingManager'), "spellcasting should have SpellcastingManager"
     assert sys.modules.get('spellcasting') == spellcasting, "spellcasting should be in sys.modules"
@@ -89,12 +89,12 @@ def test_http_module_loading_with_real_files():
     print("\n=== TEST: Load actual Python files ===")
     
     spell_data_path = Path(__file__).parent.parent / "static" / "assets" / "py" / "spell_data.py"
-    spellcasting_path = Path(__file__).parent.parent / "static" / "assets" / "py" / "spellcasting.py"
+    spellcasting_path = Path(__file__).parent.parent / "static" / "assets" / "py" / "spellcasting_manager.py"
     
     assert spell_data_path.exists(), f"spell_data.py should exist at {spell_data_path}"
-    assert spellcasting_path.exists(), f"spellcasting.py should exist at {spellcasting_path}"
+    assert spellcasting_path.exists(), f"spellcasting_manager.py should exist at {spellcasting_path}"
     print(f"  ✓ spell_data.py exists: {spell_data_path}")
-    print(f"  ✓ spellcasting.py exists: {spellcasting_path}")
+    print(f"  ✓ spellcasting_manager.py exists: {spellcasting_path}")
     
     # Read files
     with open(spell_data_path) as f:
@@ -104,7 +104,7 @@ def test_http_module_loading_with_real_files():
         spellcasting_source = f.read()
     
     print(f"  ✓ spell_data.py: {len(spell_data_source)} bytes")
-    print(f"  ✓ spellcasting.py: {len(spellcasting_source)} bytes")
+    print(f"  ✓ spellcasting_manager.py: {len(spellcasting_source)} bytes")
     
     # Test syntax
     try:
@@ -116,9 +116,9 @@ def test_http_module_loading_with_real_files():
     
     try:
         compile(spellcasting_source, str(spellcasting_path), 'exec')
-        print("  ✓ spellcasting.py syntax is valid")
+        print("  ✓ spellcasting_manager.py syntax is valid")
     except SyntaxError as e:
-        print(f"  ✗ spellcasting.py syntax error: {e}")
+        print(f"  ✗ spellcasting_manager.py syntax error: {e}")
         return False
     
     return True
@@ -154,8 +154,8 @@ def test_fallback_import_chain():
     
     # Now test spellcasting import (with spell_data available)
     try:
-        print("  Attempting: import spellcasting")
-        import spellcasting
+        print("  Attempting: import spellcasting_manager")
+        import spellcasting_manager
         print("  ✓ spellcasting imported successfully")
         
         # Verify it has required attributes
@@ -176,7 +176,7 @@ def test_fallback_import_chain():
         print("  ✓ SpellcastingManager is callable (can be instantiated)")
         
     except Exception as e:
-        print(f"  ✗ Failed to import spellcasting: {e}")
+        print(f"  ✗ Failed to import spellcasting_manager: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -193,7 +193,7 @@ def test_http_server_accessibility():
     
     files_to_check = [
         'spell_data.py',
-        'spellcasting.py',
+        'spellcasting_manager.py',
         'character.py',
         'character_models.py',
     ]

@@ -1,7 +1,6 @@
 """Entity system - universal game object representation."""
 
-from typing import Union, Optional
-from html import escape
+from typing import Union
 
 
 

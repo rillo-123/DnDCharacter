@@ -17,7 +17,7 @@ def test_spellcasting_manager_state():
     print("\n=== TEST: SpellcastingManager state ===")
     
     try:
-        from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE
+        from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE
         
         manager = SpellcastingManager()
         print(f"✓ SpellcastingManager created")
@@ -46,7 +46,7 @@ def test_render_spellbook():
     print("\n=== TEST: render_spellbook ===")
     
     try:
-        from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE
+        from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE
         
         # Setup spell library with some mock data
         SPELL_LIBRARY_STATE['loaded'] = True
@@ -100,7 +100,7 @@ def test_spell_filtering():
     print("\n=== TEST: Spell filtering ===")
     
     try:
-        from spellcasting import SpellcastingManager
+        from spellcasting_manager import SpellcastingManager
         
         manager = SpellcastingManager()
         print(f"✓ SpellcastingManager created")
@@ -141,7 +141,7 @@ def test_get_eligible_spells():
     print("\n=== TEST: get_eligible_spells ===")
     
     try:
-        from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE
+        from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE
         
         # Setup
         SPELL_LIBRARY_STATE['loaded'] = True
@@ -181,7 +181,7 @@ def test_render_methods():
     print("\n=== TEST: Render methods ===")
     
     try:
-        from spellcasting import SpellcastingManager
+        from spellcasting_manager import SpellcastingManager
         
         manager = SpellcastingManager()
         
@@ -204,7 +204,7 @@ def test_dom_elements():
     print("\n=== TEST: DOM element requirements ===")
     
     try:
-        from spellcasting import SpellcastingManager
+        from spellcasting_manager import SpellcastingManager
         import inspect
         
         manager = SpellcastingManager()
@@ -238,7 +238,7 @@ def test_spell_library_load():
     print("\n=== TEST: Spell library loading ===")
     
     try:
-        from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE
+        from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE
         
         manager = SpellcastingManager()
         print(f"✓ SpellcastingManager created")

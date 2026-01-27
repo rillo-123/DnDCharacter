@@ -17,52 +17,52 @@ if str(ASSET_PY) not in sys.path:
 
 def test_complete_app_load_sequence():
     """Test that lazy initialization ensures references are captured for handler."""
-    import equipment_management
+    import inventory_manager
     import export_management
     
     # Step 1: Simulate app load - modules imported in sequence
     # Step 2: Both modules now loaded
     # Step 3: Initialize captures references
-    equipment_management.initialize_module_references()
+    inventory_manager.initialize_module_references()
     
     # Verify references are captured as module objects
-    assert equipment_management._EXPORT_MODULE_REF is not None, \
+    assert inventory_manager._EXPORT_MODULE_REF is not None, \
         "After lazy init, module reference should be captured"
-    assert isinstance(equipment_management._EXPORT_MODULE_REF, ModuleType), \
+    assert isinstance(inventory_manager._EXPORT_MODULE_REF, ModuleType), \
         "Should store module reference"
 
 
 def test_lazy_initialization_doesnt_break_if_called_early():
     """Test that initialize called before all modules are loaded doesn't break."""
-    import equipment_management
+    import inventory_manager
     
     # Simulate calling initialize when export_management not yet imported
     # (Should handle gracefully)
-    equipment_management._EXPORT_MODULE_REF = None
+    inventory_manager._EXPORT_MODULE_REF = None
     
     # This should not raise an error
     try:
-        equipment_management.initialize_module_references()
+        inventory_manager.initialize_module_references()
     except Exception as e:
         pytest.fail(f"initialize_module_references should handle missing modules gracefully: {e}")
 
 
 def test_multiple_initialize_calls_idempotent():
     """Test that multiple initialize calls are safe and idempotent."""
-    import equipment_management
+    import inventory_manager
     
     # Reset
-    equipment_management._EXPORT_MODULE_REF = None
-    equipment_management._CHAR_MODULE_REF = None
+    inventory_manager._EXPORT_MODULE_REF = None
+    inventory_manager._CHAR_MODULE_REF = None
     
     # Call multiple times
-    equipment_management.initialize_module_references()
-    first_export_ref = equipment_management._EXPORT_MODULE_REF
-    first_char_ref = equipment_management._CHAR_MODULE_REF
+    inventory_manager.initialize_module_references()
+    first_export_ref = inventory_manager._EXPORT_MODULE_REF
+    first_char_ref = inventory_manager._CHAR_MODULE_REF
     
-    equipment_management.initialize_module_references()
-    second_export_ref = equipment_management._EXPORT_MODULE_REF
-    second_char_ref = equipment_management._CHAR_MODULE_REF
+    inventory_manager.initialize_module_references()
+    second_export_ref = inventory_manager._EXPORT_MODULE_REF
+    second_char_ref = inventory_manager._CHAR_MODULE_REF
     
     # References should be identical (not new objects)
     assert first_export_ref is second_export_ref, \
@@ -73,11 +73,11 @@ def test_multiple_initialize_calls_idempotent():
 
 def test_handler_captures_references_on_first_call():
     """Test that handler ensures references are captured before use."""
-    import equipment_management
+    import inventory_manager
     import export_management
     
     # Create item
-    manager = equipment_management.InventoryManager()
+    manager = inventory_manager.InventoryManager()
     item = {
         "id": "item-1",
         "name": "Item",
@@ -95,8 +95,8 @@ def test_handler_captures_references_on_first_call():
     # Mock the export function in its module
     with patch.object(export_management, 'schedule_auto_export', Mock()) as mock_export:
         # Reset state to simulate handler being called for first time
-        equipment_management._EXPORT_MODULE_REF = None
-        equipment_management._CHAR_MODULE_REF = None
+        inventory_manager._EXPORT_MODULE_REF = None
+        inventory_manager._CHAR_MODULE_REF = None
         
         # Call handler - it should initialize references
         try:
@@ -106,18 +106,18 @@ def test_handler_captures_references_on_first_call():
             pass
         
         # Verify references were captured during handler execution
-        assert equipment_management._EXPORT_MODULE_REF is not None, \
+        assert inventory_manager._EXPORT_MODULE_REF is not None, \
             "Handler should initialize module reference on first call"
 
 
 def test_module_reference_pattern_avoids_proxy_issues():
     """Test that module reference pattern avoids PyScript proxy destruction."""
-    import equipment_management
+    import inventory_manager
     import export_management
     
     # Get the stored module reference
-    equipment_management.initialize_module_references()
-    module_ref = equipment_management._EXPORT_MODULE_REF
+    inventory_manager.initialize_module_references()
+    module_ref = inventory_manager._EXPORT_MODULE_REF
     
     # Should be able to access function through module
     assert hasattr(module_ref, 'schedule_auto_export'), \

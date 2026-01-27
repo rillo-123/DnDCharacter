@@ -11,7 +11,7 @@ sys.path.insert(0, 'static/assets/py')
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from equipment_management import InventoryManager
+from inventory_manager import InventoryManager
 
 
 class TestWeaponsRemovalIntegration:

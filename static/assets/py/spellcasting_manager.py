@@ -72,8 +72,8 @@ except ImportError:
     LOCAL_SPELLS_FALLBACK = []
     SPELL_CLASS_SYNONYMS = {}
     SPELL_CLASS_DISPLAY_NAMES = {}
-    apply_spell_corrections = lambda spell: spell
-    is_spell_source_allowed = lambda source: True
+    def apply_spell_corrections(spell): return spell
+    def is_spell_source_allowed(source): return True
     STANDARD_SLOT_TABLE = {}
     PACT_MAGIC_TABLE = {}
     SUPPORTED_SPELL_CLASSES = {"artificer", "bard", "cleric", "druid", "paladin", "ranger", "sorcerer", "warlock", "wizard"}
@@ -729,22 +729,22 @@ class SpellcastingManager:
         empty_state = get_element("spellbook-empty-state")
         console.log(f"DEBUG: [render_spellbook] container={container is not None}, empty_state={empty_state is not None}, prepared={len(self.prepared)}")
         if container is None or empty_state is None:
-            console.warn(f"DEBUG: [render_spellbook] Missing DOM elements, returning")
+            console.warn("DEBUG: [render_spellbook] Missing DOM elements, returning")
             return
 
         # Render slot tracker
         self.render_slots_tracker()
 
         if not self.prepared:
-            console.log(f"DEBUG: [render_spellbook] No prepared spells, showing empty state")
+            console.log("DEBUG: [render_spellbook] No prepared spells, showing empty state")
             empty_state.style.display = "block"
             container.innerHTML = ""
             return
 
         console.log(f"DEBUG: [render_spellbook] Rendering {len(self.prepared)} prepared spells")
-        console.log(f"💡 TIP: Click the 'Spells' tab at the top to see your prepared spellbook!")
+        console.log("💡 TIP: Click the 'Spells' tab at the top to see your prepared spellbook!")
         empty_state.style.display = "none"
-        console.log(f"DEBUG: [render_spellbook] Set empty_state.style.display = 'none'")
+        console.log("DEBUG: [render_spellbook] Set empty_state.style.display = 'none'")
         groups: dict[int, list[dict]] = {}
         for entry in self.prepared:
             level = entry.get("level", 0)
@@ -783,8 +783,8 @@ class SpellcastingManager:
                 school = record.get("school") or ""
                 meta_parts = [part for part in [level_label, school] if part]
                 meta_text = " · ".join(meta_parts)
-                meta_html = f"<span class=\"spellbook-meta\">{escape(meta_text)}</span>" if meta_text else ""
-                source_html = f"<span class=\"spellbook-source\">{escape(source)}</span>" if source else ""
+                _meta_html = f"<span class=\"spellbook-meta\">{escape(meta_text)}</span>" if meta_text else ""
+                _source_html = f"<span class=\"spellbook-source\">{escape(source)}</span>" if source else ""
                 
                 # Build mnemonics and tags
                 mnemonics_html, tags_html = self._build_spellbook_mnemonics_and_tags(record)
@@ -843,7 +843,7 @@ class SpellcastingManager:
         
         # Force a style update to ensure visibility
         container.style.display = "block"
-        console.log(f"DEBUG: [render_spellbook] Set container.style.display = 'block'")
+        console.log("DEBUG: [render_spellbook] Set container.style.display = 'block'")
 
         buttons = container.querySelectorAll("button[data-remove-spell]")
         console.log(f"DEBUG: [render_spellbook] Found {len(buttons)} remove buttons")
@@ -927,7 +927,7 @@ class SpellcastingManager:
             pact_available = pact_max - pact_used
             tracker_items.append(
                 f'<div class="slot-tracker-item pact" title="Pact Slots (Level {pact_info["level"]}): {pact_available}/{pact_max} slots available">'
-                + f'<span class="slot-tracker-label">Pact</span>'
+                + '<span class="slot-tracker-label">Pact</span>'
                 + f'<span class="slot-tracker-value">{pact_available}/{pact_max}</span>'
                 + '</div>'
             )
@@ -1391,7 +1391,7 @@ async def load_spell_library(_event=None):
             status_message = "Loaded built-in Bard and Cleric spell list."
         else:
             # Merge fallback spells
-            console.log(f"PySheet: Merging fallback spells into Open5e list...")
+            console.log("PySheet: Merging fallback spells into Open5e list...")
             existing_slugs = {spell.get("slug") for spell in raw_spells if spell.get("slug")}
             merge_count = 0
             for fallback_spell in LOCAL_SPELLS_FALLBACK:

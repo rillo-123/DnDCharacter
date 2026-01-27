@@ -29,20 +29,20 @@ def test_simulate_pyscript_cold_start():
         print(f"  {i}. {p}")
     print(f"  ... ({len(sys.path)} total paths)")
     
-    # Try to import character (which tries to import spellcasting)
+    # Try to import character (which tries to import spellcasting_manager)
     print(f"\nAttempt 1: Direct import (should fail)")
     try:
         # Remove character from sys.modules if already loaded
         if 'character' in sys.modules:
             del sys.modules['character']
-        if 'spellcasting' in sys.modules:
-            del sys.modules['spellcasting']
+        if 'spellcasting_manager' in sys.modules:
+            del sys.modules['spellcasting_manager']
         
         import character
         print("  Result: SUCCESS (unexpected - path might still have assets/py)")
     except ModuleNotFoundError as e:
         print(f"  Result: FAILED - {e}")
-        print("  This is expected - character can't find spellcasting")
+        print("  This is expected - character can't find spellcasting_manager")
     
     # Restore sys.path for next test
     sys.path = original_path
@@ -60,8 +60,8 @@ def test_retry_mechanism():
     # Start fresh
     if 'character' in sys.modules:
         del sys.modules['character']
-    if 'spellcasting' in sys.modules:
-        del sys.modules['spellcasting']
+    if 'spellcasting_manager' in sys.modules:
+        del sys.modules['spellcasting_manager']
     
     print("\nAttempt 1: Normal import (should work if assets/py in path)")
     try:
@@ -125,11 +125,11 @@ def test_path_detection_logic():
         
         # Try import now
         try:
-            import spellcasting
-            print(f"  Result: spellcasting imports successfully after adding path")
-            print(f"  Location: {spellcasting.__file__}")
+            import spellcasting_manager
+            print(f"  Result: spellcasting_manager imports successfully after adding path")
+            print(f"  Location: {spellcasting_manager.__file__}")
         except ModuleNotFoundError as e:
-            print(f"  Result: spellcasting still not found - {e}")
+            print(f"  Result: spellcasting_manager still not found - {e}")
     else:
         print(f"  Already in sys.path")
 
@@ -190,7 +190,7 @@ def test_what_works_locally():
     
     print("\n3. Module imports (with path setup): YES")
     print("   - spell_data.py imports successfully")
-    print("   - spellcasting.py imports successfully")
+    print("   - spellcasting_manager.py imports successfully")
     print("   - character.py imports successfully")
     
     print("\n4. SPELLCASTING_MANAGER: SOMETIMES")

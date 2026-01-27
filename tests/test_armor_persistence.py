@@ -74,8 +74,8 @@ class TestArmorBonusPersistence:
         assert armor.final_ac == "15", "Light armor should add DEX modifier to bonus"
     
     def test_medium_armor_with_bonus_adds_dex(self):
-        """Test that medium armor adds DEX modifier to bonuses."""
-        # Scale Mail (base AC 14) with +1 bonus (AC 15) + DEX +3 = 18
+        """Test that medium armor adds DEX modifier to bonuses (capped at +2)."""
+        # Scale Mail (base AC 14) with +1 bonus (AC 15) + DEX +3 (capped at +2) = 17
         armor_data = {
             "id": "1",
             "name": "Scale Mail +1",
@@ -89,8 +89,8 @@ class TestArmorBonusPersistence:
         character_stats = {"dex": 16}  # DEX +3
         armor = ArmorEntity(armor_data, character_stats)
         
-        # Medium armor: base 15 + DEX +3 = 18
-        assert armor.final_ac == "18", "Medium armor should add full DEX modifier to bonus"
+        # Medium armor: base 15 + DEX +2 (capped) = 17
+        assert armor.final_ac == "17", "Medium armor should cap DEX modifier at +2"
     
     def test_heavy_armor_bonus_ignores_dex(self):
         """Test that heavy armor doesn't get DEX even with high DEX score."""

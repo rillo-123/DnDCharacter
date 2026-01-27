@@ -16,7 +16,7 @@ def main() -> int:
     sys.path.insert(0, str(root / "assets" / "py"))
 
     from character_models import CharacterFactory
-    from spellcasting import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data
+    from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data
     from spell_data import LOCAL_SPELLS_FALLBACK
 
     print("=" * 80)

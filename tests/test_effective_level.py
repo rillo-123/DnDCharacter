@@ -17,7 +17,7 @@ def test_get_numeric_value():
     print("\n=== TEST: get_numeric_value ===")
     
     try:
-        from spellcasting import get_numeric_value, STANDARD_SLOT_TABLE
+        from spellcasting_manager import get_numeric_value, STANDARD_SLOT_TABLE
         
         # In test environment, there's no DOM, so get_numeric_value will fail
         # But let's see what it tries to do

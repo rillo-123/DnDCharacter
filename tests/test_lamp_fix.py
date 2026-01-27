@@ -20,31 +20,31 @@ class TestModuleReferencesPattern:
     
     def test_module_references_captured_not_functions(self):
         """Verify we capture MODULE references, not function references."""
-        import equipment_management
+        import inventory_manager
         import export_management
         
         # Reset state
-        equipment_management._CHAR_MODULE_REF = None
-        equipment_management._EXPORT_MODULE_REF = None
+        inventory_manager._CHAR_MODULE_REF = None
+        inventory_manager._EXPORT_MODULE_REF = None
         
         # Call initialization
-        equipment_management.initialize_module_references()
+        inventory_manager.initialize_module_references()
         
         # Verify module references are captured (not function references)
-        assert equipment_management._EXPORT_MODULE_REF is not None, \
+        assert inventory_manager._EXPORT_MODULE_REF is not None, \
             "Module reference should be captured"
         
         # Should be the actual module object
-        assert isinstance(equipment_management._EXPORT_MODULE_REF, ModuleType), \
+        assert isinstance(inventory_manager._EXPORT_MODULE_REF, ModuleType), \
             "Should store ModuleType, not function proxy"
         
         # Verify we can call through it
-        assert hasattr(equipment_management._EXPORT_MODULE_REF, 'schedule_auto_export'), \
+        assert hasattr(inventory_manager._EXPORT_MODULE_REF, 'schedule_auto_export'), \
             "Module should have schedule_auto_export function"
     
     def test_handler_calls_through_module_reference(self):
         """Test that handler calls functions through module references."""
-        import equipment_management
+        import inventory_manager
         import export_management
         
         # Mock the modules' functions
@@ -54,14 +54,14 @@ class TestModuleReferencesPattern:
         # Patch the functions in their modules
         with patch.object(export_management, 'schedule_auto_export', mock_export):
             # Reset references
-            equipment_management._EXPORT_MODULE_REF = None
-            equipment_management._CHAR_MODULE_REF = None
+            inventory_manager._EXPORT_MODULE_REF = None
+            inventory_manager._CHAR_MODULE_REF = None
             
             # Initialize to capture
-            equipment_management.initialize_module_references()
+            inventory_manager.initialize_module_references()
             
             # Create manager and item
-            manager = equipment_management.InventoryManager()
+            manager = inventory_manager.InventoryManager()
             item = {
                 "id": "test-item-1",
                 "name": "Test Shield",
@@ -86,7 +86,7 @@ class TestModuleReferencesPattern:
             
             # Verify module function was called through module reference
             # (even if _CHAR_MODULE_REF was None, the pattern should work)
-            assert mock_export.called or equipment_management._EXPORT_MODULE_REF is not None, \
+            assert mock_export.called or inventory_manager._EXPORT_MODULE_REF is not None, \
                 "Handler should use module reference pattern"
 
 
@@ -95,7 +95,7 @@ class TestLazyInitialization:
     
     def test_lazy_initialization_retries_if_module_not_loaded(self):
         """Test that lazy init retries on first use if module not loaded at init time."""
-        import equipment_management
+        import inventory_manager
         
         # Create a temporary module that's not in sys.modules
         temp_module = ModuleType('temp_test_module')
@@ -121,17 +121,17 @@ class TestLazyInitialization:
     
     def test_initialize_idempotent_with_module_refs(self):
         """Test that calling initialize multiple times is safe (idempotent)."""
-        import equipment_management
+        import inventory_manager
         
         # Reset
-        equipment_management._EXPORT_MODULE_REF = None
+        inventory_manager._EXPORT_MODULE_REF = None
         
         # Call multiple times
-        equipment_management.initialize_module_references()
-        first_ref = equipment_management._EXPORT_MODULE_REF
+        inventory_manager.initialize_module_references()
+        first_ref = inventory_manager._EXPORT_MODULE_REF
         
-        equipment_management.initialize_module_references()
-        second_ref = equipment_management._EXPORT_MODULE_REF
+        inventory_manager.initialize_module_references()
+        second_ref = inventory_manager._EXPORT_MODULE_REF
         
         # Should be the same reference
         assert first_ref is second_ref, \
@@ -143,11 +143,11 @@ class TestHandlerPattern:
     
     def test_handler_with_module_references(self):
         """Test that handler correctly uses module references."""
-        import equipment_management
+        import inventory_manager
         import export_management
         
         # Create manager
-        manager = equipment_management.InventoryManager()
+        manager = inventory_manager.InventoryManager()
         
         # Add item
         item = {
@@ -167,7 +167,7 @@ class TestHandlerPattern:
         # Mock both module functions
         with patch.object(export_management, 'schedule_auto_export', Mock()) as mock_schedule:
             # Ensure references are initialized
-            equipment_management.initialize_module_references()
+            inventory_manager.initialize_module_references()
             
             # Call handler (it should call through module references)
             try:

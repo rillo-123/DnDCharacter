@@ -7,7 +7,7 @@ import unittest
 import json
 from unittest.mock import MagicMock, patch
 
-from equipment_management import InventoryManager
+from inventory_manager import InventoryManager
 
 
 class TestEquippedDecorator(unittest.TestCase):

@@ -4,3 +4,11 @@ flask>=3.0.0,<4.0.0
 httpx>=0.25.0,<1.0.0
 vulture>=2.6.0,<3.0.0
 tqdm>=4.65.0,<5.0.0
+
+# Code quality tools
+radon>=6.0.0,<7.0.0          # Complexity metrics
+flake8>=7.0.0,<8.0.0         # Style checker
+ruff>=0.1.0,<1.0.0           # Fast modern linter
+mypy>=1.8.0,<2.0.0           # Type checking
+bandit>=1.7.0,<2.0.0         # Security scanning
+coverage>=7.4.0,<8.0.0       # Test coverage

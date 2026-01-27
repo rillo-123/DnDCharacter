@@ -79,7 +79,7 @@ def test_spellcasting_imports():
     print("\n=== TEST: spellcasting imports from spell_data ===")
     
     try:
-        import spellcasting
+        import spellcasting_manager
         print(f"✓ spellcasting module imported")
         
         # Check what it has
@@ -121,7 +121,7 @@ def test_compute_slot_summary():
     print("\n=== TEST: compute_slot_summary ===")
     
     try:
-        import spellcasting
+        import spellcasting_manager
         
         # Create a SpellcastingManager
         manager = spellcasting.SpellcastingManager()
@@ -165,7 +165,7 @@ def test_slot_summary_access_pattern():
     print("\n=== TEST: Spell slot access pattern ===")
     
     try:
-        import spellcasting
+        import spellcasting_manager
         
         manager = spellcasting.SpellcastingManager()
         slot_summary = manager.compute_slot_summary()
@@ -199,7 +199,7 @@ def test_render_slots_tracker():
     print("\n=== TEST: render_slots_tracker ===")
     
     try:
-        import spellcasting
+        import spellcasting_manager
         
         manager = spellcasting.SpellcastingManager()
         print(f"✓ SpellcastingManager created")
@@ -240,7 +240,7 @@ def test_slots_used_initialization():
     print("\n=== TEST: slots_used initialization ===")
     
     try:
-        import spellcasting
+        import spellcasting_manager
         
         manager = spellcasting.SpellcastingManager()
         print(f"✓ SpellcastingManager created")
@@ -267,7 +267,7 @@ def test_load_state_with_spells():
     print("\n=== TEST: load_state with spells ===")
     
     try:
-        import spellcasting
+        import spellcasting_manager
         
         manager = spellcasting.SpellcastingManager()
         print(f"✓ SpellcastingManager created")

@@ -411,6 +411,100 @@ class Character:
         return self._abilities
 
     # ------------------------------------------------------------------
+    # combat properties
+    # ------------------------------------------------------------------
+    @property
+    def proficiency_bonus(self) -> int:
+        """Calculate proficiency bonus based on character level.
+        
+        Returns:
+            Proficiency bonus (2 at level 1, increases every 4 levels)
+        """
+        level = max(1, min(20, self.level))
+        return 2 + (level - 1) // 4
+    
+    @property
+    def initiative_bonus(self) -> int:
+        """Calculate initiative bonus (DEX modifier).
+        
+        Returns:
+            Initiative bonus (+DEX modifier)
+        """
+        dex_score = self._abilities.dex
+        return (dex_score - 10) // 2
+    
+    @property
+    def speed(self) -> int:
+        """Get character movement speed.
+        
+        Returns:
+            Movement speed in feet (default 30 for most races)
+        """
+        # TODO: This should be configurable per race and could have modifiers
+        # For now, return a sensible default
+        return self._data.get("speed", 30)
+    
+    @property
+    def passive_perception(self) -> int:
+        """Calculate passive Perception (10 + WIS modifier + proficiency if proficient).
+        
+        Returns:
+            Passive Perception score
+        """
+        wis_score = self._abilities.wis
+        wis_mod = (wis_score - 10) // 2
+        
+        # Check if proficient in Perception
+        skills = self._data.get("skills", {})
+        perception_prof = skills.get("perception", 0)  # 0=none, 1=proficient, 2=expertise
+        
+        prof_bonus = 0
+        if perception_prof > 0:
+            prof_bonus = self.proficiency_bonus * perception_prof
+        
+        return 10 + wis_mod + prof_bonus
+    
+    @property
+    def passive_investigation(self) -> int:
+        """Calculate passive Investigation (10 + INT modifier + proficiency if proficient).
+        
+        Returns:
+            Passive Investigation score
+        """
+        int_score = self._abilities.int
+        int_mod = (int_score - 10) // 2
+        
+        # Check if proficient in Investigation
+        skills = self._data.get("skills", {})
+        investigation_prof = skills.get("investigation", 0)
+        
+        prof_bonus = 0
+        if investigation_prof > 0:
+            prof_bonus = self.proficiency_bonus * investigation_prof
+        
+        return 10 + int_mod + prof_bonus
+    
+    @property
+    def passive_insight(self) -> int:
+        """Calculate passive Insight (10 + WIS modifier + proficiency if proficient).
+        
+        Returns:
+            Passive Insight score
+        """
+        wis_score = self._abilities.wis
+        wis_mod = (wis_score - 10) // 2
+        
+        # Check if proficient in Insight
+        skills = self._data.get("skills", {})
+        insight_prof = skills.get("insight", 0)
+        
+        prof_bonus = 0
+        if insight_prof > 0:
+            prof_bonus = self.proficiency_bonus * insight_prof
+        
+        return 10 + wis_mod + prof_bonus
+
+    # ------------------------------------------------------------------
     # derived helpers
     # ------------------------------------------------------------------
     def header_summary(self) -> str:

@@ -130,7 +130,7 @@ def has_property(weapon: Dict[str, Any], property_name: str) -> bool:
 def get_weapons_by_property(property_name: str) -> List[Dict[str, Any]]:
     """Get all weapons with a specific property."""
     db = load_equipment_db()
-    property_lower = property_name.lower()
+    _property_lower = property_name.lower()
     
     matching = []
     for weapon in db.get("weapons", []):

@@ -168,6 +168,87 @@ def list_exports():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Global variable to track current console log file
+_current_console_log = None
+
+@app.route('/api/console-log', methods=['POST'])
+def write_console_log():
+    """
+    API endpoint to receive browser console logs and write to current timestamped file
+    
+    Request JSON:
+    {
+        "entries": ["[timestamp] [LEVEL] message", ...]
+    }
+    """
+    global _current_console_log
+    
+    try:
+        data = request.get_json(force=False, silent=True)
+        
+        if not data or 'entries' not in data:
+            return jsonify({'error': 'Missing entries'}), 400
+        
+        entries = data.get('entries', [])
+        if not entries:
+            return jsonify({'success': True}), 200
+        
+        # If no current log file, create one
+        if _current_console_log is None:
+            timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+            _current_console_log = LOG_DIR / f'browser-console-{timestamp}.log'
+        
+        # Write to current console log file
+        with open(_current_console_log, 'a', encoding='utf-8') as f:
+            for entry in entries:
+                f.write(entry + '\n')
+        
+        return jsonify({'success': True, 'count': len(entries)}), 200
+    
+    except Exception as e:
+        app.logger.error(f"Console log write error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/console-log/new', methods=['POST'])
+def new_console_log():
+    """
+    API endpoint to start a new timestamped console log file
+    The previous log file is closed (no longer written to)
+    Automatically cleans up old logs, keeping only the 10 most recent
+    """
+    global _current_console_log
+    
+    try:
+        # Create new timestamped filename
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        _current_console_log = LOG_DIR / f'browser-console-{timestamp}.log'
+        
+        # Create the file (empty)
+        with open(_current_console_log, 'w', encoding='utf-8') as f:
+            f.write('')
+        
+        app.logger.info(f"Started new console log: {_current_console_log.name}")
+        
+        # Clean up old log files, keeping only the 10 most recent
+        try:
+            log_files = sorted(LOG_DIR.glob('browser-console-*.log'), key=lambda p: p.stat().st_mtime, reverse=True)
+            if len(log_files) > 10:
+                for old_file in log_files[10:]:
+                    old_file.unlink()
+                    app.logger.info(f"Deleted old console log: {old_file.name}")
+        except Exception as cleanup_error:
+            app.logger.warning(f"Console log cleanup error: {cleanup_error}")
+        
+        return jsonify({
+            'success': True,
+            'filename': _current_console_log.name,
+            'path': str(_current_console_log.relative_to(Path.cwd()))
+        }), 200
+    
+    except Exception as e:
+        app.logger.error(f"Console log new file error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Flask server for DnD Character Sheet')
     parser.add_argument('--host', default='localhost', help='Server host (default: localhost)')
