@@ -575,7 +575,7 @@ pytest tests/ -v  # Run all tests
 ```
 /
 ├── README.md                          # Main documentation
-├── specifications.md                  # This file
+├── docs/SPECIFICATIONS.md             # This file
 ├── requirements.txt                   # Python dependencies
 ├── config.json                        # Configuration
 ├── backend.py                         # Python backend server
