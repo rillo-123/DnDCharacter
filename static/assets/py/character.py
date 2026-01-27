@@ -7093,8 +7093,8 @@ if document is not None:
         # Get character stats for managers
         level = get_numeric_value("level", 1)
         char_stats = {
-            "str": get_numeric_value("str", 10),
-            "dex": get_numeric_value("dex", 10),
+            "str": get_numeric_value("str-score", 10),
+            "dex": get_numeric_value("dex-score", 10),
             "proficiency": compute_proficiency(level)
         }
         weapons_mgr = initialize_weapons_manager(INVENTORY_MANAGER, char_stats)
@@ -7124,9 +7124,30 @@ async def _auto_load_weapons():
         console.log("DEBUG: _auto_load_weapons() - loading equipment library into Python")
         load_equipment_library()
         console.log(f"DEBUG: _auto_load_weapons() - equipment library size = {len(EQUIPMENT_LIBRARY_STATE.get('equipment', []))}")
-        # Re-render the weapons grid so any enriched values are applied
-        console.log("DEBUG: _auto_load_weapons() - re-rendering equipped attack grid to apply enrichment")
-        render_equipped_attack_grid()
+        # Re-render the weapons grid using weapons_manager
+        console.log("DEBUG: _auto_load_weapons() - re-rendering weapons grid via weapons_manager")
+        try:
+            import sys
+            weapons_mgr_module = sys.modules.get('weapons_manager')
+            if weapons_mgr_module:
+                get_mgr_func = getattr(weapons_mgr_module, 'get_weapons_manager', None)
+                if get_mgr_func:
+                    weapons_mgr = get_mgr_func()
+                    if weapons_mgr:
+                        weapons_mgr.render()
+                        console.log("DEBUG: _auto_load_weapons() - weapons_manager render complete")
+                    else:
+                        console.warn("DEBUG: _auto_load_weapons() - weapons_manager instance not found, using fallback")
+                        render_equipped_attack_grid()
+                else:
+                    console.warn("DEBUG: _auto_load_weapons() - get_weapons_manager not found, using fallback")
+                    render_equipped_attack_grid()
+            else:
+                console.warn("DEBUG: _auto_load_weapons() - weapons_manager module not loaded, using fallback")
+                render_equipped_attack_grid()
+        except Exception as render_err:
+            console.error(f"DEBUG: _auto_load_weapons() - render error: {render_err}, using fallback")
+            render_equipped_attack_grid()
     except Exception as e:
         console.warn(f"DEBUG: _auto_load_weapons() - equipment load or render failed: {e}")
     # Give SPELLCASTING_MANAGER a chance to fully initialize

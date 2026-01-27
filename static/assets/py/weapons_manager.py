@@ -21,6 +21,11 @@ from typing import Optional, Dict, List
 from entity_manager import EntityManager
 
 try:
+    from tooltip_values import WeaponToHitValue
+except ImportError:
+    WeaponToHitValue = None
+
+try:
     from js import console, document
 except ImportError:
     # Mock for testing
@@ -87,7 +92,7 @@ class WeaponEntity(EntityManager):
                     dmg_type = notes_data.get("damage_type", "")
                     if not dmg_bonus or dmg_bonus == 0:
                         dmg_bonus = notes_data.get("bonus", 0)
-            except:
+            except (json.JSONDecodeError, KeyError, TypeError):
                 pass
         
         # Try to parse bonus from weapon name if still not found
@@ -119,7 +124,7 @@ class WeaponEntity(EntityManager):
                     range_text = notes_data.get("range", "")
                     if not range_text:
                         range_text = notes_data.get("range_text", "")
-            except:
+            except (json.JSONDecodeError, KeyError, TypeError):
                 pass
         
         return range_text if range_text else "—"
@@ -136,7 +141,7 @@ class WeaponEntity(EntityManager):
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     props = notes_data.get("properties", "")
-            except:
+            except (json.JSONDecodeError, KeyError, TypeError):
                 pass
         
         return props if props else "—"
@@ -151,7 +156,7 @@ class WeaponEntity(EntityManager):
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     cost = notes_data.get("cost", "")
-            except:
+            except (json.JSONDecodeError, KeyError, TypeError):
                 pass
         return cost if cost else "—"
 
@@ -165,7 +170,7 @@ class WeaponEntity(EntityManager):
                 if notes_str and notes_str.startswith("{"):
                     notes_data = json.loads(notes_str)
                     weight = notes_data.get("weight", "")
-            except:
+            except (json.JSONDecodeError, KeyError, TypeError):
                 pass
         return weight if weight else "—"
 
@@ -195,7 +200,7 @@ class WeaponEntity(EntityManager):
                     if notes_str and notes_str.startswith("{"):
                         notes_data = json.loads(notes_str)
                         properties = notes_data.get("properties", "")
-                except:
+                except (json.JSONDecodeError, KeyError, TypeError):
                     pass
             
             # Get ability modifiers from character stats
@@ -218,10 +223,18 @@ class WeaponEntity(EntityManager):
             # Get proficiency
             proficiency = self.character_stats.get("proficiency", 0)
             
-            # Add weapon bonus
-            weapon_bonus = self.entity.get("bonus", 0)
+            # Get weapon bonus from notes JSON
+            weapon_bonus = 0
+            try:
+                notes_str = self.entity.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    weapon_bonus = notes_data.get("bonus", 0) or 0
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
+            
+            # Fallback: try to parse from name
             if not weapon_bonus:
-                # Try to parse from name
                 match = re.search(r'\+(\d+)', self.entity.get("name", ""))
                 if match:
                     weapon_bonus = int(match.group(1))
@@ -231,6 +244,66 @@ class WeaponEntity(EntityManager):
         except Exception as e:
             console.error(f"[WEAPONS] Error calculating to-hit: {e}")
             return 0
+    
+    def get_tohit_breakdown(self) -> tuple:
+        """Get breakdown of to-hit calculation for tooltip.
+        
+        Returns:
+            Tuple of (ability_key, ability_mod, proficiency, weapon_bonus)
+        """
+        try:
+            weapon_type = self.entity.get("weapon_type", "").lower()
+            properties = self.entity.get("weapon_properties", "")
+            
+            if not properties:
+                try:
+                    notes_str = self.entity.get("notes", "")
+                    if notes_str and notes_str.startswith("{"):
+                        notes_data = json.loads(notes_str)
+                        properties = notes_data.get("properties", "")
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass
+            
+            str_score = self.character_stats.get("str", 10)
+            dex_score = self.character_stats.get("dex", 10)
+            str_mod = (str_score - 10) // 2
+            dex_mod = (dex_score - 10) // 2
+            
+            is_ranged = weapon_type == "ranged" or "range" in weapon_type.lower()
+            is_finesse = properties and "finesse" in properties.lower()
+            
+            if is_ranged:
+                ability_mod = dex_mod
+                ability_key = "DEX"
+            elif is_finesse:
+                ability_mod = max(str_mod, dex_mod)
+                ability_key = "DEX" if dex_mod > str_mod else "STR"
+            else:
+                ability_mod = str_mod
+                ability_key = "STR"
+            
+            proficiency = self.character_stats.get("proficiency", 0)
+            
+            # Get weapon bonus from notes JSON
+            weapon_bonus = 0
+            try:
+                notes_str = self.entity.get("notes", "")
+                if notes_str and notes_str.startswith("{"):
+                    notes_data = json.loads(notes_str)
+                    weapon_bonus = notes_data.get("bonus", 0) or 0
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
+            
+            # Fallback: try to parse from name
+            if not weapon_bonus:
+                match = re.search(r'\+(\d+)', self.entity.get("name", ""))
+                if match:
+                    weapon_bonus = int(match.group(1))
+            
+            return (ability_key, ability_mod, proficiency, weapon_bonus)
+        except Exception as e:
+            console.error(f"[WEAPONS] Error getting to-hit breakdown: {e}")
+            return ("STR", 0, 0, 0)
 
 
 class WeaponsCollectionManager:
@@ -248,6 +321,34 @@ class WeaponsCollectionManager:
         self.weapons: List[WeaponEntity] = []
         self.character_stats: Dict = {}
     
+    # === Equipped Weapons Property ===
+    
+    @property
+    def equipped_weapons(self) -> List[WeaponEntity]:
+        """Get list of equipped weapon entities ready for table rendering.
+        
+        Returns:
+            List of WeaponEntity objects for equipped weapons.
+            Each entity has properties like final_name, final_tohit, final_damage.
+        """
+        if not self.inventory_manager:
+            return []
+        
+        equipped = []
+        for item in self.inventory_manager.items:
+            category = item.get("category", "").lower()
+            item_name = item.get("name", "").lower()
+            
+            # Only weapons, and exclude obvious armor items by name
+            armor_keywords = ["plate", "leather", "chain", "hide", "scale", "mail", "breastplate", "shield", "helmet"]
+            is_armor_by_name = any(kw in item_name for kw in armor_keywords)
+            
+            if item.get("equipped") and category in ["weapons", "weapon"] and not is_armor_by_name:
+                weapon = WeaponEntity(item, self.character_stats)
+                equipped.append(weapon)
+        
+        return equipped
+    
     def initialize(self, character_stats: Dict = None):
         """Initialize grid elements and character stats. Call after DOM is ready."""
         self.grid_element = self._get_element("weapons-grid")
@@ -262,7 +363,7 @@ class WeaponsCollectionManager:
         """Get element by ID, with fallback for testing."""
         try:
             return document.getElementById(element_id)
-        except:
+        except Exception:
             return None
     
     def render(self):
@@ -296,7 +397,13 @@ class WeaponsCollectionManager:
         
         for item in self.inventory_manager.items:
             category = item.get("category", "").lower()
-            if item.get("equipped") and category in ["weapons", "weapon"]:
+            item_name = item.get("name", "").lower()
+            
+            # Only weapons, and exclude obvious armor items by name
+            armor_keywords = ["plate", "leather", "chain", "hide", "scale", "mail", "breastplate", "shield", "helmet"]
+            is_armor_by_name = any(kw in item_name for kw in armor_keywords)
+            
+            if item.get("equipped") and category in ["weapons", "weapon"] and not is_armor_by_name:
                 weapon = WeaponEntity(item, self.character_stats)
                 self.weapons.append(weapon)
     
@@ -342,9 +449,31 @@ class WeaponsCollectionManager:
             name_td.textContent = weapon.final_name
             row.appendChild(name_td)
             
-            # Column 2: To Hit bonus
+            # Column 2: To Hit bonus with tooltip
             to_hit_td = document.createElement("td")
-            to_hit_td.textContent = weapon.final_tohit
+            to_hit_text = weapon.final_tohit
+            
+            # Generate tooltip if WeaponToHitValue is available
+            tooltip_html = ""
+            if WeaponToHitValue:
+                try:
+                    ability_key, ability_mod, proficiency, weapon_bonus = weapon.get_tohit_breakdown()
+                    console.log(f"[WEAPONS] Tooltip breakdown: {ability_key}={ability_mod}, prof={proficiency}, bonus={weapon_bonus}")
+                    w2h = WeaponToHitValue(
+                        weapon_name=weapon.entity.get("name", ""),
+                        ability=ability_key,
+                        ability_mod=ability_mod,
+                        proficiency=proficiency,
+                        weapon_bonus=weapon_bonus
+                    )
+                    tooltip_html = w2h.generate_tooltip_html()
+                    console.log(f"[WEAPONS] Tooltip HTML length: {len(tooltip_html)}")
+                except Exception as e:
+                    console.log(f"[WEAPONS] Error creating tooltip: {e}")
+            else:
+                console.warn("[WEAPONS] WeaponToHitValue not available")
+            
+            to_hit_td.innerHTML = f'<span class="stat-value">{to_hit_text}{tooltip_html}</span>'
             row.appendChild(to_hit_td)
             
             # Column 3: Damage
