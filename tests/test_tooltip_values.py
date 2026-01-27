@@ -3,7 +3,7 @@ Unit tests for tooltip_values.py - Testing TooltipValue entities and inheritance
 """
 
 import pytest
-from static.assets.py.tooltip_values import (
+from tooltip_values import (
     TooltipValue,
     AbilityScoreValue,
     SaveValue,

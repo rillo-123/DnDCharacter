@@ -11,7 +11,7 @@ import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from static.assets.py.character import (
+from character import (
     CURRENCY_ORDER,
 )
 
@@ -71,7 +71,7 @@ class TestCurrencyPersistence(unittest.TestCase):
     
     def test_currency_in_default_state(self):
         """Test that DEFAULT_STATE includes currency fields."""
-        from static.assets.py.character import DEFAULT_STATE
+        from character import DEFAULT_STATE
         
         # Check that inventory exists
         self.assertIn("inventory", DEFAULT_STATE)

@@ -4,7 +4,7 @@ Test Channel Divinity persistence end-to-end.
 
 import json
 import unittest
-from static.assets.py.character import DEFAULT_STATE
+from character import DEFAULT_STATE
 
 
 class TestChannelDivinityPersistence(unittest.TestCase):

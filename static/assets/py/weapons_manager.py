@@ -223,15 +223,25 @@ class WeaponEntity(EntityManager):
             # Get proficiency
             proficiency = self.character_stats.get("proficiency", 0)
             
-            # Get weapon bonus from notes JSON
+            # Get weapon bonus from multiple sources
             weapon_bonus = 0
-            try:
-                notes_str = self.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    weapon_bonus = notes_data.get("bonus", 0) or 0
-            except (json.JSONDecodeError, KeyError, TypeError):
-                pass
+            
+            # First, check if bonus is directly in entity dict
+            if "bonus" in self.entity:
+                try:
+                    weapon_bonus = int(self.entity.get("bonus", 0) or 0)
+                except (ValueError, TypeError):
+                    pass
+            
+            # If not found, try notes JSON
+            if not weapon_bonus:
+                try:
+                    notes_str = self.entity.get("notes", "")
+                    if notes_str and notes_str.startswith("{"):
+                        notes_data = json.loads(notes_str)
+                        weapon_bonus = notes_data.get("bonus", 0) or 0
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass
             
             # Fallback: try to parse from name
             if not weapon_bonus:
@@ -284,15 +294,25 @@ class WeaponEntity(EntityManager):
             
             proficiency = self.character_stats.get("proficiency", 0)
             
-            # Get weapon bonus from notes JSON
+            # Get weapon bonus from multiple sources
             weapon_bonus = 0
-            try:
-                notes_str = self.entity.get("notes", "")
-                if notes_str and notes_str.startswith("{"):
-                    notes_data = json.loads(notes_str)
-                    weapon_bonus = notes_data.get("bonus", 0) or 0
-            except (json.JSONDecodeError, KeyError, TypeError):
-                pass
+            
+            # First, check if bonus is directly in entity dict
+            if "bonus" in self.entity:
+                try:
+                    weapon_bonus = int(self.entity.get("bonus", 0) or 0)
+                except (ValueError, TypeError):
+                    pass
+            
+            # If not found, try notes JSON
+            if not weapon_bonus:
+                try:
+                    notes_str = self.entity.get("notes", "")
+                    if notes_str and notes_str.startswith("{"):
+                        notes_data = json.loads(notes_str)
+                        weapon_bonus = notes_data.get("bonus", 0) or 0
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass
             
             # Fallback: try to parse from name
             if not weapon_bonus:
