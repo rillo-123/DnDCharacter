@@ -54,7 +54,7 @@ class WeaponEntity(EntityManager):
         
         Args:
             weapon_data: Raw weapon data from inventory
-            character_stats: Either a Character instance or a dict with ability scores and proficiency
+            character_stats: Character or CharacterManager instance, or dict with ability scores and proficiency
         """
         super().__init__(weapon_data)
         # Normalize character_stats to dict

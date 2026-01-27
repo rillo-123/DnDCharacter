@@ -200,7 +200,7 @@ class ArmorEntity(EntityManager):
         if character_stats is None:
             self.character_stats = {}
         elif hasattr(character_stats, 'get_stats_dict'):
-            # It's a Character instance
+            # It's a Character or CharacterManager instance
             self.character_stats = character_stats.get_stats_dict()
         elif isinstance(character_stats, dict):
             # It's already a dict
@@ -378,7 +378,7 @@ class ArmorCollectionManager:
         if character_stats is None:
             self.character_stats = {}
         elif hasattr(character_stats, 'get_stats_dict'):
-            # It's a Character instance
+            # It's a Character or CharacterManager instance
             self.character_stats = character_stats.get_stats_dict()
         elif isinstance(character_stats, dict):
             # It's already a dict

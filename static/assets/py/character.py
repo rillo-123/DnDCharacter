@@ -1180,8 +1180,13 @@ SPELL_LIBRARY_STATE["loaded"] = True
 
 INVENTORY_MANAGER = InventoryManager() if InventoryManager is not None else None
 
-# CHARACTER_MANAGER will be initialized after DEFAULT_STATE is defined
+# CharacterManager will be initialized after DEFAULT_STATE is defined
 # See initialization below at module load
+try:
+    from character_manager import initialize_character_manager
+except ImportError:
+    initialize_character_manager = None
+
 CHARACTER_MANAGER = None
 
 # Initialize event listener for inventory events
@@ -1737,7 +1742,14 @@ def clone_default_state() -> dict:
 
 # Initialize global CHARACTER_MANAGER (single source of truth for character stats)
 # This must happen after DEFAULT_STATE is defined
-CHARACTER_MANAGER = Character(clone_default_state()) if Character is not None else None
+if initialize_character_manager is not None:
+    CHARACTER_MANAGER = initialize_character_manager(clone_default_state())
+else:
+    CHARACTER_MANAGER = None
+
+# Fallback: If character_manager not available, create Character directly
+if CHARACTER_MANAGER is None and Character is not None:
+    CHARACTER_MANAGER = Character(clone_default_state())
 
 
 def get_element(element_id):
