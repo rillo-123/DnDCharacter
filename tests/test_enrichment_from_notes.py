@@ -3,7 +3,7 @@ import copy
 import pytest
 
 import character
-from weapons_manager import WeaponEntity
+from managers import WeaponEntity
 
 
 def test_enrich_weapon_item_reads_notes_in_equipment_library(monkeypatch):

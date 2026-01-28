@@ -13,8 +13,7 @@ import unittest
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'static', 'assets', 'py'))
 
-from weapons_manager import WeaponsCollectionManager, WeaponEntity
-from armor_manager import ArmorCollectionManager, ArmorEntity
+from managers import WeaponsCollectionManager, WeaponEntity, ArmorCollectionManager, ArmorEntity
 
 
 class MockInventoryManager:

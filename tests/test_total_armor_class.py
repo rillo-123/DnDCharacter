@@ -24,7 +24,7 @@ class TestTotalArmorClassNaming:
     
     def test_armor_piece_has_armor_class_field(self):
         """Individual armor pieces should have armor_class field."""
-        from armor_manager import ArmorEntity
+        from managers import ArmorEntity
         
         breastplate_data = {
             "id": "1",
@@ -86,7 +86,7 @@ class TestEnwerACCalculation:
     
     def test_breastplate_ac_is_14(self):
         """Breastplate should have AC 14."""
-        from armor_manager import ArmorEntity
+        from managers import ArmorEntity
         
         armor = ArmorEntity(self.breastplate_data, self.character_stats)
         ac = armor._calculate_ac()
@@ -102,7 +102,7 @@ class TestEnwerACCalculation:
     
     def test_total_ac_is_17(self):
         """Total AC: 14 (breastplate) + 0 (DEX) + 3 (shield) = 17."""
-        from armor_manager import ArmorEntity
+        from managers import ArmorEntity
         
         # Calculate breastplate AC
         breastplate = ArmorEntity(self.breastplate_data, self.character_stats)
@@ -119,7 +119,7 @@ class TestEnwerACCalculation:
     
     def test_armor_collection_manager_calculates_correctly(self):
         """ArmorCollectionManager should calculate total AC as 17."""
-        from armor_manager import ArmorCollectionManager
+        from managers import ArmorCollectionManager
         
         class MockInventoryManager:
             def __init__(self, items):

@@ -17,20 +17,111 @@ import copy
 import re
 from typing import Any, Dict, Iterable, Iterator, Mapping, MutableMapping, Optional, Tuple
 
+# Import console for debugging (same as character.py)
+try:
+    from js import console
+except ImportError:
+    class _MockConsole:
+        def log(self, *args): pass
+        def warn(self, *args): pass
+        def error(self, *args): pass
+    console = _MockConsole()
+
 # Import from manager modules (organized in managers package)
-from managers import (
-    CharacterClassInfo,
-    CLASS_REGISTRY,
-    get_class_info,
-    get_class_hit_die,
-    get_class_armor_proficiencies,
-    get_class_weapon_proficiencies,
-    Bard,
-    Cleric,
-    CharacterFactory,
-    RACE_ABILITY_BONUSES,
-    get_race_ability_bonuses,
-)
+# Use lazy imports to avoid loading issues during HTTP fallback
+def _get_managers_imports():
+    """Lazy import function to get managers imports when needed."""
+    try:
+        from managers import (
+            CharacterClassInfo,
+            CLASS_REGISTRY,
+            get_class_info,
+            get_class_hit_die,
+            get_class_armor_proficiencies,
+            get_class_weapon_proficiencies,
+            Bard,
+            Cleric,
+            CharacterFactory,
+            RACE_ABILITY_BONUSES,
+            get_race_ability_bonuses,
+        )
+        return {
+            'CharacterClassInfo': CharacterClassInfo,
+            'CLASS_REGISTRY': CLASS_REGISTRY,
+            'get_class_info': get_class_info,
+            'get_class_hit_die': get_class_hit_die,
+            'get_class_armor_proficiencies': get_class_armor_proficiencies,
+            'get_class_weapon_proficiencies': get_class_weapon_proficiencies,
+            'Bard': Bard,
+            'Cleric': Cleric,
+            'CharacterFactory': CharacterFactory,
+            'RACE_ABILITY_BONUSES': RACE_ABILITY_BONUSES,
+            'get_race_ability_bonuses': get_race_ability_bonuses,
+        }
+    except ImportError as e:
+        console.warn(f"DEBUG: managers import failed: {e}")
+        # Try to use pre-loaded managers package from character.py
+        try:
+            import sys
+            if 'character' in sys.modules:
+                char_module = sys.modules['character']
+                _managers_loaded = getattr(char_module, '_managers_loaded', None)
+                if _managers_loaded is not None:
+                    console.log("DEBUG: Using pre-loaded managers package in character_models")
+                    return {
+                        'CharacterClassInfo': getattr(_managers_loaded, "CharacterClassInfo", None),
+                        'CLASS_REGISTRY': getattr(_managers_loaded, "CLASS_REGISTRY", {}),
+                        'get_class_info': getattr(_managers_loaded, "get_class_info", lambda x: None),
+                        'get_class_hit_die': getattr(_managers_loaded, "get_class_hit_die", lambda x: "d8"),
+                        'get_class_armor_proficiencies': getattr(_managers_loaded, "get_class_armor_proficiencies", lambda x, y=None: []),
+                        'get_class_weapon_proficiencies': getattr(_managers_loaded, "get_class_weapon_proficiencies", lambda x: []),
+                        'Bard': getattr(_managers_loaded, "Bard", None),
+                        'Cleric': getattr(_managers_loaded, "Cleric", None),
+                        'CharacterFactory': getattr(_managers_loaded, "CharacterFactory", None),
+                        'RACE_ABILITY_BONUSES': getattr(_managers_loaded, "RACE_ABILITY_BONUSES", {}),
+                        'get_race_ability_bonuses': getattr(_managers_loaded, "get_race_ability_bonuses", lambda x: {}),
+                    }
+            else:
+                raise ImportError("character module not loaded")
+        except Exception as e2:
+            console.error(f"DEBUG: pre-loaded managers fallback failed: {e2}")
+            # Fallback stubs
+            return {
+                'CharacterClassInfo': None,
+                'CLASS_REGISTRY': {},
+                'get_class_info': lambda x: None,
+                'get_class_hit_die': lambda x: "d8",
+                'get_class_armor_proficiencies': lambda x, y=None: [],
+                'get_class_weapon_proficiencies': lambda x: [],
+                'Bard': None,
+                'Cleric': None,
+                'CharacterFactory': None,
+                'RACE_ABILITY_BONUSES': {},
+                'get_race_ability_bonuses': lambda x: {},
+            }
+
+# Cache for lazy imports
+_managers_cache = None
+
+def _get_managers():
+    """Get managers imports, caching the result."""
+    global _managers_cache
+    if _managers_cache is None:
+        _managers_cache = _get_managers_imports()
+    return _managers_cache
+
+# Extract individual imports for backwards compatibility
+CharacterClassInfo = _get_managers()['CharacterClassInfo']
+CLASS_REGISTRY = _get_managers()['CLASS_REGISTRY']
+get_class_info = _get_managers()['get_class_info']
+get_class_hit_die = _get_managers()['get_class_hit_die']
+get_class_armor_proficiencies = _get_managers()['get_class_armor_proficiencies']
+get_class_weapon_proficiencies = _get_managers()['get_class_weapon_proficiencies']
+Bard = _get_managers()['Bard']
+Cleric = _get_managers()['Cleric']
+CharacterFactory = _get_managers()['CharacterFactory']
+RACE_ABILITY_BONUSES = _get_managers()['RACE_ABILITY_BONUSES']
+get_race_ability_bonuses = _get_managers()['get_race_ability_bonuses']
 
 DEFAULT_ABILITY_KEYS: Tuple[str, ...] = ("str", "dex", "con", "int", "wis", "cha")
 

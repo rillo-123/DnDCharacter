@@ -76,6 +76,258 @@ except ImportError:
 
 from types import ModuleType
 
+# ===================================================================
+# Define helper functions BEFORE ANY IMPORTS THAT MIGHT USE THEM
+# ===================================================================
+
+def _load_module_from_http_sync(module_name: str, url: str, _retry: bool = True):
+    """Load a Python module from HTTP URL synchronously using open_url.
+
+    This helper will attempt to auto-resolve simple missing-module errors by
+    fetching the missing dependency module from the assets HTTP path and retrying once.
+    """
+    try:
+        console.log("DEBUG: [HTTP] Starting load_module_from_http_sync")
+        console.log(f"DEBUG: [HTTP] module_name = {module_name}")
+        console.log(f"DEBUG: [HTTP] url = {url}")
+        console.log(f"DEBUG: [HTTP] open_url available = {open_url is not None}")
+
+        if open_url is None:
+            raise RuntimeError("open_url is None")
+
+        console.log(f"DEBUG: [HTTP] Calling open_url({url})")
+        response = open_url(url)
+        console.log("DEBUG: [HTTP] open_url returned")
+
+        source = response.read()
+        console.log(f"DEBUG: [HTTP] Read {len(source)} bytes")
+
+        module = ModuleType(module_name)
+        module.__file__ = url  # Help modules that log __file__
+        # Register before exec so intra-module lookups (e.g., dataclasses __module__) succeed
+        sys.modules[module_name] = module
+        console.log("DEBUG: [HTTP] Created ModuleType and registered in sys.modules")
+
+        try:
+            exec(source, module.__dict__)
+            console.log("DEBUG: [HTTP] exec() completed")
+            console.log("DEBUG: [HTTP] SUCCESS")
+            return module
+        except Exception as inner_exc:
+            # If a ModuleNotFoundError occurred during exec, attempt to fetch that missing module
+            msg = str(inner_exc)
+            console.error(f"DEBUG: [HTTP] exec() ERROR: {type(inner_exc).__name__}: {msg}")
+            import re
+            m = re.search(r"No module named '([^']+)'", msg)
+            if m and _retry:
+                missing = m.group(1)
+                console.log(f"DEBUG: [HTTP] Detected missing dependency: {missing}; attempting to fetch it and retry")
+                try:
+                    dep_url = f"http://localhost:8080/assets/py/{missing}.py"
+                    dep_mod = _load_module_from_http_sync(missing, dep_url, _retry=False)
+                    if dep_mod is not None:
+                        console.log(f"DEBUG: [HTTP] Successfully loaded dependency {missing}; retrying exec of {module_name}")
+                        # Retry exec now that dependency is registered
+                        exec(source, module.__dict__)
+                        console.log("DEBUG: [HTTP] exec() completed on retry")
+                        console.log("DEBUG: [HTTP] SUCCESS (after dependency fetch)")
+                        return module
+                    else:
+                        console.error(f"DEBUG: [HTTP] Failed to load dependency module: {missing}")
+                except Exception as e2:
+                    console.error(f"DEBUG: [HTTP] Error while fetching dependency {missing}: {e2}")
+            # If we get here, re-raise to be logged by the outer except
+            raise
+
+    except Exception as e:
+        console.error(f"DEBUG: [HTTP] EXCEPTION: {type(e).__name__}")
+        console.error(f"DEBUG: [HTTP] Message: {str(e)}")
+        import traceback
+        for line in traceback.format_exc().split('\n'):
+            if line.strip():
+                console.error(f"DEBUG: [HTTP] {line}")
+        return None
+
+
+def _load_managers_package():
+    """Load managers modules from HTTP and create a minimal managers package.
+    
+    This is a workaround for Pyodide which doesn't support relative imports
+    with HTTP-loaded modules. We load the key modules that don't use relative
+    imports and register them so that `from managers import ...` works.
+    """
+    try:
+        console.log("DEBUG: [MANAGERS] Setting up managers package")
+        
+        # Create a minimal managers module object
+        managers_module = ModuleType("managers")
+        sys.modules["managers"] = managers_module
+        
+        # Load entity_manager FIRST - needed by weapons_manager and armor_manager
+        try:
+            url = "http://localhost:8080/assets/py/managers/entity_manager.py"
+            entity_manager_mod = _load_module_from_http_sync("entity_manager", url, _retry=False)
+            if entity_manager_mod:
+                # Copy exports to managers module
+                for attr in ["EntityManager"]:
+                    if hasattr(entity_manager_mod, attr):
+                        setattr(managers_module, attr, getattr(entity_manager_mod, attr))
+                console.log("DEBUG: [MANAGERS] entity_manager loaded and exports registered")
+            else:
+                console.error("DEBUG: [MANAGERS] Failed to load entity_manager")
+        except Exception as e:
+            console.error(f"DEBUG: [MANAGERS] Error with entity_manager: {e}")
+        
+        # Load class_manager (needed for CharacterFactory)
+        try:
+            url = "http://localhost:8080/assets/py/managers/class_manager.py"
+            class_manager_mod = _load_module_from_http_sync("class_manager", url, _retry=False)
+            if class_manager_mod:
+                # Copy exports to managers module
+                for attr in ["CharacterClassInfo", "CLASS_REGISTRY", "CharacterFactory", "Bard", "Cleric",
+                             "get_class_info", "get_class_hit_die", "get_class_armor_proficiencies", 
+                             "get_class_weapon_proficiencies"]:
+                    if hasattr(class_manager_mod, attr):
+                        setattr(managers_module, attr, getattr(class_manager_mod, attr))
+                console.log("DEBUG: [MANAGERS] class_manager loaded and exports registered")
+            else:
+                console.error("DEBUG: [MANAGERS] Failed to load class_manager")
+        except Exception as e:
+            console.error(f"DEBUG: [MANAGERS] Error with class_manager: {e}")
+        
+        # Load race_manager (needed for get_race_ability_bonuses)
+        try:
+            url = "http://localhost:8080/assets/py/managers/race_manager.py"
+            race_manager_mod = _load_module_from_http_sync("race_manager", url, _retry=False)
+            if race_manager_mod:
+                # Copy exports to managers module
+                for attr in ["RACE_ABILITY_BONUSES", "get_race_ability_bonuses"]:
+                    if hasattr(race_manager_mod, attr):
+                        setattr(managers_module, attr, getattr(race_manager_mod, attr))
+                console.log("DEBUG: [MANAGERS] race_manager loaded and exports registered")
+            else:
+                console.error("DEBUG: [MANAGERS] Failed to load race_manager")
+        except Exception as e:
+            console.error(f"DEBUG: [MANAGERS] Error with race_manager: {e}")
+        
+        # Load spellcasting_manager (needed for SpellcastingManager)
+        try:
+            url = "http://localhost:8080/assets/py/managers/spellcasting_manager.py"
+            spellcasting_mod = _load_module_from_http_sync("spellcasting_manager", url, _retry=False)
+            if spellcasting_mod:
+                # Copy exports to managers module
+                for attr in ["SpellcastingManager", "SpellcasterManager", "SPELL_LIBRARY_STATE", "set_spell_library_data", "load_spell_library"]:
+                    if hasattr(spellcasting_mod, attr):
+                        setattr(managers_module, attr, getattr(spellcasting_mod, attr))
+                console.log("DEBUG: [MANAGERS] spellcasting_manager loaded and exports registered")
+            else:
+                console.error("DEBUG: [MANAGERS] Failed to load spellcasting_manager")
+        except Exception as e:
+            console.error(f"DEBUG: [MANAGERS] Error with spellcasting_manager: {e}")
+        
+        # Load game_constants first (needed by inventory_manager)
+        try:
+            url = "http://localhost:8080/assets/py/game_constants.py"
+            game_constants_mod = _load_module_from_http_sync("game_constants", url, _retry=False)
+            if not game_constants_mod:
+                console.error("DEBUG: [MANAGERS] Failed to load game_constants - this will break inventory_manager")
+        except Exception as e:
+            console.error(f"DEBUG: [MANAGERS] Error loading game_constants: {e}")
+        
+        # Load inventory_manager FIRST - this is the critical one
+        try:
+            url = "http://localhost:8080/assets/py/managers/inventory_manager.py"
+            inventory_mod = _load_module_from_http_sync("inventory_manager", url, _retry=False)
+            if inventory_mod:
+                # Copy exports to managers module
+                for attr in ["InventoryManager", "Item", "Weapon", "Armor", "Shield", "Equipment"]:
+                    if hasattr(inventory_mod, attr):
+                        setattr(managers_module, attr, getattr(inventory_mod, attr))
+                console.log("DEBUG: [MANAGERS] ✓ inventory_manager loaded successfully")
+            else:
+                console.error("DEBUG: [MANAGERS] Failed to load inventory_manager")
+                InventoryManager = None
+        except Exception as e:
+            console.error(f"DEBUG: [MANAGERS] Error with inventory_manager: {e}")
+            InventoryManager = None
+        
+        # Load weapons_manager (optional - has import errors that we'll handle)
+        try:
+            url = "http://localhost:8080/assets/py/managers/weapons_manager.py"
+            weapons_manager_mod = _load_module_from_http_sync("weapons_manager", url, _retry=False)
+            if weapons_manager_mod:
+                for attr in ["WeaponsManager"]:
+                    if hasattr(weapons_manager_mod, attr):
+                        setattr(managers_module, attr, getattr(weapons_manager_mod, attr))
+                console.log("DEBUG: [MANAGERS] weapons_manager loaded")
+            else:
+                console.error("DEBUG: [MANAGERS] Failed to load weapons_manager")
+        except ImportError as e:
+            console.warn(f"DEBUG: [MANAGERS] Import error in weapons_manager (expected): {e}")
+        except Exception as e:
+            console.error(f"DEBUG: [MANAGERS] Error with weapons_manager: {e}")
+        
+        # Load armor_manager (optional - has import errors that we'll handle)
+        try:
+            url = "http://localhost:8080/assets/py/managers/armor_manager.py"
+            armor_manager_mod = _load_module_from_http_sync("armor_manager", url, _retry=False)
+            if armor_manager_mod:
+                for attr in ["ArmorManager"]:
+                    if hasattr(armor_manager_mod, attr):
+                        setattr(managers_module, attr, getattr(armor_manager_mod, attr))
+                console.log("DEBUG: [MANAGERS] armor_manager loaded")
+            else:
+                console.error("DEBUG: [MANAGERS] Failed to load armor_manager")
+        except ImportError as e:
+            console.warn(f"DEBUG: [MANAGERS] Import error in armor_manager (expected): {e}")
+        except Exception as e:
+            console.error(f"DEBUG: [MANAGERS] Error with armor_manager: {e}")
+        
+        console.log("DEBUG: [MANAGERS] Managers package setup complete - critical managers loaded")
+        return managers_module
+        
+    except Exception as e:
+        console.error(f"DEBUG: [MANAGERS] Exception in _load_managers_package: {e}")
+        return None
+
+
+def _ensure_manager_loaded(module_name: str, attr_name: str, http_url: str | None = None):
+    """Attempt to import <module_name> and return the attribute <attr_name>.
+    On ImportError, retry by inserting static/assets/py into sys.path, and
+    finally attempt an HTTP fallback using _load_module_from_http_sync if
+    http_url is provided. Raises ImportError if all attempts fail.
+    """
+    try:
+        module = __import__(module_name)
+        if hasattr(module, attr_name):
+            return getattr(module, attr_name)
+    except Exception as e:
+        console.warn(f"DEBUG: {module_name} import failed: {e}")
+        # Retry by inserting assets/py into sys.path
+        try:
+            assets_py = Path.cwd() / "static" / "assets" / "py"
+            if str(assets_py) not in sys.path:
+                sys.path.insert(0, str(assets_py))
+                console.log(f"DEBUG: Added {assets_py} to sys.path[0]")
+            module = __import__(module_name)
+            if hasattr(module, attr_name):
+                console.log(f"DEBUG: {module_name} imported after path insertion")
+                return getattr(module, attr_name)
+        except Exception as e2:
+            console.warn(f"DEBUG: {module_name} retry failed: {e2}")
+            # Try HTTP fallback if a URL was provided
+            if http_url is not None:
+                console.log(f"DEBUG: Attempting HTTP fallback for {module_name}")
+                mod = _load_module_from_http_sync(module_name, http_url)
+                if mod is not None and hasattr(mod, attr_name):
+                    console.log(f"DEBUG: {module_name} loaded via HTTP fallback")
+                    return getattr(mod, attr_name)
+            raise ImportError(f"{module_name} could not be loaded")
+
+# ===================================================================
+# Now we can safely set up paths and load managers
+# ===================================================================
+
 MODULE_DIR = (
     Path(__file__).resolve().parent
     if "__file__" in globals()
@@ -93,6 +345,14 @@ else:
     console.log(f"DEBUG: {MODULE_DIR} already in sys.path")
 
 console.log(f"DEBUG: sys.path after update: {sys.path[:3]}...")
+
+# Initialize _managers_loaded to avoid undefined reference errors
+_managers_loaded = None
+console.log("DEBUG: About to load managers package")
+
+# Load managers package VERY EARLY to avoid import order issues
+_managers_loaded = _load_managers_package()
+console.log(f"DEBUG: Managers package loaded: {_managers_loaded is not None}")
 
 try:
     from character_models import (
@@ -217,107 +477,8 @@ except ImportError as e:
     STANDARD_SLOT_TABLE = {}
     PACT_MAGIC_TABLE = {}
 
-# Manual HTTP fetch for spellcasting module (workaround for Pyodide path resolution)
-def _load_module_from_http_sync(module_name: str, url: str, _retry: bool = True):
-    """Load a Python module from HTTP URL synchronously using open_url.
-
-    This helper will attempt to auto-resolve simple missing-module errors by
-    fetching the missing dependency module from the assets HTTP path and retrying once.
-    """
-    try:
-        console.log("DEBUG: [HTTP] Starting load_module_from_http_sync")
-        console.log(f"DEBUG: [HTTP] module_name = {module_name}")
-        console.log(f"DEBUG: [HTTP] url = {url}")
-        console.log(f"DEBUG: [HTTP] open_url available = {open_url is not None}")
-
-        if open_url is None:
-            raise RuntimeError("open_url is None")
-
-        console.log(f"DEBUG: [HTTP] Calling open_url({url})")
-        response = open_url(url)
-        console.log("DEBUG: [HTTP] open_url returned")
-
-        source = response.read()
-        console.log(f"DEBUG: [HTTP] Read {len(source)} bytes")
-
-        module = ModuleType(module_name)
-        module.__file__ = url  # Help modules that log __file__
-        # Register before exec so intra-module lookups (e.g., dataclasses __module__) succeed
-        sys.modules[module_name] = module
-        console.log("DEBUG: [HTTP] Created ModuleType and registered in sys.modules")
-
-        try:
-            exec(source, module.__dict__)
-            console.log("DEBUG: [HTTP] exec() completed")
-            console.log("DEBUG: [HTTP] SUCCESS")
-            return module
-        except Exception as inner_exc:
-            # If a ModuleNotFoundError occurred during exec, attempt to fetch that missing module
-            msg = str(inner_exc)
-            console.error(f"DEBUG: [HTTP] exec() ERROR: {type(inner_exc).__name__}: {msg}")
-            import re
-            m = re.search(r"No module named '([^']+)'", msg)
-            if m and _retry:
-                missing = m.group(1)
-                console.log(f"DEBUG: [HTTP] Detected missing dependency: {missing}; attempting to fetch it and retry")
-                try:
-                    dep_url = f"http://localhost:8080/assets/py/{missing}.py"
-                    dep_mod = _load_module_from_http_sync(missing, dep_url, _retry=False)
-                    if dep_mod is not None:
-                        console.log(f"DEBUG: [HTTP] Successfully loaded dependency {missing}; retrying exec of {module_name}")
-                        # Retry exec now that dependency is registered
-                        exec(source, module.__dict__)
-                        console.log("DEBUG: [HTTP] exec() completed on retry")
-                        console.log("DEBUG: [HTTP] SUCCESS (after dependency fetch)")
-                        return module
-                    else:
-                        console.error(f"DEBUG: [HTTP] Failed to load dependency module: {missing}")
-                except Exception as e2:
-                    console.error(f"DEBUG: [HTTP] Error while fetching dependency {missing}: {e2}")
-            # If we get here, re-raise to be logged by the outer except
-            raise
-
-    except Exception as e:
-        console.error(f"DEBUG: [HTTP] EXCEPTION: {type(e).__name__}")
-        console.error(f"DEBUG: [HTTP] Message: {str(e)}")
-        import traceback
-        for line in traceback.format_exc().split('\n'):
-            if line.strip():
-                console.error(f"DEBUG: [HTTP] {line}")
-        return None
-
-def _ensure_manager_loaded(module_name: str, attr_name: str, http_url: str | None = None):
-    """Attempt to import <module_name> and return the attribute <attr_name>.
-    On ImportError, retry by inserting static/assets/py into sys.path, and
-    finally attempt an HTTP fallback using _load_module_from_http_sync if
-    http_url is provided. Raises ImportError if all attempts fail.
-    """
-    try:
-        module = __import__(module_name)
-        if hasattr(module, attr_name):
-            return getattr(module, attr_name)
-    except Exception as e:
-        console.warn(f"DEBUG: {module_name} import failed: {e}")
-        # Retry by inserting assets/py into sys.path
-        try:
-            assets_py = Path.cwd() / "static" / "assets" / "py"
-            if str(assets_py) not in sys.path:
-                sys.path.insert(0, str(assets_py))
-                console.log(f"DEBUG: Added {assets_py} to sys.path[0]")
-            module = __import__(module_name)
-            if hasattr(module, attr_name):
-                console.log(f"DEBUG: {module_name} imported after path insertion")
-                return getattr(module, attr_name)
-        except Exception as e2:
-            console.warn(f"DEBUG: {module_name} retry failed: {e2}")
-            # Try HTTP fallback if a URL was provided
-            if http_url is not None:
-                console.log(f"DEBUG: Attempting HTTP fallback for {module_name}")
-                mod = _load_module_from_http_sync(module_name, http_url)
-                if mod is not None and hasattr(mod, attr_name):
-                    console.log(f"DEBUG: {module_name} loaded via HTTP fallback")
-                    return getattr(mod, attr_name)
-            raise ImportError(f"{module_name} could not be loaded")
+# NOTE: _load_module_from_http_sync and _load_managers_package are now defined at the top of the file
+# before they are used in imports below
 
 # Try standard import first
 try:
@@ -338,52 +499,67 @@ except ImportError as e:
         from managers import SpellcastingManager, SPELL_LIBRARY_STATE, set_spell_library_data, load_spell_library
         console.log("DEBUG: spellcasting module imported successfully on retry")
     except ImportError as e2:
-        # Fallback 2: Try HTTP fetch with open_url
+        # Fallback 2: Try using pre-loaded managers package
         console.error(f"DEBUG: spellcasting module import failed on retry: {e2}")
-        console.log("DEBUG: *** FALLBACK 2: HTTP FETCH ***")
+        console.log("DEBUG: *** FALLBACK 2: PRE-LOADED MANAGERS ***")
         
         try:
-            # First, manually load spell_data via HTTP (needed by spellcasting)
-            console.log("DEBUG: [Fallback2] Loading spell_data")
-            spell_data_module = _load_module_from_http_sync("spell_data", "http://localhost:8080/assets/py/spell_data.py")
-            console.log(f"DEBUG: [Fallback2] spell_data_module = {spell_data_module}")
-            if spell_data_module is not None:
-                LOCAL_SPELLS_FALLBACK = getattr(spell_data_module, "LOCAL_SPELLS_FALLBACK", LOCAL_SPELLS_FALLBACK)
-                SPELL_CLASS_SYNONYMS = getattr(spell_data_module, "SPELL_CLASS_SYNONYMS", SPELL_CLASS_SYNONYMS)
-                SPELL_CLASS_DISPLAY_NAMES = getattr(spell_data_module, "SPELL_CLASS_DISPLAY_NAMES", SPELL_CLASS_DISPLAY_NAMES)
-                SPELL_CORRECTIONS = getattr(spell_data_module, "SPELL_CORRECTIONS", SPELL_CORRECTIONS)
-                apply_spell_corrections = getattr(spell_data_module, "apply_spell_corrections", apply_spell_corrections)
-                is_spell_source_allowed = getattr(spell_data_module, "is_spell_source_allowed", is_spell_source_allowed)
-                CLASS_CASTING_PROGRESSIONS = getattr(spell_data_module, "CLASS_CASTING_PROGRESSIONS", CLASS_CASTING_PROGRESSIONS)
-                SPELLCASTING_PROGRESSION_TABLES = getattr(spell_data_module, "SPELLCASTING_PROGRESSION_TABLES", SPELLCASTING_PROGRESSION_TABLES)
-                STANDARD_SLOT_TABLE = getattr(spell_data_module, "STANDARD_SLOT_TABLE", STANDARD_SLOT_TABLE)
-                PACT_MAGIC_TABLE = getattr(spell_data_module, "PACT_MAGIC_TABLE", PACT_MAGIC_TABLE)
-                console.log(f"DEBUG: [Fallback2] Loaded spell_data constants: fallback_spells={len(LOCAL_SPELLS_FALLBACK)}")
-            
-            # Then load spellcasting via HTTP
-            console.log("DEBUG: [Fallback2] Loading spellcasting")
-            spellcasting_module = _load_module_from_http_sync("spellcasting", "http://localhost:8080/assets/py/spellcasting.py")
-            console.log(f"DEBUG: [Fallback2] spellcasting_module = {spellcasting_module}")
-            
-            if spellcasting_module is not None:
-                console.log("DEBUG: [Fallback2] Extracting attributes from spellcasting_module")
-                SpellcastingManager = spellcasting_module.SpellcastingManager
-                SPELL_LIBRARY_STATE = spellcasting_module.SPELL_LIBRARY_STATE
-                set_spell_library_data = spellcasting_module.set_spell_library_data
-                load_spell_library = spellcasting_module.load_spell_library
-                console.log("DEBUG: spellcasting module loaded via HTTP successfully")
+            if _managers_loaded is not None:
+                console.log("DEBUG: [Fallback2] Using pre-loaded managers package for spellcasting")
+                SpellcastingManager = getattr(_managers_loaded, "SpellcastingManager", None)
+                SPELL_LIBRARY_STATE = getattr(_managers_loaded, "SPELL_LIBRARY_STATE", {})
+                set_spell_library_data = getattr(_managers_loaded, "set_spell_library_data", lambda x: None)
+                load_spell_library = getattr(_managers_loaded, "load_spell_library", lambda x=None: None)
+                console.log("DEBUG: spellcasting module loaded from pre-loaded managers package")
             else:
-                raise ImportError("HTTP fetch returned None")
+                raise ImportError("Pre-loaded managers package not available")
         except Exception as e3:
-            # Fallback 3: All imports fail - use stubs
-            console.error(f"DEBUG: spellcasting module import failed on HTTP fetch: {e3}")
-            console.error("DEBUG: Using stub functions")
-            SpellcastingManager = None
-            SPELL_LIBRARY_STATE = {}
-            def set_spell_library_data(x): return None
-            def load_spell_library(x=None): return None
-            def apply_spell_filters(auto_select=False): return None
-            def sync_prepared_spells_with_library(): return None
+            # Fallback 3: Try HTTP fetch with open_url
+            console.error(f"DEBUG: spellcasting module import failed on pre-loaded managers: {e3}")
+            console.log("DEBUG: *** FALLBACK 3: HTTP FETCH ***")
+            
+            try:
+                # First, manually load spell_data via HTTP (needed by spellcasting)
+                console.log("DEBUG: [Fallback3] Loading spell_data")
+                spell_data_module = _load_module_from_http_sync("spell_data", "http://localhost:8080/assets/py/spell_data.py")
+                console.log(f"DEBUG: [Fallback3] spell_data_module = {spell_data_module}")
+                if spell_data_module is not None:
+                    LOCAL_SPELLS_FALLBACK = getattr(spell_data_module, "LOCAL_SPELLS_FALLBACK", LOCAL_SPELLS_FALLBACK)
+                    SPELL_CLASS_SYNONYMS = getattr(spell_data_module, "SPELL_CLASS_SYNONYMS", SPELL_CLASS_SYNONYMS)
+                    SPELL_CLASS_DISPLAY_NAMES = getattr(spell_data_module, "SPELL_CLASS_DISPLAY_NAMES", SPELL_CLASS_DISPLAY_NAMES)
+                    SPELL_CORRECTIONS = getattr(spell_data_module, "SPELL_CORRECTIONS", SPELL_CORRECTIONS)
+                    apply_spell_corrections = getattr(spell_data_module, "apply_spell_corrections", apply_spell_corrections)
+                    is_spell_source_allowed = getattr(spell_data_module, "is_spell_source_allowed", is_spell_source_allowed)
+                    CLASS_CASTING_PROGRESSIONS = getattr(spell_data_module, "CLASS_CASTING_PROGRESSIONS", CLASS_CASTING_PROGRESSIONS)
+                    SPELLCASTING_PROGRESSION_TABLES = getattr(spell_data_module, "SPELLCASTING_PROGRESSION_TABLES", SPELLCASTING_PROGRESSION_TABLES)
+                    STANDARD_SLOT_TABLE = getattr(spell_data_module, "STANDARD_SLOT_TABLE", STANDARD_SLOT_TABLE)
+                    PACT_MAGIC_TABLE = getattr(spell_data_module, "PACT_MAGIC_TABLE", PACT_MAGIC_TABLE)
+                    console.log(f"DEBUG: [Fallback3] Loaded spell_data constants: fallback_spells={len(LOCAL_SPELLS_FALLBACK)}")
+                
+                # Then load spellcasting via HTTP
+                console.log("DEBUG: [Fallback3] Loading spellcasting")
+                spellcasting_module = _load_module_from_http_sync("spellcasting_manager", "http://localhost:8080/assets/py/managers/spellcasting_manager.py")
+                console.log(f"DEBUG: [Fallback3] spellcasting_module = {spellcasting_module}")
+                
+                if spellcasting_module is not None:
+                    console.log("DEBUG: [Fallback3] Extracting attributes from spellcasting_module")
+                    SpellcastingManager = spellcasting_module.SpellcastingManager
+                    SPELL_LIBRARY_STATE = spellcasting_module.SPELL_LIBRARY_STATE
+                    set_spell_library_data = spellcasting_module.set_spell_library_data
+                    load_spell_library = spellcasting_module.load_spell_library
+                    console.log("DEBUG: spellcasting module loaded via HTTP successfully")
+                else:
+                    raise ImportError("HTTP fetch returned None")
+            except Exception as e4:
+                # Fallback 4: All imports fail - use stubs
+                console.error(f"DEBUG: spellcasting module import failed on HTTP fetch: {e4}")
+                console.error("DEBUG: Using stub functions")
+                SpellcastingManager = None
+                SPELL_LIBRARY_STATE = {}
+                def set_spell_library_data(x): return None
+                def load_spell_library(x=None): return None
+                def apply_spell_filters(auto_select=False): return None
+                def sync_prepared_spells_with_library(): return None
 
 try:
     from managers import (
@@ -407,18 +583,33 @@ except ImportError as e:
     console.log("DEBUG: equipment_management import failed, attempting HTTP fallback")
     console.warn(f"DEBUG: equipment_management import failed: {e}")
     try:
-        equipment_module = _load_module_from_http_sync(
-            "equipment_management",
-            "http://localhost:8080/assets/py/equipment_management.py",
-        )
-        InventoryManager = getattr(equipment_module, "InventoryManager", None)
-        Item = getattr(equipment_module, "Item", None)
-        Weapon = getattr(equipment_module, "Weapon", None)
-        Armor = getattr(equipment_module, "Armor", None)
-        Shield = getattr(equipment_module, "Shield", None)
-        Equipment = getattr(equipment_module, "Equipment", None)
-        format_money = getattr(equipment_module, "format_money", lambda x: str(x))
-        format_weight = getattr(equipment_module, "format_weight", lambda x: str(x))
+        # First try to use pre-loaded managers package
+        if _managers_loaded is not None:
+            console.log("DEBUG: Using pre-loaded managers package for equipment_management")
+            InventoryManager = getattr(_managers_loaded, "InventoryManager", None)
+            Item = getattr(_managers_loaded, "Item", None)
+            Weapon = getattr(_managers_loaded, "Weapon", None)
+            Armor = getattr(_managers_loaded, "Armor", None)
+            Shield = getattr(_managers_loaded, "Shield", None)
+            Equipment = getattr(_managers_loaded, "Equipment", None)
+            format_money = getattr(_managers_loaded, "format_money", lambda x: str(x))
+            format_weight = getattr(_managers_loaded, "format_weight", lambda x: str(x))
+            console.log("DEBUG: equipment_management loaded from pre-loaded managers package")
+        else:
+            # Fallback to HTTP loading individual modules
+            equipment_module = _load_module_from_http_sync(
+                "equipment_management",
+                "http://localhost:8080/assets/py/equipment_management.py",
+            )
+            InventoryManager = getattr(equipment_module, "InventoryManager", None)
+            Item = getattr(equipment_module, "Item", None)
+            Weapon = getattr(equipment_module, "Weapon", None)
+            Armor = getattr(equipment_module, "Armor", None)
+            Shield = getattr(equipment_module, "Shield", None)
+            Equipment = getattr(equipment_module, "Equipment", None)
+            format_money = getattr(equipment_module, "format_money", lambda x: str(x))
+            format_weight = getattr(equipment_module, "format_weight", lambda x: str(x))
+            console.log("DEBUG: equipment_management module loaded via HTTP successfully")
         
         # Try to load game constants from HTTP fallback
         try:
@@ -436,7 +627,6 @@ except ImportError as e:
             ARMOR_TYPES = {}
             ARMOR_AC_VALUES = {}
         
-        console.log("DEBUG: equipment_management module loaded via HTTP successfully")
     except Exception as e2:
         console.error(f"DEBUG: equipment_management HTTP fallback failed: {e2}")
         # Fallbacks for non-modular environments
@@ -1178,72 +1368,129 @@ SPELL_LIBRARY_STATE["loaded"] = True
 
 # All InventoryManager methods also moved
 
+console.log("[MANAGERS-INIT] Creating INVENTORY_MANAGER...")
+console.log(f"[MANAGERS-INIT] InventoryManager class available: {InventoryManager is not None}")
 INVENTORY_MANAGER = InventoryManager() if InventoryManager is not None else None
+console.log(f"[MANAGERS-INIT] ✓ INVENTORY_MANAGER created: {INVENTORY_MANAGER is not None}")
 
 # CharacterManager will be initialized after DEFAULT_STATE is defined
 # See initialization below at module load
 try:
     from managers import initialize_character_manager
+    console.log("[MANAGERS-INIT] initialize_character_manager imported from managers")
 except ImportError:
     initialize_character_manager = None
+    console.warn("[MANAGERS-INIT] initialize_character_manager not available")
 
 CHARACTER_MANAGER = None
+console.log("[MANAGERS-INIT] CHARACTER_MANAGER placeholder set to None (will be initialized later)")
 
 # Initialize event listener for inventory events
+console.log("[MANAGERS-INIT] Initializing event listener for inventory...")
 if INVENTORY_MANAGER is not None:
     try:
         from managers import initialize_event_listener
         initialize_event_listener(INVENTORY_MANAGER)
-        console.log("DEBUG: Event listener initialized successfully")
+        console.log("[MANAGERS-INIT] ✓ Event listener initialized successfully from managers")
     except Exception as e:
-        console.error(f"DEBUG: Event listener initialization failed: {e}")
+        console.warn(f"[MANAGERS-INIT] Event listener from managers failed: {e}")
         # Try HTTP fallback for equipment_event_manager
         try:
             event_mgr_module = _load_module_from_http_sync(
                 "equipment_event_manager",
-                "http://localhost:8080/assets/py/equipment_event_manager.py",
+                "http://localhost:8080/assets/py/managers/equipment_event_manager.py",
             )
             if event_mgr_module is not None:
                 initialize_event_listener = getattr(event_mgr_module, "initialize_event_listener", None)
                 if initialize_event_listener is not None:
-                    initialize_event_listener(INVENTORY_MANAGER)
-                    console.log("DEBUG: Event listener initialized via HTTP fallback")
+                    INVENTORY_MANAGER.event_listener = initialize_event_listener(INVENTORY_MANAGER)
+                    console.log("[MANAGERS-INIT] ✓ Event listener initialized via HTTP fallback")
                 else:
-                    console.error("DEBUG: initialize_event_listener not found in HTTP loaded module")
+                    console.error("[MANAGERS-INIT] initialize_event_listener not found in HTTP loaded module")
             else:
-                console.error("DEBUG: equipment_event_manager HTTP fallback returned None")
+                console.error("[MANAGERS-INIT] equipment_event_manager HTTP fallback returned None")
         except Exception as e2:
-            console.error(f"DEBUG: equipment_event_manager HTTP fallback failed: {e2}")
+            console.error(f"[MANAGERS-INIT] equipment_event_manager HTTP fallback failed: {e2}")
+else:
+    console.error("[MANAGERS-INIT] INVENTORY_MANAGER is None, skipping event listener initialization")
 
+console.log("[MANAGERS-INIT] Initializing SPELLCASTING_MANAGER...")
+console.log(f"[MANAGERS-INIT] SpellcastingManager class available: {SpellcastingManager is not None}")
 if SpellcastingManager is not None:
     try:
         SPELLCASTING_MANAGER = SpellcastingManager()
-        console.log("DEBUG: SPELLCASTING_MANAGER instantiated successfully")
+        console.log("[MANAGERS-INIT] ✓ SPELLCASTING_MANAGER instantiated successfully")
         
         # If spell_data import failed, try to get CLASS_CASTING_PROGRESSIONS from spellcasting module
         if not CLASS_CASTING_PROGRESSIONS:
             try:
-                import spellcasting_manager as sc_module
+                if _managers_loaded is not None:
+                    sc_module = getattr(_managers_loaded, "spellcasting_manager")
+                else:
+                    from managers import spellcasting_manager as sc_module
                 if hasattr(sc_module, 'CLASS_CASTING_PROGRESSIONS'):
                     globals()['CLASS_CASTING_PROGRESSIONS'] = sc_module.CLASS_CASTING_PROGRESSIONS
-                    console.log(f"DEBUG: Populated CLASS_CASTING_PROGRESSIONS from spellcasting module: {list(CLASS_CASTING_PROGRESSIONS.keys())}")
+                    console.log(f"[MANAGERS-INIT] ✓ Populated CLASS_CASTING_PROGRESSIONS: {list(CLASS_CASTING_PROGRESSIONS.keys())}")
                 if hasattr(sc_module, 'SPELLCASTING_PROGRESSION_TABLES'):
                     globals()['SPELLCASTING_PROGRESSION_TABLES'] = sc_module.SPELLCASTING_PROGRESSION_TABLES
-                    console.log("DEBUG: Populated SPELLCASTING_PROGRESSION_TABLES from spellcasting module")
+                    console.log("[MANAGERS-INIT] ✓ Populated SPELLCASTING_PROGRESSION_TABLES")
             except Exception as e:
-                console.log(f"DEBUG: Could not populate spell progression tables from spellcasting: {e}")
+                console.warn(f"[MANAGERS-INIT] Could not populate spell progression tables: {e}")
         
     except Exception as e:
-        console.error(f"DEBUG: SPELLCASTING_MANAGER instantiation failed: {e}")
+        console.error(f"[MANAGERS-INIT] SPELLCASTING_MANAGER instantiation failed: {e}")
         SPELLCASTING_MANAGER = None
 else:
-    console.warn("DEBUG: SpellcastingManager class is None, cannot instantiate")
+    console.warn("[MANAGERS-INIT] SpellcastingManager class is None")
     SPELLCASTING_MANAGER = None
+
+console.log("[MANAGERS-INIT] === MANAGER INITIALIZATION SUMMARY ===")
+console.log(f"[MANAGERS-INIT] INVENTORY_MANAGER: {'✓ Ready' if INVENTORY_MANAGER is not None else '✗ Failed'}")
+console.log(f"[MANAGERS-INIT] SPELLCASTING_MANAGER: {'✓ Ready' if SPELLCASTING_MANAGER is not None else '✗ Failed'}")
+console.log(f"[MANAGERS-INIT] CHARACTER_MANAGER: {'✓ Ready' if CHARACTER_MANAGER is not None else '⏳ Pending'}")
+console.log("[MANAGERS-INIT] === END MANAGER INITIALIZATION ===")
+
 
 
 def reset_spellcasting_state():
     if SPELLCASTING_MANAGER is not None:
         SPELLCASTING_MANAGER.reset_state()
+
+
+def ensure_inventory_manager_initialized():
+    """Ensure INVENTORY_MANAGER is initialized. Returns True if successful."""
+    global INVENTORY_MANAGER
+    
+    if INVENTORY_MANAGER is not None:
+        console.log("[ENSURE-INV-MGR] INVENTORY_MANAGER already initialized")
+        return True
+    
+    console.warn("[ENSURE-INV-MGR] INVENTORY_MANAGER is None, attempting to reinitialize...")
+    
+    # Try to get InventoryManager from managers module
+    try:
+        from managers import InventoryManager as IMClass
+        if IMClass is not None:
+            INVENTORY_MANAGER = IMClass()
+            console.log("[ENSURE-INV-MGR] ✓ INVENTORY_MANAGER created from managers.InventoryManager")
+            return True
+        else:
+            console.warn("[ENSURE-INV-MGR] managers.InventoryManager is None")
+    except ImportError as e:
+        console.warn(f"[ENSURE-INV-MGR] Failed to import from managers: {e}")
+    
+    # Try global InventoryManager
+    try:
+        if InventoryManager is not None:
+            INVENTORY_MANAGER = InventoryManager()
+            console.log("[ENSURE-INV-MGR] ✓ INVENTORY_MANAGER created from global InventoryManager")
+            return True
+        else:
+            console.error("[ENSURE-INV-MGR] InventoryManager is None")
+            return False
+    except Exception as exc:
+        console.error(f"[ENSURE-INV-MGR] Error creating INVENTORY_MANAGER: {exc}")
+        return False
 
 
 def sort_prepared_spells():
@@ -1742,14 +1989,30 @@ def clone_default_state() -> dict:
 
 # Initialize global CHARACTER_MANAGER (single source of truth for character stats)
 # This must happen after DEFAULT_STATE is defined
+console.log("[MANAGERS-INIT] Initializing CHARACTER_MANAGER...")
+console.log(f"[MANAGERS-INIT] initialize_character_manager available: {initialize_character_manager is not None}")
+
 if initialize_character_manager is not None:
-    CHARACTER_MANAGER = initialize_character_manager(clone_default_state())
+    try:
+        CHARACTER_MANAGER = initialize_character_manager(clone_default_state())
+        console.log("[MANAGERS-INIT] ✓ CHARACTER_MANAGER initialized via initialize_character_manager()")
+    except Exception as e:
+        console.error(f"[MANAGERS-INIT] CHARACTER_MANAGER initialization failed: {e}")
+        CHARACTER_MANAGER = None
 else:
     CHARACTER_MANAGER = None
+    console.warn("[MANAGERS-INIT] initialize_character_manager not available")
 
 # Fallback: If character_manager not available, create Character directly
 if CHARACTER_MANAGER is None and Character is not None:
-    CHARACTER_MANAGER = Character(clone_default_state())
+    try:
+        CHARACTER_MANAGER = Character(clone_default_state())
+        console.log("[MANAGERS-INIT] ✓ CHARACTER_MANAGER created via Character() fallback")
+    except Exception as e:
+        console.error(f"[MANAGERS-INIT] CHARACTER_MANAGER fallback failed: {e}")
+        CHARACTER_MANAGER = None
+elif CHARACTER_MANAGER is None and Character is None:
+    console.error("[MANAGERS-INIT] CRITICAL: Both initialize_character_manager and Character are None")
 
 
 def get_element(element_id):
@@ -2165,15 +2428,20 @@ def generate_ac_tooltip() -> tuple[int, str]:
     
     # Use armor_manager as single source of truth for AC calculation
     try:
-        from managers import calculate_total_ac_from_armor_manager
-        total_ac = calculate_total_ac_from_armor_manager(INVENTORY_MANAGER, character_stats)
-        console.log(f"[AC-CALC] Total AC from armor_manager: {total_ac}")
+        if _managers_loaded is not None:
+            calculate_total_ac_from_armor_manager = getattr(_managers_loaded, "calculate_total_ac_from_armor_manager")
+            total_ac = calculate_total_ac_from_armor_manager(INVENTORY_MANAGER, character_stats)
+            console.log(f"[AC-CALC] Total AC from armor_manager (pre-loaded): {total_ac}")
+        else:
+            from managers import calculate_total_ac_from_armor_manager
+            total_ac = calculate_total_ac_from_armor_manager(INVENTORY_MANAGER, character_stats)
+            console.log(f"[AC-CALC] Total AC from armor_manager: {total_ac}")
     except ImportError as e:
         console.log(f"[AC-CALC] armor_manager import failed, attempting HTTP fallback: {e}")
         try:
             armor_manager_module = _load_module_from_http_sync(
                 "armor_manager",
-                "http://localhost:8080/assets/py/armor_manager.py",
+                "http://localhost:8080/assets/py/managers/armor_manager.py",
             )
             calculate_total_ac_from_armor_manager = getattr(armor_manager_module, "calculate_total_ac_from_armor_manager")
             total_ac = calculate_total_ac_from_armor_manager(INVENTORY_MANAGER, character_stats)
@@ -2225,9 +2493,14 @@ def generate_ac_tooltip() -> tuple[int, str]:
                 equipped_armor = item_name
                 # Calculate armor AC (includes DEX modifier)
                 try:
-                    from managers import ArmorEntity
-                    armor_entity = ArmorEntity(item, character_stats)
-                    equipped_armor_ac = armor_entity.calculate_total_ac()
+                    if _managers_loaded is not None:
+                        ArmorEntity = getattr(_managers_loaded, "ArmorEntity")
+                        armor_entity = ArmorEntity(item, character_stats)
+                        equipped_armor_ac = armor_entity.calculate_total_ac()
+                    else:
+                        from managers import ArmorEntity
+                        armor_entity = ArmorEntity(item, character_stats)
+                        equipped_armor_ac = armor_entity.calculate_total_ac()
                 except Exception:
                     # Fallback: use total_ac minus shields
                     equipped_armor_ac = total_ac - sum(s[1] for s in equipped_shields)
@@ -3939,13 +4212,17 @@ def set_weapon_library_data(weapons: list):
 
 def search_weapons(query: str = "") -> list:
     """Filter weapons by name prefix match (case-insensitive)."""
+    console.log(f"[SEARCH-WEAPONS] Query='{query}'")
     if not query:
+        console.log(f"[SEARCH-WEAPONS] Empty query, returning empty list")
         return []
     query_lower = query.lower().strip()
-    if not query_lower:
-        return []
-    return [w for w in WEAPON_LIBRARY_STATE.get("weapons", []) 
+    console.log(f"[SEARCH-WEAPONS] Query normalized: '{query_lower}'")
+    console.log(f"[SEARCH-WEAPONS] Available weapons in WEAPON_LIBRARY_STATE: {len(WEAPON_LIBRARY_STATE.get('weapons', []))}")
+    results = [w for w in WEAPON_LIBRARY_STATE.get("weapons", []) 
             if (w.get("name") or "").lower().startswith(query_lower)]
+    console.log(f"[SEARCH-WEAPONS] Found {len(results)} matching weapons")
+    return results
 
 
 def update_weapon_library_status(message: str):
@@ -3985,8 +4262,13 @@ def populate_weapon_dropdown(weapons: list = None):
     if weapons is None:
         weapons = []
     
+    console.log(f"[POPULATE-WEAPON-DROPDOWN] Called with {len(weapons)} weapons")
+    if weapons and len(weapons) > 0:
+        console.log(f"[POPULATE-WEAPON-DROPDOWN] First weapon: {json.dumps(weapons[0])}")
+    
     dropdown = get_element("weapon-dropdown")
     if dropdown is None:
+        console.error("[POPULATE-WEAPON-DROPDOWN] weapon-dropdown element not found!")
         return
     
     dropdown.innerHTML = ""
@@ -4001,7 +4283,15 @@ def populate_weapon_dropdown(weapons: list = None):
         
         def make_click_handler(w):
             def on_click(evt):
-                add_equipped_weapon(w)
+                console.log(f"[WEAPON-DROPDOWN-CLICK] Clicked on weapon: {w.get('name', 'Unknown')}")
+                console.log(f"[WEAPON-DROPDOWN-CLICK] Full weapon data: {json.dumps(w)}")
+                try:
+                    add_equipped_weapon(w)
+                    console.log(f"[WEAPON-DROPDOWN-CLICK] ✓ add_equipped_weapon returned successfully")
+                except Exception as e:
+                    console.error(f"[WEAPON-DROPDOWN-CLICK] ERROR calling add_equipped_weapon: {e}")
+                    import traceback
+                    console.error(f"[WEAPON-DROPDOWN-CLICK] Traceback: {traceback.format_exc()}")
                 close_weapon_dropdown()
                 clear_weapon_search()
             return on_click
@@ -4022,13 +4312,18 @@ def clear_weapon_search():
 
 def filter_weapon_dropdown(query: str = ""):
     """Filter dropdown options by search query."""
+    console.log(f"[FILTER-WEAPON-DROPDOWN] Searching for: '{query}'")
     results = search_weapons(query)
+    console.log(f"[FILTER-WEAPON-DROPDOWN] Found {len(results)} results")
+    if results and len(results) > 0:
+        console.log(f"[FILTER-WEAPON-DROPDOWN] First result: {json.dumps(results[0])}")
     populate_weapon_dropdown(results)
     
     dropdown = get_element("weapon-dropdown")
     if dropdown is not None:
         if results:
             dropdown.classList.add("active")
+            console.log(f"[FILTER-WEAPON-DROPDOWN] Dropdown activated with {len(results)} items")
         else:
             dropdown.classList.remove("active")
 
@@ -4131,13 +4426,24 @@ def render_equipped_weapons():
 
 
 def add_equipped_weapon(weapon: dict):
-    """Add weapon to equipped list."""
+    """Add weapon to equipped list and to inventory."""
+    console.log(f"[ADD-WEAPON] ===== ENTRY POINT =====")
+    console.log(f"[ADD-WEAPON] Function called, weapon type: {type(weapon)}")
+    console.log(f"[ADD-WEAPON] Weapon data: {json.dumps(weapon) if weapon else 'None'}")
+    
     if not weapon:
+        console.warn("[ADD-WEAPON] Weapon is None or empty, returning")
         return
     
+    console.log(f"[ADD-WEAPON] Weapon dict is valid, proceeding...")
     weapon_name = weapon.get("name", "")
+    console.log(f"[ADD-WEAPON] Extracted weapon_name: '{weapon_name}'")
+    
     if not weapon_name:
+        console.warn("[ADD-WEAPON] No weapon name found in weapon dict, returning")
         return
+    
+    console.log(f"[ADD-WEAPON] Processing weapon: {weapon_name}")
     
     try:
         # Get current data from localStorage
@@ -4152,7 +4458,9 @@ def add_equipped_weapon(weapon: dict):
             if stored:
                 import json
                 char_data = json.loads(stored)
-        except Exception:
+                console.log(f"[ADD-WEAPON] Loaded {len(char_data.get('equipped_weapons', []))} existing equipped weapons")
+        except Exception as e:
+            console.warn(f"[ADD-WEAPON] Could not load from localStorage: {e}")
             pass
         
         # Check if already equipped
@@ -4161,21 +4469,80 @@ def add_equipped_weapon(weapon: dict):
         
         equipped = char_data.get("equipped_weapons", [])
         if any(w.get("name") == weapon_name for w in equipped):
+            console.log(f"[ADD-WEAPON] {weapon_name} already equipped, skipping")
             return
         
         # Add weapon
         char_data["equipped_weapons"].append(weapon)
+        console.log(f"[ADD-WEAPON] Added to equipped_weapons list")
         
         # Save to localStorage
         try:
             import json
             window.localStorage.setItem(storage_key, json.dumps(char_data))
-        except Exception:
+            console.log(f"[ADD-WEAPON] ✓ Saved to localStorage")
+        except Exception as e:
+            console.error(f"[ADD-WEAPON] Failed to save to localStorage: {e}")
             pass
         
+        # ALSO ADD TO INVENTORY MANAGER
+        if ensure_inventory_manager_initialized():
+            console.log(f"[ADD-WEAPON] INVENTORY_MANAGER is available, adding to inventory")
+            import json
+            
+            # Extract weapon properties for notes field
+            extra_props = {}
+            if weapon.get("damage"):
+                extra_props["damage"] = weapon["damage"]
+            if weapon.get("damage_type"):
+                extra_props["damage_type"] = weapon["damage_type"]
+            if weapon.get("range"):
+                extra_props["range"] = weapon["range"]
+            elif weapon.get("range_text"):
+                extra_props["range"] = weapon["range_text"]
+            if weapon.get("properties"):
+                extra_props["properties"] = weapon["properties"]
+            
+            # Store properties as JSON in notes field
+            notes = json.dumps(extra_props) if extra_props else ""
+            console.log(f"[ADD-WEAPON] Prepared notes: {notes}")
+            
+            # Get cost and weight if available
+            cost = weapon.get("cost", "")
+            weight = weapon.get("weight", "")
+            
+            # Add to inventory with category as "Weapons"
+            console.log(f"[ADD-WEAPON] Adding to INVENTORY_MANAGER: name={weapon_name}, cost={cost}, weight={weight}, notes={notes}")
+            item_id = INVENTORY_MANAGER.add_item(weapon_name, cost=cost, weight=weight, qty=1, 
+                                      category="Weapons", notes=notes, source="weapon_library")
+            console.log(f"[ADD-WEAPON] ✓ Added to inventory with ID: {item_id}")
+            
+            # Re-render inventory to show the new weapon
+            console.log(f"[ADD-WEAPON] Rendering inventory...")
+            INVENTORY_MANAGER.render_inventory()
+            console.log(f"[ADD-WEAPON] ✓ Inventory rendered")
+            
+            # Trigger auto-export to persist the changes
+            try:
+                console.log(f"[ADD-WEAPON] Triggering auto-export...")
+                trigger_auto_export(source="add_equipped_weapon")
+                console.log(f"[ADD-WEAPON] ✓ Auto-export triggered")
+            except Exception as e:
+                console.warn(f"[ADD-WEAPON] Failed to trigger auto-export: {e}")
+        else:
+            console.error("[ADD-WEAPON] Failed to ensure INVENTORY_MANAGER is initialized!")
+        
+        console.log(f"[ADD-WEAPON] Rendering equipped weapons grid...")
         render_equipped_weapons()
+        console.log(f"[ADD-WEAPON] ✓ All done! {weapon_name} should now appear in both equipment table and weapons grid")
     except Exception as exc:
-        console.error(f"PySheet: failed to add weapon - {exc}")
+        console.error(f"[ADD-WEAPON] CRITICAL ERROR: {exc}")
+        try:
+            import traceback
+            console.error(f"[ADD-WEAPON] Traceback: {traceback.format_exc()}")
+        except:
+            console.error(f"[ADD-WEAPON] Exception: {str(exc)}")
+    console.log(f"[ADD-WEAPON] ===== EXIT POINT =====")
 
 
 def remove_equipped_weapon(weapon_id: str):
@@ -5611,11 +5978,13 @@ def _find_builtin_equipment_match(name: str):
 def populate_equipment_results(search_term: str) -> None:
     """Filter and display equipment cards based on search term"""
     search_term = search_term.lower().strip()
+    console.log(f"[EQUIPMENT] populate_equipment_results called with term: '{search_term}'")
     filtered = []
     seen_names = set()
     
     # Get equipment list from global state
     equipment_list = EQUIPMENT_LIBRARY_STATE.get("equipment", [])
+    console.log(f"[EQUIPMENT] Equipment library has {len(equipment_list)} items total")
     
     # Filter from equipment list
     for item in equipment_list:
@@ -5628,6 +5997,7 @@ def populate_equipment_results(search_term: str) -> None:
     
     # Limit to 30 results
     limited = filtered[:30]
+    console.log(f"[EQUIPMENT] Filtered to {len(limited)} results")
     
     # Build HTML
     if not limited:
@@ -5640,14 +6010,18 @@ def populate_equipment_results(search_term: str) -> None:
     results_div = get_element("equipment-library-results")
     if results_div is not None:
         results_div.innerHTML = html
+        console.log(f"[EQUIPMENT] Updated DOM with {len(limited)} equipment cards")
         # Attach click handlers to the new buttons
         attach_equipment_card_handlers(results_div)
+    else:
+        console.error("[EQUIPMENT] Equipment library results div not found!")
 
 
 def load_equipment_library(_event=None):
     """Load equipment library from cached data or Open5e API"""
     console.log("DEBUG: load_equipment_library() called")
     if EQUIPMENT_LIBRARY_STATE.get("loading"):
+        console.log("[EQUIPMENT] load_equipment_library: Already loading, returning")
         return
 
     button = get_element("equipment-load-btn")
@@ -5665,12 +6039,12 @@ def load_equipment_library(_event=None):
         if equipment_list:
             EQUIPMENT_LIBRARY_STATE["loaded"] = True
             update_equipment_library_status(f"Loaded {len(equipment_list)} items. Search to filter results.")
-            console.log(f"PySheet: Equipment library loaded with {len(equipment_list)} items")
+            console.log(f"[EQUIPMENT] Equipment library loaded with {len(equipment_list)} items")
         else:
             update_equipment_library_status("No equipment items loaded. Try again.")
-            console.warn("PySheet: Equipment library is empty")
+            console.warn("[EQUIPMENT] Equipment library is empty")
     except Exception as exc:
-        console.error(f"PySheet: Error loading equipment: {exc}")
+        console.error(f"[EQUIPMENT] Error loading equipment: {exc}")
         update_equipment_library_status("Error loading equipment. Please try again.")
     finally:
         EQUIPMENT_LIBRARY_STATE["loading"] = False
@@ -5888,9 +6262,12 @@ def build_equipment_card_html(item: Union[dict, 'Equipment']) -> str:
 def attach_equipment_card_handlers(container):
     """Attach click handlers to equipment add buttons"""
     if container is None:
+        console.log("[EQUIPMENT] attach_equipment_card_handlers: container is None, returning")
         return
     
     buttons = container.querySelectorAll("button.equipment-action")
+    console.log(f"[EQUIPMENT] attach_equipment_card_handlers: Found {len(buttons)} equipment action buttons")
+    
     for button in buttons:
         name = button.getAttribute("data-equipment-name") or ""
         cost = button.getAttribute("data-equipment-cost") or ""
@@ -5908,6 +6285,7 @@ def attach_equipment_card_handlers(container):
         )
         button.addEventListener("click", proxy)
         _EVENT_PROXIES.append(proxy)
+        console.log(f"[EQUIPMENT] Attached handler to button: {name}")
 
 
 def _handle_equipment_click(event):
@@ -6152,6 +6530,61 @@ def submit_custom_item(_event=None):
         # This prevents armor from briefly appearing in the weapons table during initial render
         render_equipped_attack_grid()
         console.log(f"PySheet: Attack grid re-rendered for new {category} item")
+        
+        # Re-render armor grid if this is an armor item
+        if category == "Armor":
+            console.log(f"PySheet: Re-rendering armor grid...")
+            try:
+                import sys
+                # First ensure armor_manager module is loaded
+                armor_mgr_module = sys.modules.get('armor_manager')
+                if not armor_mgr_module:
+                    console.log("[CUSTOM] armor_manager not found, loading via HTTP...")
+                    # First, ensure entity_manager is loaded (required dependency)
+                    entity_mgr_module = sys.modules.get('entity_manager')
+                    if not entity_mgr_module:
+                        console.log("[CUSTOM] Loading entity_manager dependency...")
+                        entity_mgr_module = _load_module_from_http_sync(
+                            "entity_manager",
+                            "http://localhost:8080/assets/py/managers/entity_manager.py"
+                        )
+                    # Now load armor_manager
+                    armor_mgr_module = _load_module_from_http_sync(
+                        "armor_manager",
+                        "http://localhost:8080/assets/py/managers/armor_manager.py"
+                    )
+                    console.log("[CUSTOM] armor_manager loaded via HTTP")
+                
+                if armor_mgr_module:
+                    # CRITICAL: Initialize the armor manager FIRST, before rendering
+                    # This sets up the global _ARMOR_MANAGER instance with event listeners
+                    char_stats = {}
+                    if CHARACTER_MANAGER is not None:
+                        char_stats = CHARACTER_MANAGER.get_stats_dict() if hasattr(CHARACTER_MANAGER, 'get_stats_dict') else {}
+                    else:
+                        char_stats = {
+                            "dex": get_numeric_value("dex-score", 10),
+                            "str": get_numeric_value("str-score", 10),
+                        }
+                    
+                    initialize_func = getattr(armor_mgr_module, 'initialize_armor_manager', None)
+                    if initialize_func:
+                        armor_mgr = initialize_func(INVENTORY_MANAGER, char_stats)
+                        console.log("[CUSTOM] ✓ Armor manager initialized with inventory and events attached")
+                    else:
+                        console.warn("[CUSTOM] initialize_armor_manager not found in armor_manager module")
+                    
+                    # Now render using the initialized manager
+                    render_func = getattr(armor_mgr_module, 'render_armor_grid', None)
+                    if render_func:
+                        render_func()
+                        console.log(f"PySheet: ✓ Armor grid re-rendered with events")
+                    else:
+                        console.warn("[CUSTOM] render_armor_grid not found in armor_manager")
+                else:
+                    console.warn("[CUSTOM] Failed to load armor_manager")
+            except Exception as e:
+                console.error(f"PySheet: Could not re-render armor grid: {e}")
     
     # Close modal
     modal = get_element("custom-item-modal")
@@ -6176,16 +6609,15 @@ def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str 
     """Add an Open5e item to inventory with all properties"""
     console.log(f"[SUBMIT] {name}: armor_class='{armor_class}', ac_string='{ac_string}'")
     global INVENTORY_MANAGER
-    if INVENTORY_MANAGER is None:
-        if InventoryManager is None:
-            console.warn("PySheet: INVENTORY_MANAGER is not initialized; cannot add Open5e item")
-            return
-        try:
-            INVENTORY_MANAGER = InventoryManager()
-            console.log("DEBUG: submit_open5e_item created INVENTORY_MANAGER on-demand")
-        except Exception as exc:
-            console.warn(f"PySheet: Unable to create INVENTORY_MANAGER: {exc}")
-            return
+    
+    # Ensure INVENTORY_MANAGER is initialized
+    console.log(f"[SUBMIT] Checking INVENTORY_MANAGER status...")
+    if not ensure_inventory_manager_initialized():
+        console.error("[SUBMIT] CRITICAL: Could not initialize INVENTORY_MANAGER")
+        return
+    
+    console.log(f"[SUBMIT] ✓ INVENTORY_MANAGER is ready")
+    
     # Build a properties dict to store extra info as JSON in notes
     extra_props = {}
     if damage:
@@ -6257,23 +6689,99 @@ def submit_open5e_item(name: str, cost: str = "", weight: str = "", damage: str 
         else:
             category = "Adventuring Gear"
     
-    INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category=category, notes=notes, source="open5e")
-    INVENTORY_MANAGER.render_inventory()
+    console.log(f"[SUBMIT] Adding {name} to INVENTORY_MANAGER with category={category}")
+    try:
+        INVENTORY_MANAGER.add_item(name, cost=cost, weight=weight, qty=1, category=category, notes=notes, source="open5e")
+        console.log(f"[SUBMIT] ✓ {name} added to inventory")
+    except Exception as e:
+        console.error(f"[SUBMIT] ERROR adding item to inventory: {e}")
+        return
+    
+    console.log(f"[SUBMIT] Rendering inventory...")
+    try:
+        INVENTORY_MANAGER.render_inventory()
+        console.log(f"[SUBMIT] ✓ Inventory rendered")
+    except Exception as e:
+        console.error(f"[SUBMIT] ERROR rendering inventory: {e}")
     
     # Always re-render the attack grid to ensure armor items are filtered out correctly
     # This prevents armor from briefly appearing in the weapons table during initial render
-    render_equipped_attack_grid()
-    console.log(f"DEBUG: Attack grid re-rendered after adding {category} item from Open5e")
+    console.log(f"[SUBMIT] Re-rendering attack grid...")
+    try:
+        render_equipped_attack_grid()
+        console.log(f"[SUBMIT] ✓ Attack grid re-rendered")
+    except Exception as e:
+        console.warn(f"[SUBMIT] Could not re-render attack grid: {e}")
+    
+    # Re-render the armor grid to show newly added armor items
+    if category == "Armor":
+        console.log(f"[SUBMIT] Re-rendering armor grid...")
+        try:
+            # Load entity_manager first (required dependency of armor_manager)
+            import sys
+            entity_mgr_module = sys.modules.get('entity_manager')
+            if not entity_mgr_module:
+                console.log("[SUBMIT] Loading entity_manager dependency...")
+                entity_mgr_module = _load_module_from_http_sync(
+                    "entity_manager",
+                    "http://localhost:8080/assets/py/managers/entity_manager.py"
+                )
+            # Load armor_manager via HTTP if not already loaded
+            armor_mgr_module = sys.modules.get('armor_manager')
+            if not armor_mgr_module:
+                console.log("[SUBMIT] armor_manager not found, loading via HTTP...")
+                armor_mgr_module = _load_module_from_http_sync(
+                    "armor_manager",
+                    "http://localhost:8080/assets/py/managers/armor_manager.py"
+                )
+                console.log("[SUBMIT] armor_manager loaded via HTTP")
+            
+            if armor_mgr_module:
+                # CRITICAL: Initialize the armor manager FIRST, before rendering
+                # This sets up the global _ARMOR_MANAGER instance with event listeners
+                char_stats = {}
+                if CHARACTER_MANAGER is not None:
+                    char_stats = CHARACTER_MANAGER.get_stats_dict() if hasattr(CHARACTER_MANAGER, 'get_stats_dict') else {}
+                else:
+                    char_stats = {
+                        "dex": get_numeric_value("dex-score", 10),
+                        "str": get_numeric_value("str-score", 10),
+                    }
+                
+                initialize_func = getattr(armor_mgr_module, 'initialize_armor_manager', None)
+                if initialize_func:
+                    armor_mgr = initialize_func(INVENTORY_MANAGER, char_stats)
+                    console.log("[SUBMIT] ✓ Armor manager initialized with inventory and events attached")
+                else:
+                    console.warn("[SUBMIT] initialize_armor_manager not found in armor_manager module")
+                
+                # Now render using the initialized manager
+                render_func = getattr(armor_mgr_module, 'render_armor_grid', None)
+                if render_func:
+                    render_func()
+                    console.log(f"[SUBMIT] ✓ Armor grid re-rendered with events")
+                else:
+                    console.warn("[SUBMIT] render_armor_grid not found in armor_manager")
+            else:
+                console.warn("[SUBMIT] Failed to load armor_manager")
+        except Exception as e:
+            console.error(f"[SUBMIT] Could not re-render armor grid: {e}")
     
     # Trigger save to persist changes
+    console.log(f"[SUBMIT] Triggering auto-export...")
     try:
         trigger_auto_export(source="submit_open5e_item")
-        console.log("DEBUG: Export triggered after adding Open5e item")
+        console.log("[SUBMIT] ✓ Auto-export triggered")
     except Exception as e:
-        console.warn(f"DEBUG: Failed to trigger export: {e}")
+        console.warn(f"[SUBMIT] Failed to trigger export: {e}")
     
     # Auto-save this item to equipment.json for future use
-    _save_item_to_equipment_db(name, damage, damage_type, range_text, properties, ac_string, armor_class, cost, weight)
+    console.log(f"[SUBMIT] Saving {name} to equipment database...")
+    try:
+        _save_item_to_equipment_db(name, damage, damage_type, range_text, properties, ac_string, armor_class, cost, weight)
+        console.log(f"[SUBMIT] ✓ {name} saved to equipment database")
+    except Exception as e:
+        console.warn(f"[SUBMIT] Failed to save to equipment database: {e}")
 
 
 def _save_item_to_equipment_db(name: str, damage: str = "", damage_type: str = "", range_text: str = "", 
@@ -7084,6 +7592,14 @@ def _populate_domain_spells_on_load():
 # Only run module initialization if we're in a PyScript environment (document is not None)
 if document is not None:
     console.log("[DEBUG] === PySheet initialization starting ===")
+    
+    # Check all managers are ready
+    console.log("[DEBUG] === MANAGER STATUS AT INITIALIZATION ===")
+    console.log(f"[DEBUG] INVENTORY_MANAGER: {'✓ Ready' if INVENTORY_MANAGER is not None else '✗ FAILED'}")
+    console.log(f"[DEBUG] SPELLCASTING_MANAGER: {'✓ Ready' if SPELLCASTING_MANAGER is not None else '✗ FAILED'}")
+    console.log(f"[DEBUG] CHARACTER_MANAGER: {'✓ Ready' if CHARACTER_MANAGER is not None else '✗ FAILED'}")
+    console.log("[DEBUG] === END MANAGER STATUS ===")
+    
     console.log("[DEBUG] Calling register_event_listeners()")
     register_event_listeners()
     console.log("[DEBUG] Calling load_initial_state()")
@@ -7100,14 +7616,14 @@ if document is not None:
         initialize_weapons_manager = _ensure_manager_loaded(
             "weapons_manager",
             "initialize_weapons_manager",
-            "http://localhost:8080/assets/py/weapons_manager.py",
+            "http://localhost:8080/assets/py/managers/weapons_manager.py",
         )
 
         # Ensure armor manager is available (allow HTTP fallback)
         initialize_armor_manager = _ensure_manager_loaded(
             "armor_manager",
             "initialize_armor_manager",
-            "http://localhost:8080/assets/py/armor_manager.py",
+            "http://localhost:8080/assets/py/managers/armor_manager.py",
         )
 
         console.log("[DEBUG] Initializing weapons and armor managers")

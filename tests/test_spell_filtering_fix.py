@@ -39,7 +39,7 @@ def test_spell_data_has_progressions():
 def test_spellcasting_has_progressions():
     """Test that spellcasting module loads progressions via HTTP fallback."""
     try:
-        import spellcasting_manager
+        from managers import spellcasting_manager as spellcasting
         
         # The spellcasting module should have these attributes after HTTP loading
         assert hasattr(spellcasting, 'CLASS_CASTING_PROGRESSIONS'), \

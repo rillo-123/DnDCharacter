@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
-from armor_manager import ArmorEntity
+from managers import ArmorEntity
 
 
 def test_breastplate_with_bonus_in_notes():

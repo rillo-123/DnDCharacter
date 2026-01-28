@@ -97,7 +97,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
 import pytest
-from armor_manager import ArmorEntity
+from managers import ArmorEntity
 
 
 class TestACCalculationPermutations:

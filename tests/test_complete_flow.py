@@ -8,7 +8,7 @@ from pathlib import Path
 # Add to path
 sys.path.insert(0, str(Path("static/assets/py")))
 
-from inventory_manager import InventoryManager
+from managers import InventoryManager
 
 print("=" * 70)
 print("TEST: Breastplate +1 Filtering in Weapons Table")

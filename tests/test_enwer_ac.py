@@ -58,7 +58,7 @@ class MockInventoryManager:
         ]
 
 # Test with armor manager
-from armor_manager import ArmorEntity, ArmorCollectionManager
+from managers import ArmorEntity, ArmorCollectionManager
 
 def test_enwer_equipment_ac():
     """Test AC with Enwer's exact equipment: Breastplate + Shield (+1)."""

@@ -66,6 +66,8 @@ try:
         SPELL_CACHE_VERSION,
         OPEN5E_SPELLS_ENDPOINT,
         OPEN5E_MAX_PAGES,
+        CLASS_CASTING_PROGRESSIONS,
+        SPELLCASTING_PROGRESSION_TABLES,
     )
 except ImportError:
     # Fallback constants
@@ -81,6 +83,8 @@ except ImportError:
     SPELL_CACHE_VERSION = 1
     OPEN5E_SPELLS_ENDPOINT = "https://api.open5e.com/spells/?limit=1000"
     OPEN5E_MAX_PAGES = 10
+    CLASS_CASTING_PROGRESSIONS = {}
+    SPELLCASTING_PROGRESSION_TABLES = {}
 SPELL_LIBRARY_STATE = {
     "spells": [],
     "spell_map": {},
@@ -476,9 +480,6 @@ class SpellcastingManager:
                 return 3
         elif class_name == "bard":
             # Bard cantrips = Charisma modifier (minimum 1)
-            return max(1, spell_mod)
-        elif class_name == "wizard":
-            # Wizard cantrips = Intelligence modifier (minimum 1)
             return max(1, spell_mod)
         elif class_name in ("druid", "sorcerer"):
             # Druid cantrips: 2 (L1), 3 (L4), 4 (L10), 5 (L17)
@@ -929,8 +930,7 @@ class SpellcastingManager:
                 f'<div class="slot-tracker-item pact" title="Pact Slots (Level {pact_info["level"]}): {pact_available}/{pact_max} slots available">'
                 + '<span class="slot-tracker-label">Pact</span>'
                 + f'<span class="slot-tracker-value">{pact_available}/{pact_max}</span>'
-                + '</div>'
-            )
+                + '</div>'            )
         
         if tracker_items:
             container.innerHTML = '<div class="slot-tracker">' + "".join(tracker_items) + '</div>'
@@ -1346,79 +1346,25 @@ def set_spell_library_data(spells: list):
     console.log(f"DEBUG set_spell_library_data: Domain spells present: {domain_present}, missing: {domain_missing}")
 
 
-def update_spell_library_status(message: str):
-    """Update spell library status message."""
-    status_el = get_element("spell-library-status")
-    if status_el is not None:
-        status_el.innerText = message
+# ===================================================================
+# Aliases and Manager Functions
+# ===================================================================
+
+# Alias for backward compatibility
+SpellcasterManager = SpellcastingManager
+
+# Manager functions
+def initialize_spellcasting_manager():
+    """Initialize the spellcasting manager (returns singleton instance)."""
+    return SpellcastingManager()
 
 
-async def load_spell_library(_event=None):
-    """Load spells from Open5e API or cache."""
-    if SPELL_LIBRARY_STATE.get("loading"):
-        return
+def get_spellcasting_manager():
+    """Get the spellcasting manager instance."""
+    return SpellcastingManager()
 
-    button = get_element("spells-load-btn")
-    if button is not None:
-        button.disabled = True
-    SPELL_LIBRARY_STATE["loading"] = True
-    update_spell_library_status("Loading spells from Open5e...")
 
-    try:
-        cached_spells = load_spell_cache()
-        if cached_spells:
-            set_spell_library_data(cached_spells)
-            SPELL_LIBRARY_STATE["loaded"] = True
-            update_spell_library_status("Loaded spells from cache.")
-            return
-
-        status_message = "Loaded latest Open5e SRD spells."
-        raw_spells = None
-        fetch_error = None
-        try:
-            console.log("PySheet: Fetching spells from Open5e...")
-            raw_spells = await fetch_open5e_spells()
-            console.log(f"PySheet: Open5e fetch returned {len(raw_spells) if raw_spells else 0} spells")
-        except Exception as exc:
-            fetch_error = exc
-            console.warn(f"PySheet: Open5e fetch failed: {exc}")
-        
-        if not raw_spells:
-            console.warn(f"PySheet: No spells from Open5e, using fallback ({len(LOCAL_SPELLS_FALLBACK)} spells)")
-            if fetch_error is not None:
-                console.warn(f"PySheet: fallback spell list in use ({fetch_error})")
-            raw_spells = LOCAL_SPELLS_FALLBACK
-            status_message = "Loaded built-in Bard and Cleric spell list."
-        else:
-            # Merge fallback spells
-            console.log("PySheet: Merging fallback spells into Open5e list...")
-            existing_slugs = {spell.get("slug") for spell in raw_spells if spell.get("slug")}
-            merge_count = 0
-            for fallback_spell in LOCAL_SPELLS_FALLBACK:
-                fallback_slug = fallback_spell.get("slug")
-                if fallback_slug not in existing_slugs:
-                    raw_spells.append(fallback_spell)
-                    merge_count += 1
-            console.log(f"PySheet: Merged {merge_count} fallback spells")
-
-        sanitized = sanitize_spell_list(raw_spells)
-        if not sanitized and raw_spells is not LOCAL_SPELLS_FALLBACK:
-            console.warn("PySheet: remote spell list missing supported classes; using fallback list.")
-            raw_spells = LOCAL_SPELLS_FALLBACK
-            status_message = "Loaded built-in Bard and Cleric spell list."
-            sanitized = sanitize_spell_list(raw_spells)
-        if not sanitized:
-            raise RuntimeError("No spells available for supported classes.")
-        
-        set_spell_library_data(sanitized)
-        SPELL_LIBRARY_STATE["loaded"] = True
-        if raw_spells is not LOCAL_SPELLS_FALLBACK:
-            save_spell_cache(sanitized)
-        update_spell_library_status(status_message)
-    except Exception as exc:
-        console.error(f"PySheet: failed to load spell library - {exc}")
-        update_spell_library_status("Unable to load spells. Check your connection and try again.")
-    finally:
-        SPELL_LIBRARY_STATE["loading"] = False
-        if button is not None:
-            button.disabled = False
+# Load spell library function (placeholder - actual implementation in character.py)
+def load_spell_library():
+    """Load spell library (placeholder - actual implementation in character.py)."""
+    pass

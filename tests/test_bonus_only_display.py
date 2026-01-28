@@ -1,5 +1,5 @@
 import json
-from weapons_manager import WeaponEntity
+from managers import WeaponEntity
 import character
 
 

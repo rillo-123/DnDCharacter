@@ -8,8 +8,7 @@ Verifies that:
 
 import unittest
 from character_models import Character
-from weapons_manager import WeaponEntity
-from armor_manager import ArmorEntity
+from managers import WeaponEntity, ArmorEntity
 
 
 class TestCharacterManagerIntegration(unittest.TestCase):

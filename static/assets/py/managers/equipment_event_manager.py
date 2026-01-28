@@ -20,12 +20,27 @@ Event Flow:
 """
 
 from typing import Optional
-from js import console, document
-from pyodide.ffi import create_proxy
+
+try:
+    from js import console, document
+    from pyodide.ffi import create_proxy
+except ImportError:
+    # Mock for testing environments
+    class _MockConsole:
+        @staticmethod
+        def log(*args): pass
+        @staticmethod
+        def warn(*args): pass
+        @staticmethod
+        def error(*args): pass
+    
+    console = _MockConsole()
+    document = None
+    create_proxy = None
 
 # Try to import armor_manager at module level
 try:
-    import armor_manager
+    from . import armor_manager
     ARMOR_MANAGER_AVAILABLE = True
 except ImportError as e:
     console.warn(f"[EVENT-LISTENER-INIT] armor_manager import failed: {e}")
@@ -435,3 +450,14 @@ def register_all_events():
         _GLOBAL_EVENT_LISTENER.register_all_handlers()
     else:
         console.error("[EVENT-LISTENER] Event listener not initialized")
+
+
+# Alias functions for consistency
+def initialize_equipment_event_manager(inventory_manager):
+    """Alias for initialize_event_listener."""
+    return initialize_event_listener(inventory_manager)
+
+
+def get_equipment_event_manager():
+    """Alias for get_event_listener."""
+    return get_event_listener()

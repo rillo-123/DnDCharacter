@@ -1351,8 +1351,8 @@ class InventoryManager:
                 
                 # Sync weapons and armor grids if item category matches
                 try:
-                    from weapons_manager import get_weapons_manager
-                    from armor_manager import get_armor_manager
+                    from managers import get_weapons_manager
+                    from managers import get_armor_manager
                     
                     item_category = item.get("category", "").lower()
                     

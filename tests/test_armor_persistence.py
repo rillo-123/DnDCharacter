@@ -12,7 +12,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "static" / "assets" / "py"))
 
-from armor_manager import ArmorEntity
+from managers import ArmorEntity
 
 
 class TestArmorBonusPersistence:

@@ -8,7 +8,7 @@ from pathlib import Path
 # Add to path
 sys.path.insert(0, str(Path("static/assets/py")))
 
-from inventory_manager import InventoryManager
+from managers import InventoryManager
 
 # Create manager and add breastplate
 mgr = InventoryManager()

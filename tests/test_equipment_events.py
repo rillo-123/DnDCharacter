@@ -39,7 +39,7 @@ mock_character.update_calculations = Mock()
 sys.modules['character'] = mock_character
 
 # Now import the module under test
-from equipment_event_manager import EquipmentEventListener
+from managers.equipment_event_manager import EquipmentEventListener
 
 
 def tearDownModule():

@@ -22,7 +22,7 @@ class TestArmorCategorization:
     
     def test_shield_categorized_as_armor(self):
         """Test that 'Shield' is correctly categorized as Armor."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Shield")
@@ -31,7 +31,7 @@ class TestArmorCategorization:
     
     def test_breastplate_categorized_as_armor(self):
         """Test that 'Breastplate' is correctly categorized as Armor."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Breastplate")
@@ -40,7 +40,7 @@ class TestArmorCategorization:
     
     def test_leather_armor_categorized_as_armor(self):
         """Test that 'Leather Armor' is correctly categorized as Armor."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Leather Armor")
@@ -49,7 +49,7 @@ class TestArmorCategorization:
     
     def test_plate_armor_categorized_as_armor(self):
         """Test that 'Plate Armor' is correctly categorized as Armor."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Plate Armor")
@@ -58,7 +58,7 @@ class TestArmorCategorization:
     
     def test_chain_mail_categorized_as_armor(self):
         """Test that 'Chain Mail' is correctly categorized as Armor."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Chain Mail")
@@ -67,7 +67,7 @@ class TestArmorCategorization:
     
     def test_helmet_categorized_as_armor(self):
         """Test that 'Helmet' is correctly categorized as Armor."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Helmet")
@@ -76,7 +76,7 @@ class TestArmorCategorization:
     
     def test_longsword_categorized_as_weapon(self):
         """Test that 'Longsword' is correctly categorized as Weapon."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Longsword")
@@ -85,7 +85,7 @@ class TestArmorCategorization:
     
     def test_dagger_categorized_as_weapon(self):
         """Test that 'Dagger' is correctly categorized as Weapon."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Dagger")
@@ -94,7 +94,7 @@ class TestArmorCategorization:
     
     def test_bow_categorized_as_weapon(self):
         """Test that 'Bow' is correctly categorized as Weapon."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         category = manager._infer_category("Bow")
@@ -103,7 +103,7 @@ class TestArmorCategorization:
     
     def test_magic_shield_categorized_as_armor_not_magic_items(self):
         """Test that magic shields are still categorized as Armor, not Magic Items."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         
@@ -118,7 +118,7 @@ class TestArmorCategorization:
     
     def test_simple_armor_keywords_recognized(self):
         """Test that all simple armor keywords are recognized."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         # Test with full names that contain the keywords
@@ -137,7 +137,7 @@ class TestArmorCategorization:
         This prevents items from being miscategorized if they contain both
         armor and weapon keywords (though this shouldn't happen in practice).
         """
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         # "shield" shouldn't accidentally match "staff" or other weapon keywords
@@ -290,7 +290,7 @@ class TestInventoryManagerItemAddition:
     
     def test_add_shield_gets_armor_category(self):
         """Test that adding a Shield gets Armor category."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         item_id = manager.add_item("Shield", cost="10 gp", weight="6 lb")
@@ -301,7 +301,7 @@ class TestInventoryManagerItemAddition:
     
     def test_add_breastplate_gets_armor_category(self):
         """Test that adding Breastplate gets Armor category."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         item_id = manager.add_item("Breastplate", cost="400 gp", weight="20 lb")
@@ -312,7 +312,7 @@ class TestInventoryManagerItemAddition:
     
     def test_add_longsword_gets_weapon_category(self):
         """Test that adding Longsword gets Weapons category."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         item_id = manager.add_item("Longsword", cost="15 gp", weight="3 lb")
@@ -323,7 +323,7 @@ class TestInventoryManagerItemAddition:
     
     def test_add_item_with_explicit_category(self):
         """Test that explicit category parameter overrides auto-detection."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         # Explicitly set category even though it could be auto-detected
@@ -339,7 +339,7 @@ class TestArmorAndWeaponTableIntegration:
     
     def test_armor_table_includes_equipped_armor(self):
         """Test that armor table includes all equipped armor items."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         
@@ -364,7 +364,7 @@ class TestArmorAndWeaponTableIntegration:
     
     def test_weapons_table_includes_equipped_weapons_only(self):
         """Test that weapons table includes only equipped weapons."""
-        from inventory_manager import InventoryManager
+        from managers import InventoryManager
         
         manager = InventoryManager()
         

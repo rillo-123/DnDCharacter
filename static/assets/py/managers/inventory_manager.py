@@ -10,7 +10,7 @@ from html import escape
 
 # Import Entity from same package
 try:
-    from entities import Entity
+    from .entities import Entity
 except ImportError:
     # For testing/non-PyScript environments, define a minimal Entity
     class Entity:
@@ -400,7 +400,7 @@ class InventoryManager:
     AMMO_KEYWORDS = ["arrow", "bolt", "ammo", "ammunition", "shot"]
     TOOL_KEYWORDS = ["tool", "kit", "instrument", "lock pick", "thieves'", "healer's"]
     POTION_KEYWORDS = ["potion", "elixir", "oil", "poison", "cure", "healing"]
-    GEAR_KEYWORDS = ["rope", "torch", "bedroll", "tent", "lantern", "backpack", "grappling hook", "caltrops", "chalk", "pack", "explorer", "adventurer", "burglar", "diplomat", "dungeoneer", "entertainer", "priest", "scholar"]
+    GEAR_KEYWORDS = ["rope", "torch", "bedroll", "tent", "lantern", "backpack", "grappling hook", "caltrops", "chalk", "pack", "explorer", "adventurer", "burglar", "diplomat", "entertainer", "priest", "scholar"]
     MOUNT_KEYWORDS = ["horse", "mule", "donkey", "camel", "mount", "vehicle", "cart", "boat", "ship"]
     MAGIC_KEYWORDS = ["+1", "+2", "+3", "magical", "magic", "enchanted", "ring of", "cloak of", "amulet of", "wand of", "staff of", "artifact", "relic"]
     
@@ -409,6 +409,7 @@ class InventoryManager:
     
     def __init__(self):
         self.items: list[dict] = []
+        self.event_listener = None  # Will be initialized later
     
     def load_state(self, state: Optional[dict]):
         """Load inventory from character state."""
@@ -736,13 +737,12 @@ class InventoryManager:
         
         container.innerHTML = "".join(sections_html)
         
-        # Register event handlers via centralized event listener
-        try:
-            from equipment_event_manager import register_all_events
-            register_all_events()
-        except ImportError as e:
-            console.warn(f"[EQUIPMENT] Could not import equipment_event_manager: {e}")
-            console.warn("[EQUIPMENT] Skipping event registration")
+        # Register all DOM event handlers via the event listener
+        if self.event_listener:
+            self.event_listener.register_all_handlers()
+            console.log("[INVENTORY] Event handlers registered")
+        else:
+            console.error("[INVENTORY] Event listener not available, handlers not registered")
         
         # Update totals
         update_inventory_totals()
@@ -964,7 +964,7 @@ class InventoryManager:
         
         # Weapon properties field
         props_inputs = inventory_list.querySelectorAll("[data-item-properties]")
-        for props_input in props_inputs:
+        for props_input in props_input:
             def make_props_handler():
                 def handler(event):
                     item_id = event.target.getAttribute("data-item-properties")
@@ -1024,8 +1024,8 @@ class InventoryManager:
         
         # Sync weapons and armor grids if removed item was a weapon or armor
         try:
-            from weapons_manager import get_weapons_manager
-            from armor_manager import get_armor_manager
+            from .weapons_manager import get_weapons_manager
+            from .armor_manager import get_armor_manager
             
             weapons_mgr = get_weapons_manager()
             if weapons_mgr:
@@ -1258,7 +1258,7 @@ class InventoryManager:
             # Re-render armor manager to show updated AC
             try:
                 console.log("[AC-CHANGE] Re-rendering armor manager")
-                from armor_manager import get_armor_manager
+                from .armor_manager import get_armor_manager
                 armor_mgr = get_armor_manager()
                 if armor_mgr:
                     armor_mgr.render()
@@ -1351,8 +1351,8 @@ class InventoryManager:
                 
                 # Sync weapons and armor grids if item category matches
                 try:
-                    from weapons_manager import get_weapons_manager
-                    from armor_manager import get_armor_manager
+                    from .weapons_manager import get_weapons_manager
+                    from .armor_manager import get_armor_manager
                     
                     item_category = item.get("category", "").lower()
                     
@@ -1549,6 +1549,19 @@ class InventoryManager:
 INVENTORY_MANAGER = InventoryManager()
 
 # =============================================================================
+# Manager Functions
+# =============================================================================
+
+def initialize_inventory_manager():
+    """Initialize the inventory manager (no-op since it's a singleton)."""
+    return INVENTORY_MANAGER
+
+
+def get_inventory_manager():
+    """Get the inventory manager instance."""
+    return INVENTORY_MANAGER
+
+# =============================================================================
 # Stub Functions (Placeholders - Override in character.py)
 # =============================================================================
 
@@ -1719,9 +1732,7 @@ def initialize_module_references():
     to handle modules that haven't loaded yet at import time, especially export_management
     which is imported after equipment_management in character.py.
     
-    Important: We store MODULE references, not function references. Functions are called
-    through the module to avoid PyScript/Pyodide proxy lifecycle issues where borrowed
-    proxies are automatically destroyed.
+    Important: We store MODULE references, not function references, to avoid PyScript proxy lifecycle issues
     """
     global _CHAR_MODULE_REF, _EXPORT_MODULE_REF
     

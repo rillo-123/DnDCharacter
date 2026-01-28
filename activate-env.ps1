@@ -4,7 +4,8 @@
 param(
     [switch]$StartServer,
     [switch]$Upgrade,
-    [switch]$NoCheck
+    [switch]$NoCheck,
+    [switch]$NoCheckExceptSyntax
 )
 
 $venvPath = Join-Path $PSScriptRoot ".venv"
@@ -29,7 +30,7 @@ Write-Host "Activating virtual environment..."
 & $activateScript
 
 # Step 3: Install dependencies (only if missing)
-if (-not $NoCheck -and (Test-Path $reqFile)) {
+if (-not $NoCheck -and -not $NoCheckExceptSyntax -and (Test-Path $reqFile)) {
     Write-Host "Checking dependencies..."
     
     # Get list of installed packages (fast)
@@ -62,8 +63,8 @@ if (-not $NoCheck -and (Test-Path $reqFile)) {
         $missing | ForEach-Object { python -m pip install $_ }
         Write-Host "Dependencies installed"
     }
-} elseif ($NoCheck) {
-    Write-Host "Skipping dependency check (-NoCheck)"
+} elseif ($NoCheck -or $NoCheckExceptSyntax) {
+    Write-Host "Skipping dependency check (-NoCheck or -NoCheckExceptSyntax)"
 } else {
     Write-Host "requirements.txt not found"
 }
@@ -72,10 +73,66 @@ Write-Host "Environment ready!"
 Write-Host "   - Run: python backend.py (to start Flask server)"
 Write-Host "   - Run: python -m pytest tests/ (to run tests)"
 Write-Host "   - Run: .\activate-env.ps1 -StartServer (to start server)"
-Write-Host "   - Run: .\activate-env.ps1 -StartServer -NoCheck (fast restart, skip dependency check)"
+Write-Host "   - Run: .\activate-env.ps1 -StartServer -NoCheck (fast restart, skip all checks)"
+Write-Host "   - Run: .\activate-env.ps1 -StartServer -NoCheckExceptSyntax (fast restart, check syntax only)"
 
-# Step 4: Start server if requested
+# Step 4: Check Python syntax if starting server (or with -NoCheckExceptSyntax)
+if (-not $NoCheck -and ($StartServer -or $NoCheckExceptSyntax)) {
+    Write-Host ""
+    Write-Host "Checking Python syntax on all *.py files..."
+    
+    # Find all Python files (excluding __pycache__ and .venv)
+    $pyFiles = @(Get-ChildItem -Path $PSScriptRoot -Filter "*.py" -Recurse -ErrorAction SilentlyContinue | 
+                 Where-Object { $_.FullName -notmatch "(__pycache__|\.venv)" })
+    
+    if ($pyFiles.Count -eq 0) {
+        Write-Host "No Python files found"
+        exit 1
+    }
+    
+    Write-Host "Found $($pyFiles.Count) Python file(s) to check"
+    
+    $syntaxErrors = @()
+    foreach ($file in $pyFiles) {
+        # Use forward slashes to avoid PowerShell escape sequence issues
+        $filePath = $file.FullName.Replace('\', '/')
+        $result = & python -c "
+import ast
+try:
+    with open(r'$($file.FullName)', 'r', encoding='utf-8') as f:
+        ast.parse(f.read())
+    print('OK')
+except SyntaxError as e:
+    print(f'SYNTAX_ERROR: {e}')
+except Exception as e:
+    print(f'ERROR: {e}')
+" 2>&1
+        
+        if ($result -contains "OK" -or $result -match "^OK`$") {
+            Write-Host "  [OK] $($file.Name)"
+        } else {
+            Write-Host "  [ERROR] $($file.Name)" -ForegroundColor Red
+            $syntaxErrors += @{file = $file.FullName; error = ($result -join "; ")}
+        }
+    }
+    
+    if ($syntaxErrors.Count -gt 0) {
+        Write-Host ""
+        Write-Host "[ERROR] SYNTAX ERRORS found:" -ForegroundColor Red
+        foreach ($err in $syntaxErrors) {
+            Write-Host "  File: $($err.file)" -ForegroundColor Red
+            Write-Host "  Error: $($err.error)" -ForegroundColor Red
+        }
+        Write-Host "Server NOT started due to syntax errors" -ForegroundColor Red
+        exit 1
+    } else {
+        Write-Host "[OK] All Python files passed syntax check"
+    }
+}
+
+# Step 5: Start server if requested
 if ($StartServer) {
+    Write-Host ""
     Write-Host "Starting Flask server..."
     python $backendFile
 }

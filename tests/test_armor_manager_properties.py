@@ -16,7 +16,7 @@ import json
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'static', 'assets', 'py'))
 
-from armor_manager import ArmorCollectionManager
+from managers import ArmorCollectionManager
 
 
 class MockInventoryManager:

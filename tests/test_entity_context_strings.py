@@ -1,5 +1,4 @@
-from weapons_manager import WeaponEntity
-from armor_manager import ArmorEntity
+from managers import WeaponEntity, ArmorEntity
 
 
 def test_weapon_equipment_list_ctx():

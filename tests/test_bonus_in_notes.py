@@ -1,5 +1,5 @@
 import character
-from weapons_manager import WeaponEntity
+from managers import WeaponEntity
 
 
 def test_enrich_reads_bonus_from_notes():
