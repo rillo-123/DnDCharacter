@@ -3902,12 +3902,15 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
     if mnemonics:
         summary_parts.append(f"<span class=\"spell-mnemonics\">{''.join(mnemonics)}</span>")
     
+    # Add action button inside summary so it's always visible
+    if action_button:
+        summary_parts.append(f"<div class=\"spell-summary-actions\">{action_button}</div>")
+    
     summary_parts.append("</div>")
     summary_parts.append("</summary>")
     
-    # Add tags and action button after summary
+    # Add tags after summary (inside details but after summary)
     summary_parts.append(f"<div class=\"spell-tags\">{tags_html}</div>" if tags_html else "")
-    summary_parts.append(f"<div class=\"spell-summary-actions\">{action_button}</div>" if action_button else "")
     
     summary_html = "".join(summary_parts)
 

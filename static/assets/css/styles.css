@@ -1876,7 +1876,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 0.6rem;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     background: rgba(30, 41, 59, 0.65);
     border-bottom: 1px solid transparent;
@@ -1884,8 +1884,11 @@ body {
 
 .spell-summary {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    width: 100%;
+    align-items: center;
     min-width: 0;
 }
 
@@ -1893,6 +1896,7 @@ body {
     margin-left: auto;
     display: flex;
     align-items: center;
+    flex-basis: auto;
 }
 
 @keyframes spell-add-denied {
@@ -1986,6 +1990,8 @@ body {
     font-size: 1.05rem;
     font-weight: 600;
     color: #e0f2fe;
+    flex-basis: 100%;
+    display: block;
 }
 
 .spell-card .spell-meta {
@@ -1993,13 +1999,16 @@ body {
     color: #a5b4fc;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+    flex-basis: 100%;
+    display: block;
 }
 
 .spell-mnemonics {
     display: inline-flex;
     gap: 0.3rem;
-    margin-left: 0.5rem;
+    margin-left: 0;
     align-items: center;
+    flex-basis: auto;
 }
 
 .spell-mnemonic {
