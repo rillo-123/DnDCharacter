@@ -216,7 +216,7 @@ def _load_managers_package():
             spellcasting_mod = _load_module_from_http_sync("spellcasting_manager", url, _retry=False)
             if spellcasting_mod:
                 # Copy exports to managers module
-                for attr in ["SpellcastingManager", "SpellcasterManager", "SPELL_LIBRARY_STATE", "set_spell_library_data", "load_spell_library"]:
+                for attr in ["SpellcastingManager", "SpellcasterManager", "SPELL_LIBRARY_STATE", "set_spell_library_data", "load_spell_library", "CLASS_CASTING_PROGRESSIONS", "SPELLCASTING_PROGRESSION_TABLES"]:
                     if hasattr(spellcasting_mod, attr):
                         setattr(managers_module, attr, getattr(spellcasting_mod, attr))
                 console.log("DEBUG: [MANAGERS] spellcasting_manager loaded and exports registered")
@@ -445,37 +445,76 @@ try:
     console.log(f"DEBUG: spell_data import succeeded - CLASS_CASTING_PROGRESSIONS keys: {list(CLASS_CASTING_PROGRESSIONS.keys())}")
 except ImportError as e:
     console.log(f"DEBUG: spell_data import failed: {e}")
-    # Fallback - spell data constants will be defined inline if needed
-    LOCAL_SPELLS_FALLBACK = []
-    SPELL_CLASS_SYNONYMS = {
-        "artificer": ["artificer"],
-        "bard": ["bard"],
-        "cleric": ["cleric"],
-        "druid": ["druid"],
-        "paladin": ["paladin"],
-        "ranger": ["ranger"],
-        "sorcerer": ["sorcerer"],
-        "warlock": ["warlock"],
-        "wizard": ["wizard"],
-    }
-    SPELL_CLASS_DISPLAY_NAMES = {
-        "artificer": "Artificer",
-        "bard": "Bard",
-        "cleric": "Cleric",
-        "druid": "Druid",
-        "paladin": "Paladin",
-        "ranger": "Ranger",
-        "sorcerer": "Sorcerer",
-        "warlock": "Warlock",
-        "wizard": "Wizard",
-    }
-    SPELL_CORRECTIONS = {}
-    def apply_spell_corrections(spell): return spell
-    def is_spell_source_allowed(source): return True
-    CLASS_CASTING_PROGRESSIONS = {}
-    SPELLCASTING_PROGRESSION_TABLES = {}
-    STANDARD_SLOT_TABLE = {}
-    PACT_MAGIC_TABLE = {}
+    # Try to get CLASS_CASTING_PROGRESSIONS from the pre-loaded managers module
+    try:
+        if _managers_loaded is not None and hasattr(_managers_loaded, 'CLASS_CASTING_PROGRESSIONS'):
+            CLASS_CASTING_PROGRESSIONS = _managers_loaded.CLASS_CASTING_PROGRESSIONS
+            SPELLCASTING_PROGRESSION_TABLES = _managers_loaded.SPELLCASTING_PROGRESSION_TABLES
+            console.log(f"DEBUG: Imported CLASS_CASTING_PROGRESSIONS from _managers_loaded - keys: {list(CLASS_CASTING_PROGRESSIONS.keys())}")
+        else:
+            raise AttributeError("CLASS_CASTING_PROGRESSIONS not found in managers")
+        # Set other spell_data defaults for fallback
+        LOCAL_SPELLS_FALLBACK = []
+        SPELL_CLASS_SYNONYMS = {
+            "artificer": ["artificer"],
+            "bard": ["bard"],
+            "cleric": ["cleric"],
+            "druid": ["druid"],
+            "paladin": ["paladin"],
+            "ranger": ["ranger"],
+            "sorcerer": ["sorcerer"],
+            "warlock": ["warlock"],
+            "wizard": ["wizard"],
+        }
+        SPELL_CLASS_DISPLAY_NAMES = {
+            "artificer": "Artificer",
+            "bard": "Bard",
+            "cleric": "Cleric",
+            "druid": "Druid",
+            "paladin": "Paladin",
+            "ranger": "Ranger",
+            "sorcerer": "Sorcerer",
+            "warlock": "Warlock",
+            "wizard": "Wizard",
+        }
+        SPELL_CORRECTIONS = {}
+        def apply_spell_corrections(spell): return spell
+        def is_spell_source_allowed(source): return True
+        STANDARD_SLOT_TABLE = {}
+        PACT_MAGIC_TABLE = {}
+    except (ImportError, AttributeError) as e2:
+        console.log(f"DEBUG: _managers_loaded import also failed: {e2}")
+        # Fallback - spell data constants will be defined inline if needed
+        LOCAL_SPELLS_FALLBACK = []
+        SPELL_CLASS_SYNONYMS = {
+            "artificer": ["artificer"],
+            "bard": ["bard"],
+            "cleric": ["cleric"],
+            "druid": ["druid"],
+            "paladin": ["paladin"],
+            "ranger": ["ranger"],
+            "sorcerer": ["sorcerer"],
+            "warlock": ["warlock"],
+            "wizard": ["wizard"],
+        }
+        SPELL_CLASS_DISPLAY_NAMES = {
+            "artificer": "Artificer",
+            "bard": "Bard",
+            "cleric": "Cleric",
+            "druid": "Druid",
+            "paladin": "Paladin",
+            "ranger": "Ranger",
+            "sorcerer": "Sorcerer",
+            "warlock": "Warlock",
+            "wizard": "Wizard",
+        }
+        SPELL_CORRECTIONS = {}
+        def apply_spell_corrections(spell): return spell
+        def is_spell_source_allowed(source): return True
+        CLASS_CASTING_PROGRESSIONS = {}
+        SPELLCASTING_PROGRESSION_TABLES = {}
+        STANDARD_SLOT_TABLE = {}
+        PACT_MAGIC_TABLE = {}
 
 # NOTE: _load_module_from_http_sync and _load_managers_package are now defined at the top of the file
 # before they are used in imports below
@@ -1356,12 +1395,11 @@ _EQUIPMENT_MODULE_REF = None
 
 
 # Spell data extracted to spell_data.py
-# Pre-populate with fallback spells so old saved spells can get their details at render time
+# Pre-populate with unsanitized fallback spells for old saved characters
+# Sanitization will happen the first time apply_spell_filters() is called via load_spell_library()
 set_spell_library_data(LOCAL_SPELLS_FALLBACK)
-# Mark spell library as loaded so domain spells can auto-populate on page load
-SPELL_LIBRARY_STATE["loaded"] = True
-# Note: populate_spell_class_filter() will be called later during page initialization
-# after document is ready, using the fallback spells loaded above
+# Don't mark as loaded yet - let load_spell_library() handle that after sanitizing
+# Note: populate_spell_class_filter() will be called after spell library loads
 
 # InventoryManager class moved to equipment_management.py
 # Imported above with fallback stub
@@ -3969,6 +4007,8 @@ def apply_spell_filters(auto_select: bool = False):
     if search_el is not None:
         search_term = search_el.value.strip().lower()
 
+    console.log(f"DEBUG: apply_spell_filters() - search_term='{search_term}'")
+    
     level_filter = None
     if level_el is not None and level_el.value.strip() != "":
         level_filter = parse_int(level_el.value, None)
@@ -3998,6 +4038,11 @@ def apply_spell_filters(auto_select: bool = False):
     spells = SPELL_LIBRARY_STATE.get("spells", [])
     allowed_set = set(allowed_classes)
     console.log(f"DEBUG: apply_spell_filters() - spells={len(spells)}, allowed_classes={allowed_classes}, selected_class='{selected_class}', allowed_set={allowed_set}")
+    
+    # Debug: show search_blob of first spell if searching
+    if search_term and spells:
+        first_spell = spells[0]
+        console.log(f"DEBUG: First spell: name='{first_spell.get('name', '')}', search_blob='{first_spell.get('search_blob', '')}'")
     
     source_filtered = 0
     level_filtered = 0
@@ -7522,10 +7567,17 @@ def load_initial_state():
 
 # Spell library safety: ensure fallback data is seeded if map is empty
 def _ensure_spell_library_seeded(reason: str = "unspecified"):
-    if SPELL_LIBRARY_STATE.get("spell_map"):
-        return
-    console.log(f"DEBUG: _ensure_spell_library_seeded(reason={reason}) - seeding fallback spells")
-    set_spell_library_data(LOCAL_SPELLS_FALLBACK)
+    spell_map = SPELL_LIBRARY_STATE.get("spell_map", {})
+    # Check if spells are already sanitized by looking for search_blob field in first spell
+    if spell_map:
+        first_spell = next(iter(spell_map.values()), None)
+        if first_spell and "search_blob" in first_spell:
+            return  # Already sanitized, don't re-sanitize
+    
+    console.log(f"DEBUG: _ensure_spell_library_seeded(reason={reason}) - seeding/sanitizing fallback spells")
+    # Sanitize fallback spells just like API spells to ensure search_blob is created
+    sanitized_fallback = sanitize_spell_list(LOCAL_SPELLS_FALLBACK)
+    set_spell_library_data(sanitized_fallback)
     SPELL_LIBRARY_STATE["loaded"] = True
 
 
