@@ -272,10 +272,10 @@ def _load_managers_package():
             url = "http://localhost:8080/assets/py/managers/armor_manager.py"
             armor_manager_mod = _load_module_from_http_sync("armor_manager", url, _retry=False)
             if armor_manager_mod:
-                for attr in ["ArmorManager"]:
+                for attr in ["ArmorManager", "ArmorCollectionManager", "ArmorEntity", "calculate_total_ac_from_armor_manager"]:
                     if hasattr(armor_manager_mod, attr):
                         setattr(managers_module, attr, getattr(armor_manager_mod, attr))
-                console.log("DEBUG: [MANAGERS] armor_manager loaded")
+                console.log("DEBUG: [MANAGERS] armor_manager loaded with AC calculation functions")
             else:
                 console.error("DEBUG: [MANAGERS] Failed to load armor_manager")
         except ImportError as e:

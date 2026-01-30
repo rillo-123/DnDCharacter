@@ -19,6 +19,7 @@ import argparse
 import sys
 import logging
 from logging.handlers import RotatingFileHandler
+import zipfile
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
@@ -133,6 +134,26 @@ def export_character():
         
         file_size = file_path.stat().st_size
         app.logger.info(f"✓ {filename} successfully written to disk ({file_size} bytes)")
+        
+        # Cleanup: If more than 10 export files, move older ones to export_old.zip
+        try:
+            json_files = sorted(EXPORT_DIR.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
+            if len(json_files) > 10:
+                old_files = json_files[10:]  # Files beyond the 10 most recent
+                zip_path = EXPORT_DIR / 'export_old.zip'
+                
+                # Create or update the zip archive
+                with zipfile.ZipFile(zip_path, 'a', zipfile.ZIP_DEFLATED) as zf:
+                    for old_file in old_files:
+                        # Add file to zip with just the filename (no directory structure)
+                        zf.write(old_file, arcname=old_file.name)
+                        app.logger.info(f"Archived to zip: {old_file.name}")
+                        
+                        # Delete the file after adding to zip
+                        old_file.unlink()
+                        app.logger.info(f"Deleted old export: {old_file.name}")
+        except Exception as cleanup_error:
+            app.logger.warning(f"Export cleanup error (non-critical): {cleanup_error}")
         
         return jsonify({
             'success': True,
