@@ -122,7 +122,6 @@ if [ -f "$REQ_FILE" ]; then
         
         echo "✓ All dependencies satisfied"
     fi
-    fi
     
     echo "✓ All dependencies satisfied"
 else
