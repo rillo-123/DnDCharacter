@@ -192,6 +192,11 @@ except ImportError:
             20: {1: 3, 2: 4, 3: 3, 4: 3},
         },
     }
+
+# Module-level variables that will be injected by character.py
+CHARACTER_MODULE = None
+schedule_auto_export = None
+
 SPELL_LIBRARY_STATE = {
     "spells": [],
     "spell_map": {},
@@ -971,6 +976,37 @@ class SpellcastingManager:
             event.stopPropagation()
             event.preventDefault()
         self.remove_spell(slug)
+        # Trigger the saving lamp and auto-export
+        try:
+            console.log("[SPELL-SAVE] Calling schedule_auto_export from spellcasting_manager.handle_remove_spell_click")
+            
+            # Try 1: Direct module-level variable (injected by character.py)
+            if schedule_auto_export is not None and callable(schedule_auto_export):
+                schedule_auto_export()
+                console.log("[SPELL-SAVE] schedule_auto_export completed (direct)")
+                return
+            
+            # Try 2: Through CHARACTER_MODULE
+            if CHARACTER_MODULE is not None:
+                char_sched = getattr(CHARACTER_MODULE, 'schedule_auto_export', None)
+                if char_sched and callable(char_sched):
+                    char_sched()
+                    console.log("[SPELL-SAVE] schedule_auto_export completed (CHARACTER_MODULE)")
+                    return
+            
+            # Try 3: Through sys.modules
+            import sys
+            character_module = sys.modules.get('character')
+            if character_module and hasattr(character_module, 'schedule_auto_export'):
+                char_sched = getattr(character_module, 'schedule_auto_export')
+                if callable(char_sched):
+                    char_sched()
+                    console.log("[SPELL-SAVE] schedule_auto_export completed (sys.modules)")
+                    return
+            
+            console.warn("[SPELL-SAVE] schedule_auto_export not available in any scope")
+        except Exception as e:
+            console.error(f"[SPELL-SAVE] schedule_auto_export failed: {e}")
 
     def compute_slot_summary(self, profile: Optional[dict] = None) -> dict:
         """Compute available spell slots based on character level and progression."""

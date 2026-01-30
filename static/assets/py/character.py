@@ -686,6 +686,7 @@ try:
         handle_import,
         show_storage_info,
         cleanup_exports,
+        schedule_auto_export,
     )
     _export_mgmt = sys.modules.get("export_management")
     if _export_mgmt is not None:
@@ -697,6 +698,7 @@ try:
     globals()['reset_character'] = reset_character
     globals()['show_storage_info'] = show_storage_info
     globals()['cleanup_exports'] = cleanup_exports
+    globals()['schedule_auto_export'] = schedule_auto_export
     console.log("DEBUG: export_management module imported successfully on first try")
     console.log("DEBUG: Button handlers exposed to PyScript event system")
 except ImportError as e:
@@ -713,6 +715,7 @@ except ImportError as e:
         handle_import = getattr(export_mgmt_module, "handle_import", lambda *a, **kw: None)
         show_storage_info = getattr(export_mgmt_module, "show_storage_info", lambda *a, **kw: None)
         cleanup_exports = getattr(export_mgmt_module, "cleanup_exports", lambda *a, **kw: None)
+        schedule_auto_export = getattr(export_mgmt_module, "schedule_auto_export", lambda *a, **kw: None)
         _export_mgmt = export_mgmt_module
         try:
             _export_mgmt.CHARACTER_MODULE = sys.modules.get(__name__)
@@ -723,6 +726,7 @@ except ImportError as e:
         globals()['reset_character'] = reset_character
         globals()['show_storage_info'] = show_storage_info
         globals()['cleanup_exports'] = cleanup_exports
+        globals()['schedule_auto_export'] = schedule_auto_export
         console.log("DEBUG: export_management module loaded via HTTP successfully")
         console.log("DEBUG: Button handlers exposed to PyScript event system (HTTP fallback)")
     except Exception as e2:
@@ -1459,6 +1463,18 @@ if SpellcastingManager is not None:
         SPELLCASTING_MANAGER = SpellcastingManager()
         console.log("[MANAGERS-INIT] ✓ SPELLCASTING_MANAGER instantiated successfully")
         
+        # Make CHARACTER_MODULE available to spellcasting_manager
+        try:
+            if _managers_loaded is not None:
+                sc_module = getattr(_managers_loaded, "spellcasting_manager")
+            else:
+                from managers import spellcasting_manager as sc_module
+            sc_module.CHARACTER_MODULE = sys.modules.get(__name__)
+            sc_module.schedule_auto_export = schedule_auto_export
+            console.log("[MANAGERS-INIT] ✓ Injected CHARACTER_MODULE and schedule_auto_export into spellcasting_manager")
+        except Exception as e:
+            console.error(f"[MANAGERS-INIT] Could not inject into spellcasting_manager: {e}")
+        
         # If spell_data import failed, try to get CLASS_CASTING_PROGRESSIONS from spellcasting module
         if not CLASS_CASTING_PROGRESSIONS:
             try:
@@ -1568,6 +1584,15 @@ def add_spell_to_spellbook(slug: str):
     if SPELLCASTING_MANAGER is not None:
         console.log(f"DEBUG: add_spell_to_spellbook({slug})")
         SPELLCASTING_MANAGER.add_spell(slug)
+        # Update the spell counter
+        update_calculations()
+        # Trigger the saving lamp and auto-export
+        try:
+            console.log("[SPELL-SAVE] Calling schedule_auto_export from add_spell_to_spellbook")
+            schedule_auto_export()
+            console.log("[SPELL-SAVE] schedule_auto_export completed")
+        except Exception as e:
+            console.error(f"[SPELL-SAVE] schedule_auto_export failed: {e}")
     else:
         console.warn(f"DEBUG: add_spell_to_spellbook({slug}) - SPELLCASTING_MANAGER is None")
 
@@ -1575,6 +1600,15 @@ def add_spell_to_spellbook(slug: str):
 def remove_spell_from_spellbook(slug: str):
     if SPELLCASTING_MANAGER is not None:
         SPELLCASTING_MANAGER.remove_spell(slug)
+        # Update the spell counter
+        update_calculations()
+        # Trigger the saving lamp and auto-export
+        try:
+            console.log("[SPELL-SAVE] Calling schedule_auto_export from remove_spell_from_spellbook")
+            schedule_auto_export()
+            console.log("[SPELL-SAVE] schedule_auto_export completed")
+        except Exception as e:
+            console.error(f"[SPELL-SAVE] schedule_auto_export failed: {e}")
 
 
 def render_spellbook():

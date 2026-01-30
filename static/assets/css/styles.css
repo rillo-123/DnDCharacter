@@ -2368,8 +2368,8 @@ body {
 
 .spellbook-prepared,
 .spellbook-slots {
-    background: rgba(30, 41, 59, 0.55);
-    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(30, 41, 59, 0.15);
+    border: 1px solid rgba(148, 163, 184, 0.25);
     border-radius: 1rem;
     padding: 1rem 1.15rem;
     display: flex;
@@ -2386,9 +2386,9 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
     gap: 0.5rem;
     padding: 0.75rem;
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(15, 23, 42, 0.2);
     border-radius: 0.75rem;
-    border: 1px solid rgba(148, 163, 184, 0.15);
+    border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .slot-tracker-item {
@@ -2498,8 +2498,8 @@ body {
 }
 
 .spellbook-level {
-    background: rgba(15, 23, 42, 0.55);
-    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(15, 23, 42, 0.25);
+    border: 1px solid rgba(148, 163, 184, 0.3);
     border-radius: 0.85rem;
     padding: 0.75rem 0.9rem;
     display: flex;
@@ -2535,16 +2535,16 @@ body {
 }
 
 .spellbook-spell {
-    background: rgba(30, 41, 59, 0.55);
+    background: rgba(30, 41, 59, 0.3);
     border-radius: 0.7rem;
-    border: 1px solid rgba(148, 163, 184, 0.18);
+    border: 1px solid rgba(148, 163, 184, 0.35);
     overflow: hidden;
 }
 
 .spellbook-spell.uncastable {
     background: rgba(30, 41, 59, 0.3);
     border-color: rgba(148, 163, 184, 0.1);
-    opacity: 0.65;
+    opacity: 0.85;
 }
 
 .spellbook-spell.uncastable .spellbook-name,
@@ -2638,20 +2638,21 @@ body {
 }
 
 .spellbook-name {
-    font-weight: 600;
-    color: #e0f2fe;
+    font-weight: 700;
+    color: #fbbf24;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .spellbook-meta {
     font-size: 0.8rem;
-    color: #cbd5f5;
+    color: #f0f9ff;
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
 
 .spellbook-source {
     font-size: 0.75rem;
-    color: #a5b4fc;
+    color: #c7d2fe;
     align-self: flex-start;
     margin-right: 0.2rem;
     letter-spacing: 0.08em;
@@ -2676,7 +2677,7 @@ body {
     padding: 0.7rem 0.85rem 0.85rem;
     display: grid;
     gap: 0.6rem;
-    background: rgba(15, 23, 42, 0.45);
+    background: rgba(15, 23, 42, 0.25);
 }
 
 .spellbook-tags {
@@ -2702,16 +2703,16 @@ body {
 .spellbook-properties dd {
     margin: 0.1rem 0 0;
     font-size: 0.85rem;
-    color: #e0f2fe;
+    color: #f0f9ff;
 }
 
 .spellbook-classes {
     font-size: 0.85rem;
-    color: #cbd5f5;
+    color: #dbeafe;
 }
 
 .spellbook-description {
-    color: #e2e8f0;
+    color: #f1f5f9;
     font-size: 0.9rem;
 }
 
