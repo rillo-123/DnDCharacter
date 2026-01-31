@@ -66,3 +66,4 @@ offline_data/
 ~*
 *.bak
 vulture_report*.txt
+exports.zip
