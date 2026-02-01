@@ -834,6 +834,39 @@ class SpellcastingManager:
             body_sections.append(classes_html)
         body_sections.append(f"<div class=\"spellbook-description\">{description_html}</div>")
         
+        # Add Spend button for leveled spells
+        spell_level = record.get("level", 0)
+        if spell_level > 0:
+            slot_summary = self.compute_slot_summary()
+            max_slots = slot_summary["levels"].get(spell_level, 0)
+            used = self.slots_used.get(spell_level, 0)
+            available = max_slots - used
+            
+            # Build upcast buttons (for higher-level slots)
+            upcast_buttons = []
+            for slot_level in range(spell_level + 1, 10):
+                slot_max = slot_summary["levels"].get(slot_level, 0)
+                slot_used = self.slots_used.get(slot_level, 0)
+                slot_available = slot_max - slot_used
+                if slot_available > 0:
+                    upcast_buttons.append(
+                        f'<button type="button" class="spell-upcast-button" data-upcast-level="{slot_level}" '
+                        f'data-spell-slug="{escape(record.get("slug", ""))}" '
+                        f'title="Use a level {slot_level} slot to cast this spell">Upcast ({slot_level})</button>'
+                    )
+            
+            upcast_html = f"<div class=\"spell-upcast-buttons\">{''.join(upcast_buttons)}</div>" if upcast_buttons else ""
+            
+            body_sections.append(
+                f'<div class="spell-casting-section">'
+                f'<button type="button" class="spell-spend-button" data-spell-spend-button="true" data-spell-level="{spell_level}" '
+                f'data-spell-slug="{escape(record.get("slug", ""))}" '
+                f'{"disabled" if available == 0 else ""}>'
+                f'Spend Slot ({available}/{max_slots} available)</button>'
+                f'{upcast_html}'
+                f'</div>'
+            )
+        
         return "<div class=\"spellbook-body\">" + "".join(body_sections) + "</div>"
     
     def render_spellbook(self):
@@ -970,6 +1003,36 @@ class SpellcastingManager:
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
 
+        # Attach handlers to Spend buttons
+        spend_buttons = container.querySelectorAll("button[data-spell-spend-button]")
+        console.log(f"DEBUG: [render_spellbook] Found {len(spend_buttons)} spend buttons")
+        for button in spend_buttons:
+            slug = button.getAttribute("data-spell-slug")
+            level = button.getAttribute("data-spell-level")
+            if not slug or not level:
+                continue
+            level = int(level)
+            proxy = create_proxy(
+                lambda event, s=slug, l=level: self.handle_spend_spell_click(event, s, l)
+            )
+            button.addEventListener("click", proxy)
+            _EVENT_PROXIES.append(proxy)
+
+        # Attach handlers to Upcast buttons
+        upcast_buttons = container.querySelectorAll("button[data-upcast-level]")
+        console.log(f"DEBUG: [render_spellbook] Found {len(upcast_buttons)} upcast buttons")
+        for button in upcast_buttons:
+            slug = button.getAttribute("data-spell-slug")
+            upcast_level = button.getAttribute("data-upcast-level")
+            if not slug or not upcast_level:
+                continue
+            upcast_level = int(upcast_level)
+            proxy = create_proxy(
+                lambda event, s=slug, ul=upcast_level: self.handle_upcast_spell_click(event, s, ul)
+            )
+            button.addEventListener("click", proxy)
+            _EVENT_PROXIES.append(proxy)
+
     def handle_remove_spell_click(self, event, slug: str):
         """Handle spell removal button click."""
         if event is not None:
@@ -979,6 +1042,77 @@ class SpellcastingManager:
         # Trigger the saving lamp and auto-export
         try:
             console.log("[SPELL-SAVE] Calling schedule_auto_export from spellcasting_manager.handle_remove_spell_click")
+            
+            # Try 1: Direct module-level variable (injected by character.py)
+            if schedule_auto_export is not None and callable(schedule_auto_export):
+                schedule_auto_export()
+                console.log("[SPELL-SAVE] schedule_auto_export completed (direct)")
+                return
+            
+            # Try 2: Through CHARACTER_MODULE
+            if CHARACTER_MODULE is not None:
+                char_sched = getattr(CHARACTER_MODULE, 'schedule_auto_export', None)
+                if char_sched and callable(char_sched):
+                    char_sched()
+                    console.log("[SPELL-SAVE] schedule_auto_export completed (CHARACTER_MODULE)")
+                    return
+            
+            # Try 3: Through sys.modules
+            import sys
+            character_module = sys.modules.get('character')
+            if character_module and hasattr(character_module, 'schedule_auto_export'):
+                char_sched = getattr(character_module, 'schedule_auto_export')
+                if callable(char_sched):
+                    char_sched()
+                    console.log("[SPELL-SAVE] schedule_auto_export completed (sys.modules)")
+                    return
+            
+            console.warn("[SPELL-SAVE] schedule_auto_export not available in any scope")
+        except Exception as e:
+            console.error(f"[SPELL-SAVE] schedule_auto_export failed: {e}")
+
+    def handle_spend_spell_click(self, event, slug: str, spell_level: int):
+        """Handle spending a spell slot to cast a spell."""
+        if event is not None:
+            event.stopPropagation()
+            event.preventDefault()
+        
+        slot_summary = self.compute_slot_summary()
+        max_slots = slot_summary["levels"].get(spell_level, 0)
+        used = self.slots_used.get(spell_level, 0)
+        available = max_slots - used
+        
+        if available > 0:
+            self.slots_used[spell_level] = used + 1
+            console.log(f"[SPELL-CAST] Spent 1 level {spell_level} slot: {self.slots_used[spell_level]}/{max_slots}")
+            self.render_spellbook()
+            self._trigger_auto_export("[SPELL-CAST] spending spell slot")
+        else:
+            console.warn(f"[SPELL-CAST] No available level {spell_level} slots to spend")
+
+    def handle_upcast_spell_click(self, event, slug: str, upcast_level: int):
+        """Handle upcasting a spell using a higher-level slot."""
+        if event is not None:
+            event.stopPropagation()
+            event.preventDefault()
+        
+        slot_summary = self.compute_slot_summary()
+        max_slots = slot_summary["levels"].get(upcast_level, 0)
+        used = self.slots_used.get(upcast_level, 0)
+        available = max_slots - used
+        
+        if available > 0:
+            self.slots_used[upcast_level] = used + 1
+            console.log(f"[SPELL-CAST] Upcast using level {upcast_level} slot: {self.slots_used[upcast_level]}/{max_slots}")
+            self.render_spellbook()
+            self._trigger_auto_export(f"[SPELL-CAST] upcasting spell using level {upcast_level} slot")
+        else:
+            console.warn(f"[SPELL-CAST] No available level {upcast_level} slots for upcasting")
+
+    def _trigger_auto_export(self, reason: str):
+        """Helper to trigger auto-export when spell slots are spent."""
+        try:
+            console.log(f"[SPELL-SAVE] Calling schedule_auto_export from spellcasting_manager.{reason}")
             
             # Try 1: Direct module-level variable (injected by character.py)
             if schedule_auto_export is not None and callable(schedule_auto_export):
