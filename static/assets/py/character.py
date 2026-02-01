@@ -445,76 +445,37 @@ try:
     console.log(f"DEBUG: spell_data import succeeded - CLASS_CASTING_PROGRESSIONS keys: {list(CLASS_CASTING_PROGRESSIONS.keys())}")
 except ImportError as e:
     console.log(f"DEBUG: spell_data import failed: {e}")
-    # Try to get CLASS_CASTING_PROGRESSIONS from the pre-loaded managers module
-    try:
-        if _managers_loaded is not None and hasattr(_managers_loaded, 'CLASS_CASTING_PROGRESSIONS'):
-            CLASS_CASTING_PROGRESSIONS = _managers_loaded.CLASS_CASTING_PROGRESSIONS
-            SPELLCASTING_PROGRESSION_TABLES = _managers_loaded.SPELLCASTING_PROGRESSION_TABLES
-            console.log(f"DEBUG: Imported CLASS_CASTING_PROGRESSIONS from _managers_loaded - keys: {list(CLASS_CASTING_PROGRESSIONS.keys())}")
-        else:
-            raise AttributeError("CLASS_CASTING_PROGRESSIONS not found in managers")
-        # Set other spell_data defaults for fallback
-        LOCAL_SPELLS_FALLBACK = []
-        SPELL_CLASS_SYNONYMS = {
-            "artificer": ["artificer"],
-            "bard": ["bard"],
-            "cleric": ["cleric"],
-            "druid": ["druid"],
-            "paladin": ["paladin"],
-            "ranger": ["ranger"],
-            "sorcerer": ["sorcerer"],
-            "warlock": ["warlock"],
-            "wizard": ["wizard"],
-        }
-        SPELL_CLASS_DISPLAY_NAMES = {
-            "artificer": "Artificer",
-            "bard": "Bard",
-            "cleric": "Cleric",
-            "druid": "Druid",
-            "paladin": "Paladin",
-            "ranger": "Ranger",
-            "sorcerer": "Sorcerer",
-            "warlock": "Warlock",
-            "wizard": "Wizard",
-        }
-        SPELL_CORRECTIONS = {}
-        def apply_spell_corrections(spell): return spell
-        def is_spell_source_allowed(source): return True
-        STANDARD_SLOT_TABLE = {}
-        PACT_MAGIC_TABLE = {}
-    except (ImportError, AttributeError) as e2:
-        console.log(f"DEBUG: _managers_loaded import also failed: {e2}")
-        # Fallback - spell data constants will be defined inline if needed
-        LOCAL_SPELLS_FALLBACK = []
-        SPELL_CLASS_SYNONYMS = {
-            "artificer": ["artificer"],
-            "bard": ["bard"],
-            "cleric": ["cleric"],
-            "druid": ["druid"],
-            "paladin": ["paladin"],
-            "ranger": ["ranger"],
-            "sorcerer": ["sorcerer"],
-            "warlock": ["warlock"],
-            "wizard": ["wizard"],
-        }
-        SPELL_CLASS_DISPLAY_NAMES = {
-            "artificer": "Artificer",
-            "bard": "Bard",
-            "cleric": "Cleric",
-            "druid": "Druid",
-            "paladin": "Paladin",
-            "ranger": "Ranger",
-            "sorcerer": "Sorcerer",
-            "warlock": "Warlock",
-            "wizard": "Wizard",
-        }
-        SPELL_CORRECTIONS = {}
-        def apply_spell_corrections(spell): return spell
-        def is_spell_source_allowed(source): return True
-        CLASS_CASTING_PROGRESSIONS = {}
-        SPELLCASTING_PROGRESSION_TABLES = {}
-        STANDARD_SLOT_TABLE = {}
-        PACT_MAGIC_TABLE = {}
+    # Default fallback values
+    LOCAL_SPELLS_FALLBACK = []
+    SPELL_CLASS_SYNONYMS = {
+        "artificer": ["artificer"],
+        "bard": ["bard"],
+        "cleric": ["cleric"],
+        "druid": ["druid"],
+        "paladin": ["paladin"],
+        "ranger": ["ranger"],
+        "sorcerer": ["sorcerer"],
+        "warlock": ["warlock"],
+        "wizard": ["wizard"],
+    }
+    SPELL_CLASS_DISPLAY_NAMES = {
+        "artificer": "Artificer",
+        "bard": "Bard",
+        "cleric": "Cleric",
+        "druid": "Druid",
+        "paladin": "Paladin",
+        "ranger": "Ranger",
+        "sorcerer": "Sorcerer",
+        "warlock": "Warlock",
+        "wizard": "Wizard",
+    }
+    SPELL_CORRECTIONS = {}
+    def apply_spell_corrections(spell): return spell
+    def is_spell_source_allowed(source): return True
+    CLASS_CASTING_PROGRESSIONS = {}
+    SPELLCASTING_PROGRESSION_TABLES = {}
+    STANDARD_SLOT_TABLE = {}
+    PACT_MAGIC_TABLE = {}
 
 # NOTE: _load_module_from_http_sync and _load_managers_package are now defined at the top of the file
 # before they are used in imports below
@@ -1645,9 +1606,17 @@ def reset_spell_slots(_event=None):
     """
     console.log("DEBUG: reset_spell_slots() called")
     try:
+        # Ensure spell library and progressions are fully loaded before resetting
+        _ensure_spell_library_seeded(reason="long_rest")
+        
         if SPELLCASTING_MANAGER is not None:
             SPELLCASTING_MANAGER.reset_spell_slots()
         reset_channel_divinity()
+        
+        # Dispatch custom event so spell manager can respond
+        event = window.CustomEvent("long-rest", {})
+        document.dispatchEvent(event)
+        
         trigger_auto_export("reset_spell_slots")
     except Exception as e:
         print(f"ERROR in reset_spell_slots: {e}")
@@ -7613,6 +7582,7 @@ def load_initial_state():
 
 # Spell library safety: ensure fallback data is seeded if map is empty
 def _ensure_spell_library_seeded(reason: str = "unspecified"):
+    global LOCAL_SPELLS_FALLBACK, CLASS_CASTING_PROGRESSIONS, STANDARD_SLOT_TABLE, PACT_MAGIC_TABLE, SPELLCASTING_PROGRESSION_TABLES
     spell_map = SPELL_LIBRARY_STATE.get("spell_map", {})
     # Check if spells are already sanitized by looking for search_blob field in first spell
     if spell_map:
@@ -7621,10 +7591,56 @@ def _ensure_spell_library_seeded(reason: str = "unspecified"):
             return  # Already sanitized, don't re-sanitize
     
     console.log(f"DEBUG: _ensure_spell_library_seeded(reason={reason}) - seeding/sanitizing fallback spells")
+    
+    # If fallback spells are empty, try to load them from spell_data
+    if not LOCAL_SPELLS_FALLBACK:
+        console.log("DEBUG: LOCAL_SPELLS_FALLBACK is empty, attempting to load spell_data from HTTP")
+        try:
+            spell_data_module = _load_module_from_http_sync("spell_data", "http://localhost:8080/assets/py/spell_data.py")
+            if spell_data_module is not None:
+                loaded_spells = getattr(spell_data_module, "LOCAL_SPELLS_FALLBACK", [])
+                if loaded_spells:
+                    LOCAL_SPELLS_FALLBACK = loaded_spells
+                    console.log(f"DEBUG: Successfully loaded {len(LOCAL_SPELLS_FALLBACK)} spells from spell_data via HTTP")
+                
+                # Also load the spellcasting progressions needed for slot calculations
+                # Update globals in-place so existing references see the updates
+                loaded_progressions = getattr(spell_data_module, "CLASS_CASTING_PROGRESSIONS", {})
+                if loaded_progressions and not CLASS_CASTING_PROGRESSIONS:
+                    CLASS_CASTING_PROGRESSIONS.clear()
+                    CLASS_CASTING_PROGRESSIONS.update(loaded_progressions)
+                    console.log(f"DEBUG: Loaded CLASS_CASTING_PROGRESSIONS with {len(CLASS_CASTING_PROGRESSIONS)} classes")
+                
+                loaded_standard = getattr(spell_data_module, "STANDARD_SLOT_TABLE", {})
+                if loaded_standard and not STANDARD_SLOT_TABLE:
+                    STANDARD_SLOT_TABLE.clear()
+                    STANDARD_SLOT_TABLE.update(loaded_standard)
+                    console.log(f"DEBUG: Loaded STANDARD_SLOT_TABLE with {len(STANDARD_SLOT_TABLE)} levels")
+                
+                loaded_pact = getattr(spell_data_module, "PACT_MAGIC_TABLE", {})
+                if loaded_pact and not PACT_MAGIC_TABLE:
+                    PACT_MAGIC_TABLE.clear()
+                    PACT_MAGIC_TABLE.update(loaded_pact)
+                    console.log(f"DEBUG: Loaded PACT_MAGIC_TABLE")
+                
+                loaded_progressions_tables = getattr(spell_data_module, "SPELLCASTING_PROGRESSION_TABLES", {})
+                if loaded_progressions_tables and not SPELLCASTING_PROGRESSION_TABLES:
+                    SPELLCASTING_PROGRESSION_TABLES.clear()
+                    SPELLCASTING_PROGRESSION_TABLES.update(loaded_progressions_tables)
+                    console.log(f"DEBUG: Loaded SPELLCASTING_PROGRESSION_TABLES")
+        except Exception as e:
+            console.warn(f"DEBUG: Failed to load spell_data from HTTP: {e}")
+    
     # Sanitize fallback spells just like API spells to ensure search_blob is created
     sanitized_fallback = sanitize_spell_list(LOCAL_SPELLS_FALLBACK)
     set_spell_library_data(sanitized_fallback)
     SPELL_LIBRARY_STATE["loaded"] = True
+    
+    # Re-render spell slots UI if progressions were just loaded
+    if SPELLCASTING_MANAGER is not None and (CLASS_CASTING_PROGRESSIONS or STANDARD_SLOT_TABLE):
+        console.log("DEBUG: Re-rendering spell slots after loading progression tables")
+        SPELLCASTING_MANAGER.render_spell_slots()
+        SPELLCASTING_MANAGER.render_slots_tracker()
 
 
 # Auto-populate domain spells if domain is set and spell library is loaded
@@ -7799,6 +7815,9 @@ async def _auto_load_weapons():
         console.warn(f"DEBUG: _auto_load_weapons() - equipment load or render failed: {e}")
     # Give SPELLCASTING_MANAGER a chance to fully initialize
     await asyncio.sleep(0.1)
+    # Ensure spell library is seeded with fallback spells if spell_data wasn't imported
+    console.log("DEBUG: _auto_load_weapons() - ensuring spell library is seeded")
+    _ensure_spell_library_seeded(reason="auto_load_weapons")
     console.log("DEBUG: _auto_load_weapons() - calling _populate_domain_spells_on_load")
     _populate_domain_spells_on_load()
     console.log("DEBUG: _auto_load_weapons() completed")

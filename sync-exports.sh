@@ -3,8 +3,8 @@
 # Usage: ./sync-exports.sh
 
 # Configuration
-CHROMEOS_EXPORTS="/mnt/chromeos/GoogleDrive/MyDrive/DndCharacter/exports"
-LOCAL_EXPORTS="$HOME/github/DndCharacter/exports"
+CHROMEOS_EXPORTS="/mnt/chromeos/GoogleDrive/MyDrive/DnDCharacter/exports"
+LOCAL_EXPORTS="$HOME/github/DnDCharacter/exports"
 
 # Check if source exists
 if [ ! -d "$CHROMEOS_EXPORTS" ]; then
