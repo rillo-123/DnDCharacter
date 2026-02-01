@@ -27,8 +27,23 @@ Data Flow:
 
 import json
 from typing import Optional, Dict, List, Union, Any
-from .entity_manager import EntityManager
+import sys
 from game_constants import ARMOR_AC_VALUES
+
+# Handle relative import for HTTP loading
+try:
+    from .entity_manager import EntityManager
+except ImportError:
+    # Fallback for HTTP loading context
+    managers = sys.modules.get('managers')
+    if managers and hasattr(managers, 'EntityManager'):
+        EntityManager = getattr(managers, 'EntityManager')
+    else:
+        # Last resort: import directly if accessible
+        try:
+            from entity_manager import EntityManager
+        except ImportError:
+            EntityManager = None
 
 try:
     from character_models import Character

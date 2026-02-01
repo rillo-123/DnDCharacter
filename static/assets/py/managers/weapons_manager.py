@@ -17,8 +17,22 @@ This makes it easy to:
 import json
 import re
 from typing import Optional, Dict, List, Union, Any
+import sys
 
-from .entity_manager import EntityManager
+# Handle relative import for HTTP loading
+try:
+    from .entity_manager import EntityManager
+except ImportError:
+    # Fallback for HTTP loading context
+    managers = sys.modules.get('managers')
+    if managers and hasattr(managers, 'EntityManager'):
+        EntityManager = getattr(managers, 'EntityManager')
+    else:
+        # Last resort: import directly if accessible
+        try:
+            from entity_manager import EntityManager
+        except ImportError:
+            EntityManager = None
 
 try:
     from character_models import Character
