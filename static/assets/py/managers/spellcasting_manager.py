@@ -1085,30 +1085,29 @@ class SpellcastingManager:
         try:
             console.log(f"[SPELL-UI] Cast button clicked")
             
-            # Find the casting-section (parent of button)
-            casting_section = button_element.parentElement
-            if not casting_section:
+            # Find the wrapper (parent of button)
+            wrapper = button_element.parentElement
+            if not wrapper:
                 console.warn("[SPELL-UI] No parent element found for cast button")
                 return
             
-            # Find the menu within that section
-            menu = casting_section.querySelector(".spell-cast-menu")
+            # Find the menu within that wrapper
+            menu = wrapper.querySelector(".spell-cast-menu")
             if not menu:
-                console.warn("[SPELL-UI] No .spell-cast-menu found in casting-section")
+                console.warn("[SPELL-UI] No .spell-cast-menu found in wrapper")
                 return
             
             # Toggle the menu visibility using class
-            is_visible = menu.style.display == "block"
+            menu.classList.toggle("show")
+            is_visible = menu.classList.contains("show")
             if is_visible:
-                menu.style.display = "none"
-                console.log("[SPELL-UI] Menu hidden")
-            else:
-                menu.style.display = "block"
                 console.log("[SPELL-UI] Menu shown - Select a spell level to cast")
                 # Show available options info
                 options = menu.querySelectorAll(".spell-cast-level-option")
                 if options.length > 0:
                     console.log(f"[SPELL-UI] Available casting levels: {options.length} option(s)")
+            else:
+                console.log("[SPELL-UI] Menu hidden")
         except Exception as e:
             console.error(f"[SPELL-UI] Error toggling menu: {e}")
 
