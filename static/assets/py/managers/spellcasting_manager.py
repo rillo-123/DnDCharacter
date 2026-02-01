@@ -942,7 +942,12 @@ class SpellcastingManager:
                             )
                         
                         menu_html = f'<div class="spell-cast-menu">{"".join(menu_options)}</div>'
-                        cast_button_html = f'<button type="button" class="spell-cast-button" data-spell-cast-button="true" data-spell-slug="{escape(slug)}">Cast...</button>'
+                        cast_button_html = (
+                            f'<div class="spell-cast-button-wrapper">'
+                            f'<button type="button" class="spell-cast-button" data-spell-cast-button="true" data-spell-slug="{escape(slug)}">Cast...</button>'
+                            f'{menu_html}'
+                            f'</div>'
+                        )
                 
                 items_html.append(
                     "<li class=\"spellbook-spell" + castable_class + "\" data-spell-slug=\""
@@ -955,9 +960,8 @@ class SpellcastingManager:
                     + mnemonics_html
                     + "</div>"
                     + "<div class=\"spellbook-actions\">"
-                    + cast_button_html
-                    + menu_html
                     + remove_button_html
+                    + cast_button_html
                     + "</div>"
                     + "</summary>"
                     + body_html

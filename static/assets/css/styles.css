@@ -2586,8 +2586,6 @@ body {
     position: relative;
     display: inline-block;
     white-space: nowrap;
-    order: -1;
-    margin-right: auto;
 }
 
 .spellbook-cast,
