@@ -2787,8 +2787,7 @@ body {
     backdrop-filter: blur(4px);
 }
 
-.spell-cast-menu.active,
-.spell-cast-menu[style*="display: block"] {
+.spell-cast-menu.show {
     display: block !important;
 }
 

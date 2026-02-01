@@ -1010,11 +1010,13 @@ class SpellcastingManager:
         cast_buttons = container.querySelectorAll("button[data-spell-cast-button]")
         console.log(f"DEBUG: [render_spellbook] Found {len(cast_buttons)} cast buttons")
         for button in cast_buttons:
+            console.log(f"DEBUG: [render_spellbook] Attaching click handler to button: {button}")
             proxy = create_proxy(
                 lambda event, btn=button: self.handle_cast_button_click(event, btn)
             )
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
+            console.log(f"DEBUG: [render_spellbook] Handler attached to cast button")
 
         # Attach handlers to Cast level selection options
         level_options = container.querySelectorAll("button[data-cast-level]")
@@ -1083,15 +1085,31 @@ class SpellcastingManager:
             event.stopPropagation()
             event.preventDefault()
         
-        # Find the cast menu in the same parent spell element
-        spell_li = button_element.closest("li.spellbook-spell")
-        if spell_li:
-            menu = spell_li.querySelector(".spell-cast-menu")
-            if menu:
-                # Toggle display
-                current_display = menu.style.display
-                menu.style.display = "block" if (not current_display or current_display == "none") else "none"
-                console.log(f"[SPELL-UI] Toggled cast menu: {menu.style.display}")
+        try:
+            console.log(f"[SPELL-UI] Cast button clicked")
+            
+            # Find the casting-section (parent of button)
+            casting_section = button_element.parentElement
+            if not casting_section:
+                console.warn("[SPELL-UI] No parent element found for cast button")
+                return
+            
+            # Find the menu within that section
+            menu = casting_section.querySelector(".spell-cast-menu")
+            if not menu:
+                console.warn("[SPELL-UI] No .spell-cast-menu found in casting-section")
+                return
+            
+            # Toggle the menu visibility using class
+            is_visible = menu.style.display == "block"
+            if is_visible:
+                menu.style.display = "none"
+                console.log("[SPELL-UI] Menu hidden")
+            else:
+                menu.style.display = "block"
+                console.log("[SPELL-UI] Menu shown")
+        except Exception as e:
+            console.error(f"[SPELL-UI] Error toggling menu: {e}")
 
     def handle_cast_level_selected(self, event, slug: str, cast_level: int):
         """Handle casting a spell at a specific level."""
