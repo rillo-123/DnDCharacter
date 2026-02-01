@@ -8,8 +8,8 @@ import subprocess
 import pytest
 
 
-def test_run_all_tests_has_all_parameter():
-    """Test that run_all_tests.ps1 accepts -All parameter."""
+def test_powershell_script_has_all_parameter():
+    """Test that run_all_tests.ps1 PowerShell script accepts -All parameter."""
     # Check if PowerShell is available
     try:
         subprocess.run(
@@ -42,8 +42,8 @@ def test_run_all_tests_has_all_parameter():
     assert 'coverage' in params, "The -Coverage parameter should be defined"
 
 
-def test_run_all_tests_script_help():
-    """Test that run_all_tests.ps1 displays help correctly."""
+def test_powershell_script_help_includes_all_parameter():
+    """Test that run_all_tests.ps1 help documentation includes -All parameter."""
     try:
         subprocess.run(
             ['pwsh', '--version'],
