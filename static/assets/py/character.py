@@ -229,7 +229,7 @@ def _load_managers_package():
                 # Store module object itself for sync code to access
                 setattr(managers_module, "spellcasting_manager", spellcasting_mod)
                 # Copy exports to managers module
-                for attr in ["SpellcastingManager", "SpellcasterManager", "SPELL_LIBRARY_STATE", "set_spell_library_data", "load_spell_library", "CLASS_CASTING_PROGRESSIONS", "SPELLCASTING_PROGRESSION_TABLES"]:
+                for attr in ["SpellcastingManager", "SpellcasterManager", "SPELL_LIBRARY_STATE", "set_spell_library_data", "load_spell_library", "CLASS_CASTING_PROGRESSIONS", "STANDARD_SLOT_TABLE", "PACT_MAGIC_TABLE", "SPELLCASTING_PROGRESSION_TABLES"]:
                     if hasattr(spellcasting_mod, attr):
                         setattr(managers_module, attr, getattr(spellcasting_mod, attr))
                 console.log("DEBUG: [MANAGERS] spellcasting_manager loaded and exports registered")
