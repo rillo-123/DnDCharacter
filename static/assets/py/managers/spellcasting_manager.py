@@ -834,38 +834,41 @@ class SpellcastingManager:
             body_sections.append(classes_html)
         body_sections.append(f"<div class=\"spellbook-description\">{description_html}</div>")
         
-        # Add Spend button for leveled spells
+        # Add Cast button for leveled spells with dropdown menu for level selection
         spell_level = record.get("level", 0)
         if spell_level > 0:
             slot_summary = self.compute_slot_summary()
-            max_slots = slot_summary["levels"].get(spell_level, 0)
-            used = self.slots_used.get(spell_level, 0)
-            available = max_slots - used
             
-            # Build upcast buttons (for higher-level slots)
-            upcast_buttons = []
-            for slot_level in range(spell_level + 1, 10):
-                slot_max = slot_summary["levels"].get(slot_level, 0)
-                slot_used = self.slots_used.get(slot_level, 0)
+            # Build available casting levels (original level + upcasts)
+            casting_levels = []
+            for cast_level in range(spell_level, 10):
+                slot_max = slot_summary["levels"].get(cast_level, 0)
+                slot_used = self.slots_used.get(cast_level, 0)
                 slot_available = slot_max - slot_used
                 if slot_available > 0:
-                    upcast_buttons.append(
-                        f'<button type="button" class="spell-upcast-button" data-upcast-level="{slot_level}" '
-                        f'data-spell-slug="{escape(record.get("slug", ""))}" '
-                        f'title="Use a level {slot_level} slot to cast this spell">Upcast ({slot_level})</button>'
+                    level_label = "Cantrip" if cast_level == 0 else format_spell_level_label(cast_level)
+                    casting_levels.append((cast_level, level_label, slot_available))
+            
+            if casting_levels:
+                # Build dropdown menu options
+                menu_options = []
+                for cast_level, level_label, available in casting_levels:
+                    menu_options.append(
+                        f'<button type="button" class="spell-cast-level-option" '
+                        f'data-cast-level="{cast_level}" data-spell-slug="{escape(record.get("slug", ""))}">'
+                        f'{level_label} Slot</button>'
                     )
-            
-            upcast_html = f"<div class=\"spell-upcast-buttons\">{''.join(upcast_buttons)}</div>" if upcast_buttons else ""
-            
-            body_sections.append(
-                f'<div class="spell-casting-section">'
-                f'<button type="button" class="spell-spend-button" data-spell-spend-button="true" data-spell-level="{spell_level}" '
-                f'data-spell-slug="{escape(record.get("slug", ""))}" '
-                f'{"disabled" if available == 0 else ""}>'
-                f'Spend Slot ({available}/{max_slots} available)</button>'
-                f'{upcast_html}'
-                f'</div>'
-            )
+                
+                menu_html = f'<div class="spell-cast-menu">{"".join(menu_options)}</div>'
+                
+                body_sections.append(
+                    f'<div class="spell-casting-section">'
+                    f'<button type="button" class="spell-cast-button" data-spell-cast-button="true" '
+                    f'data-spell-slug="{escape(record.get("slug", ""))}">'
+                    f'Cast...</button>'
+                    f'{menu_html}'
+                    f'</div>'
+                )
         
         return "<div class=\"spellbook-body\">" + "".join(body_sections) + "</div>"
     
@@ -1003,32 +1006,27 @@ class SpellcastingManager:
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
 
-        # Attach handlers to Spend buttons
-        spend_buttons = container.querySelectorAll("button[data-spell-spend-button]")
-        console.log(f"DEBUG: [render_spellbook] Found {len(spend_buttons)} spend buttons")
-        for button in spend_buttons:
-            slug = button.getAttribute("data-spell-slug")
-            level = button.getAttribute("data-spell-level")
-            if not slug or not level:
-                continue
-            level = int(level)
+        # Attach handlers to Cast buttons (toggle menu visibility)
+        cast_buttons = container.querySelectorAll("button[data-spell-cast-button]")
+        console.log(f"DEBUG: [render_spellbook] Found {len(cast_buttons)} cast buttons")
+        for button in cast_buttons:
             proxy = create_proxy(
-                lambda event, s=slug, l=level: self.handle_spend_spell_click(event, s, l)
+                lambda event, btn=button: self.handle_cast_button_click(event, btn)
             )
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
 
-        # Attach handlers to Upcast buttons
-        upcast_buttons = container.querySelectorAll("button[data-upcast-level]")
-        console.log(f"DEBUG: [render_spellbook] Found {len(upcast_buttons)} upcast buttons")
-        for button in upcast_buttons:
+        # Attach handlers to Cast level selection options
+        level_options = container.querySelectorAll("button[data-cast-level]")
+        console.log(f"DEBUG: [render_spellbook] Found {len(level_options)} cast level options")
+        for button in level_options:
             slug = button.getAttribute("data-spell-slug")
-            upcast_level = button.getAttribute("data-upcast-level")
-            if not slug or not upcast_level:
+            cast_level = button.getAttribute("data-cast-level")
+            if not slug or not cast_level:
                 continue
-            upcast_level = int(upcast_level)
+            cast_level = int(cast_level)
             proxy = create_proxy(
-                lambda event, s=slug, ul=upcast_level: self.handle_upcast_spell_click(event, s, ul)
+                lambda event, s=slug, cl=cast_level: self.handle_cast_level_selected(event, s, cl)
             )
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
@@ -1072,23 +1070,48 @@ class SpellcastingManager:
             console.error(f"[SPELL-SAVE] schedule_auto_export failed: {e}")
 
     def handle_spend_spell_click(self, event, slug: str, spell_level: int):
-        """Handle spending a spell slot to cast a spell."""
+        """Handle casting a spell by selecting a slot level."""
+        if event is not None:
+            event.stopPropagation()
+            event.preventDefault()
+        
+        self.handle_cast_level_selected(event, slug, spell_level)
+
+    def handle_cast_button_click(self, event, button_element):
+        """Toggle the cast menu dropdown visibility."""
+        if event is not None:
+            event.stopPropagation()
+            event.preventDefault()
+        
+        # Find the cast menu in the same parent spell element
+        spell_li = button_element.closest("li.spellbook-spell")
+        if spell_li:
+            menu = spell_li.querySelector(".spell-cast-menu")
+            if menu:
+                # Toggle display
+                current_display = menu.style.display
+                menu.style.display = "block" if (not current_display or current_display == "none") else "none"
+                console.log(f"[SPELL-UI] Toggled cast menu: {menu.style.display}")
+
+    def handle_cast_level_selected(self, event, slug: str, cast_level: int):
+        """Handle casting a spell at a specific level."""
         if event is not None:
             event.stopPropagation()
             event.preventDefault()
         
         slot_summary = self.compute_slot_summary()
-        max_slots = slot_summary["levels"].get(spell_level, 0)
-        used = self.slots_used.get(spell_level, 0)
+        max_slots = slot_summary["levels"].get(cast_level, 0)
+        used = self.slots_used.get(cast_level, 0)
         available = max_slots - used
         
         if available > 0:
-            self.slots_used[spell_level] = used + 1
-            console.log(f"[SPELL-CAST] Spent 1 level {spell_level} slot: {self.slots_used[spell_level]}/{max_slots}")
+            self.slots_used[cast_level] = used + 1
+            level_name = "Cantrip" if cast_level == 0 else format_spell_level_label(cast_level)
+            console.log(f"[SPELL-CAST] Cast spell at {level_name}: {self.slots_used[cast_level]}/{max_slots} slots used")
             self.render_spellbook()
-            self._trigger_auto_export("[SPELL-CAST] spending spell slot")
+            self._trigger_auto_export(f"[SPELL-CAST] casting spell with level {cast_level} slot")
         else:
-            console.warn(f"[SPELL-CAST] No available level {spell_level} slots to spend")
+            console.warn(f"[SPELL-CAST] No available level {cast_level} slots to cast")
 
     def handle_upcast_spell_click(self, event, slug: str, upcast_level: int):
         """Handle upcasting a spell using a higher-level slot."""
@@ -1096,18 +1119,7 @@ class SpellcastingManager:
             event.stopPropagation()
             event.preventDefault()
         
-        slot_summary = self.compute_slot_summary()
-        max_slots = slot_summary["levels"].get(upcast_level, 0)
-        used = self.slots_used.get(upcast_level, 0)
-        available = max_slots - used
-        
-        if available > 0:
-            self.slots_used[upcast_level] = used + 1
-            console.log(f"[SPELL-CAST] Upcast using level {upcast_level} slot: {self.slots_used[upcast_level]}/{max_slots}")
-            self.render_spellbook()
-            self._trigger_auto_export(f"[SPELL-CAST] upcasting spell using level {upcast_level} slot")
-        else:
-            console.warn(f"[SPELL-CAST] No available level {upcast_level} slots for upcasting")
+        self.handle_cast_level_selected(event, slug, upcast_level)
 
     def _trigger_auto_export(self, reason: str):
         """Helper to trigger auto-export when spell slots are spent."""
