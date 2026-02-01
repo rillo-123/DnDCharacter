@@ -3,7 +3,7 @@
 # Usage: ./sync-exports.sh
 
 # Configuration
-CHROMEOS_EXPORTS="/mnt/chromeos/exports"
+CHROMEOS_EXPORTS="/mnt/chromeos/GoogleDrive/MyDrive/DndCharacter/exports"
 LOCAL_EXPORTS="$HOME/github/DndCharacter/exports"
 
 # Check if source exists
