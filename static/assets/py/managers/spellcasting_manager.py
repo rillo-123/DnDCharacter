@@ -876,24 +876,20 @@ class SpellcastingManager:
         """Render the spellbook UI with all prepared spells."""
         container = get_element("spellbook-levels")
         empty_state = get_element("spellbook-empty-state")
-        console.log(f"DEBUG: [render_spellbook] container={container is not None}, empty_state={empty_state is not None}, prepared={len(self.prepared)}")
         if container is None or empty_state is None:
-            console.warn("DEBUG: [render_spellbook] Missing DOM elements, returning")
+            console.warn("[render_spellbook] Missing DOM elements, returning")
             return
 
         # Render slot tracker
         self.render_slots_tracker()
 
         if not self.prepared:
-            console.log("DEBUG: [render_spellbook] No prepared spells, showing empty state")
             empty_state.style.display = "block"
             container.innerHTML = ""
             return
 
-        console.log(f"DEBUG: [render_spellbook] Rendering {len(self.prepared)} prepared spells")
-        console.log("💡 TIP: Click the 'Spells' tab at the top to see your prepared spellbook!")
+        console.log(f"[render_spellbook] Rendering {len(self.prepared)} prepared spells")
         empty_state.style.display = "none"
-        console.log("DEBUG: [render_spellbook] Set empty_state.style.display = 'none'")
         groups: dict[int, list[dict]] = {}
         for entry in self.prepared:
             level = entry.get("level", 0)
@@ -981,21 +977,12 @@ class SpellcastingManager:
             )
 
         html_content = "".join(sections)
-        console.log(f"DEBUG: [render_spellbook] Setting container.innerHTML with {len(html_content)} chars, {len(sections)} sections")
-        console.log(f"DEBUG: [render_spellbook] First 200 chars of HTML: {html_content[:200]}")
         container.innerHTML = html_content
-        
-        # Verify the content was actually set
-        console.log(f"DEBUG: [render_spellbook] After innerHTML set: container.innerHTML.length = {len(container.innerHTML)}")
-        console.log(f"DEBUG: [render_spellbook] container.children.length = {container.children.length}")
-        console.log(f"DEBUG: [render_spellbook] container textContent length = {len(container.textContent)}")
         
         # Force a style update to ensure visibility
         container.style.display = "block"
-        console.log("DEBUG: [render_spellbook] Set container.style.display = 'block'")
 
         buttons = container.querySelectorAll("button[data-remove-spell]")
-        console.log(f"DEBUG: [render_spellbook] Found {len(buttons)} remove buttons")
         for button in buttons:
             slug = button.getAttribute("data-remove-spell")
             if not slug:
@@ -1008,14 +995,11 @@ class SpellcastingManager:
 
         # Attach handlers to Cast buttons (toggle menu visibility)
         cast_buttons = container.querySelectorAll("button[data-spell-cast-button]")
-        console.log(f"DEBUG: [render_spellbook] Found {len(cast_buttons)} cast buttons")
         for button in cast_buttons:
-            console.log(f"DEBUG: [render_spellbook] Attaching click handler to button: {button}")
             # Use a factory function to create a proper closure
             def make_cast_handler(btn):
                 def handler(event):
                     try:
-                        console.log(f"[SPELL-UI] Cast button clicked")
                         self.handle_cast_button_click(event, btn)
                     except Exception as e:
                         console.error(f"[SPELL-UI] Error in cast button handler: {e}")
@@ -1025,11 +1009,9 @@ class SpellcastingManager:
             proxy = create_proxy(handler_func)
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
-            console.log(f"DEBUG: [render_spellbook] Handler attached to cast button")
 
         # Attach handlers to Cast level selection options
         level_options = container.querySelectorAll("button[data-cast-level]")
-        console.log(f"DEBUG: [render_spellbook] Found {len(level_options)} cast level options")
         for button in level_options:
             slug = button.getAttribute("data-spell-slug")
             cast_level = button.getAttribute("data-cast-level")
