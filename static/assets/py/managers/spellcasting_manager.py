@@ -834,42 +834,6 @@ class SpellcastingManager:
             body_sections.append(classes_html)
         body_sections.append(f"<div class=\"spellbook-description\">{description_html}</div>")
         
-        # Add Cast button for leveled spells with dropdown menu for level selection
-        spell_level = record.get("level", 0)
-        if spell_level > 0:
-            slot_summary = self.compute_slot_summary()
-            
-            # Build available casting levels (original level + upcasts)
-            casting_levels = []
-            for cast_level in range(spell_level, 10):
-                slot_max = slot_summary["levels"].get(cast_level, 0)
-                slot_used = self.slots_used.get(cast_level, 0)
-                slot_available = slot_max - slot_used
-                if slot_available > 0:
-                    level_label = "Cantrip" if cast_level == 0 else format_spell_level_label(cast_level)
-                    casting_levels.append((cast_level, level_label, slot_available))
-            
-            if casting_levels:
-                # Build dropdown menu options
-                menu_options = []
-                for cast_level, level_label, available in casting_levels:
-                    menu_options.append(
-                        f'<button type="button" class="spell-cast-level-option" '
-                        f'data-cast-level="{cast_level}" data-spell-slug="{escape(record.get("slug", ""))}">'
-                        f'{level_label} Slot</button>'
-                    )
-                
-                menu_html = f'<div class="spell-cast-menu">{"".join(menu_options)}</div>'
-                
-                body_sections.append(
-                    f'<div class="spell-casting-section">'
-                    f'<button type="button" class="spell-cast-button" data-spell-cast-button="true" '
-                    f'data-spell-slug="{escape(record.get("slug", ""))}">'
-                    f'Cast...</button>'
-                    f'{menu_html}'
-                    f'</div>'
-                )
-        
         return "<div class=\"spellbook-body\">" + "".join(body_sections) + "</div>"
     
     def render_spellbook(self):
@@ -950,6 +914,36 @@ class SpellcastingManager:
                 if not is_bonus_spell:
                     remove_button_html = f'<button type="button" class="spellbook-remove" data-remove-spell="{escape(slug)}">Remove</button>'
                 
+                # Cast button for leveled spells with dropdown menu
+                cast_button_html = ""
+                menu_html = ""
+                spell_level = spell.get("level", level)
+                if spell_level > 0:
+                    slot_summary = self.compute_slot_summary()
+                    
+                    # Build available casting levels (original level + upcasts)
+                    casting_levels = []
+                    for cast_level in range(spell_level, 10):
+                        slot_max = slot_summary["levels"].get(cast_level, 0)
+                        slot_used = self.slots_used.get(cast_level, 0)
+                        slot_available = slot_max - slot_used
+                        if slot_available > 0:
+                            level_label = "Cantrip" if cast_level == 0 else format_spell_level_label(cast_level)
+                            casting_levels.append((cast_level, level_label, slot_available))
+                    
+                    if casting_levels:
+                        # Build dropdown menu options
+                        menu_options = []
+                        for cast_level, level_label, available in casting_levels:
+                            menu_options.append(
+                                f'<button type="button" class="spell-cast-level-option" '
+                                f'data-cast-level="{cast_level}" data-spell-slug="{escape(slug)}"'
+                                f'>{level_label} Slot</button>'
+                            )
+                        
+                        menu_html = f'<div class="spell-cast-menu">{"".join(menu_options)}</div>'
+                        cast_button_html = f'<button type="button" class="spell-cast-button" data-spell-cast-button="true" data-spell-slug="{escape(slug)}">Cast...</button>'
+                
                 items_html.append(
                     "<li class=\"spellbook-spell" + castable_class + "\" data-spell-slug=\""
                     + escape(slug)
@@ -961,6 +955,8 @@ class SpellcastingManager:
                     + mnemonics_html
                     + "</div>"
                     + "<div class=\"spellbook-actions\">"
+                    + cast_button_html
+                    + menu_html
                     + remove_button_html
                     + "</div>"
                     + "</summary>"
@@ -1108,7 +1104,7 @@ class SpellcastingManager:
                 console.log("[SPELL-UI] Menu hidden")
             else:
                 menu.style.display = "block"
-                console.log("[SPELL-UI] Menu shown - Click a spell level to cast")
+                console.log("[SPELL-UI] Menu shown - Select a spell level to cast")
                 # Show available options info
                 options = menu.querySelectorAll(".spell-cast-level-option")
                 if options.length > 0:
