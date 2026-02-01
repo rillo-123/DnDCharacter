@@ -2,6 +2,8 @@
 
 PySheet is a browser-first character sheet for Dungeons & Dragons 5th Edition. It is written with HTML/CSS and powered by [PyScript](https://pyscript.net), allowing you to run Python directly in the browser—perfect for platforms such as Chromebooks that do not allow native executables.
 
+> **Need help?** Check the [Troubleshooting Guide](TROUBLESHOOTING.md) for common issues including how to stop running processes, fix port conflicts, and manage browser storage.
+
 ## Features
 
 - Live ability modifier, proficiency, saving throw, and skill calculations
@@ -188,6 +190,75 @@ python -m pytest tests/test_character_models.py -v
 # Run tests with coverage
 python -m pytest tests/ --cov
 ```
+
+### Process Management & Stopping Running Services
+
+If you have background processes or servers running, here's how to stop them:
+
+#### Stopping the Flask Server
+
+**Method 1: Keyboard Interrupt (Recommended)**
+- In the terminal where the server is running, press `Ctrl+C` to stop it gracefully
+
+**Method 2: Find and Kill the Process**
+
+On **Windows** (PowerShell):
+```powershell
+# Find Python processes
+Get-Process python
+
+# Stop by name (stops ALL Python processes - use with caution)
+Stop-Process -Name python
+
+# Stop by specific PID (recommended)
+Stop-Process -Id <PID>
+
+# Find processes using a specific port (e.g., 8080)
+netstat -ano | findstr :8080
+# Then use the PID from the output:
+Stop-Process -Id <PID>
+```
+
+On **Linux/macOS** (Bash):
+```bash
+# Find Python processes
+ps aux | grep python
+
+# Stop by specific PID (recommended)
+kill <PID>
+
+# Force stop if needed
+kill -9 <PID>
+
+# Find and stop process on specific port (e.g., 8080)
+lsof -ti:8080 | xargs kill
+```
+
+#### Stopping Virtual Environment Sessions
+
+If you have an activated virtual environment:
+```bash
+# Simply deactivate it
+deactivate
+```
+
+#### Checking for Running Processes
+
+**Windows:**
+```powershell
+# List all Python processes with details
+Get-Process python | Format-Table Id, ProcessName, StartTime, CPU
+```
+
+**Linux/macOS:**
+```bash
+# List all Python processes
+ps aux | grep python | grep -v grep
+
+# List processes using ports 5000-8080
+lsof -i :5000-8080
+```
+
 ## Development Notes
 
 - The application runs entirely client-side; no backend or traditional Python environment is required.
