@@ -7597,24 +7597,72 @@ def _ensure_spell_library_seeded(reason: str = "unspecified"):
                     CLASS_CASTING_PROGRESSIONS.clear()
                     CLASS_CASTING_PROGRESSIONS.update(loaded_progressions)
                     console.log(f"DEBUG: Loaded CLASS_CASTING_PROGRESSIONS with {len(CLASS_CASTING_PROGRESSIONS)} classes")
+                    # Also update spellcasting_manager's copy
+                    try:
+                        if _managers_loaded is not None:
+                            sc_module = getattr(_managers_loaded, "spellcasting_manager")
+                        else:
+                            from managers import spellcasting_manager as sc_module
+                        if hasattr(sc_module, "CLASS_CASTING_PROGRESSIONS"):
+                            sc_module.CLASS_CASTING_PROGRESSIONS.clear()
+                            sc_module.CLASS_CASTING_PROGRESSIONS.update(loaded_progressions)
+                            console.log(f"DEBUG: Updated spellcasting_manager.CLASS_CASTING_PROGRESSIONS with {len(loaded_progressions)} classes")
+                    except Exception as e:
+                        console.warn(f"DEBUG: Failed to update spellcasting_manager.CLASS_CASTING_PROGRESSIONS: {e}")
                 
                 loaded_standard = getattr(spell_data_module, "STANDARD_SLOT_TABLE", {})
                 if loaded_standard:
                     STANDARD_SLOT_TABLE.clear()
                     STANDARD_SLOT_TABLE.update(loaded_standard)
                     console.log(f"DEBUG: Loaded STANDARD_SLOT_TABLE with {len(STANDARD_SLOT_TABLE)} levels")
+                    # Also update spellcasting_manager's copy
+                    try:
+                        if _managers_loaded is not None:
+                            sc_module = getattr(_managers_loaded, "spellcasting_manager")
+                        else:
+                            from managers import spellcasting_manager as sc_module
+                        if hasattr(sc_module, "STANDARD_SLOT_TABLE"):
+                            sc_module.STANDARD_SLOT_TABLE.clear()
+                            sc_module.STANDARD_SLOT_TABLE.update(loaded_standard)
+                            console.log(f"DEBUG: Updated spellcasting_manager.STANDARD_SLOT_TABLE with {len(loaded_standard)} levels")
+                    except Exception as e:
+                        console.warn(f"DEBUG: Failed to update spellcasting_manager.STANDARD_SLOT_TABLE: {e}")
                 
                 loaded_pact = getattr(spell_data_module, "PACT_MAGIC_TABLE", {})
                 if loaded_pact:
                     PACT_MAGIC_TABLE.clear()
                     PACT_MAGIC_TABLE.update(loaded_pact)
                     console.log(f"DEBUG: Loaded PACT_MAGIC_TABLE")
+                    # Also update spellcasting_manager's copy
+                    try:
+                        if _managers_loaded is not None:
+                            sc_module = getattr(_managers_loaded, "spellcasting_manager")
+                        else:
+                            from managers import spellcasting_manager as sc_module
+                        if hasattr(sc_module, "PACT_MAGIC_TABLE"):
+                            sc_module.PACT_MAGIC_TABLE.clear()
+                            sc_module.PACT_MAGIC_TABLE.update(loaded_pact)
+                            console.log(f"DEBUG: Updated spellcasting_manager.PACT_MAGIC_TABLE")
+                    except Exception as e:
+                        console.warn(f"DEBUG: Failed to update spellcasting_manager.PACT_MAGIC_TABLE: {e}")
                 
                 loaded_progressions_tables = getattr(spell_data_module, "SPELLCASTING_PROGRESSION_TABLES", {})
                 if loaded_progressions_tables:
                     SPELLCASTING_PROGRESSION_TABLES.clear()
                     SPELLCASTING_PROGRESSION_TABLES.update(loaded_progressions_tables)
                     console.log(f"DEBUG: Loaded SPELLCASTING_PROGRESSION_TABLES")
+                    # Also update spellcasting_manager's copy
+                    try:
+                        if _managers_loaded is not None:
+                            sc_module = getattr(_managers_loaded, "spellcasting_manager")
+                        else:
+                            from managers import spellcasting_manager as sc_module
+                        if hasattr(sc_module, "SPELLCASTING_PROGRESSION_TABLES"):
+                            sc_module.SPELLCASTING_PROGRESSION_TABLES.clear()
+                            sc_module.SPELLCASTING_PROGRESSION_TABLES.update(loaded_progressions_tables)
+                            console.log(f"DEBUG: Updated spellcasting_manager.SPELLCASTING_PROGRESSION_TABLES")
+                    except Exception as e:
+                        console.warn(f"DEBUG: Failed to update spellcasting_manager.SPELLCASTING_PROGRESSION_TABLES: {e}")
         except Exception as e:
             console.warn(f"DEBUG: Failed to load spell progressions from HTTP: {e}")
     
