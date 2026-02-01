@@ -2775,8 +2775,8 @@ body {
 .spell-cast-menu {
     display: none;
     position: absolute;
-    top: calc(100% + 0.5rem);
-    left: 0;
+    top: 0;
+    left: calc(100% + 0.75rem);
     background: rgba(15, 23, 42, 0.98);
     border: 1px solid rgba(148, 163, 184, 0.4);
     border-radius: 0.5rem;
