@@ -126,7 +126,15 @@ class ArmorData:
         For armor: The armor's base AC (e.g., 14 for Breastplate)
         For shields: The shield's AC bonus (e.g., 2 for normal Shield)
         """
-        # Priority: notes > direct field > default
+        # Priority: base_armor_class (actual base) > armor_class (fallback) > direct field > default
+        ac = self.notes.get("base_armor_class", None)  # New field for actual base AC
+        if ac is not None:
+            try:
+                return int(ac)
+            except (ValueError, TypeError):
+                pass
+        
+        # Fallback to armor_class if base_armor_class not set (for old data)
         ac = self.notes.get("armor_class", None)
         if ac is not None:
             try:
@@ -199,6 +207,18 @@ class ArmorData:
         if not weight:
             weight = self.item.get("weight", "")
         return weight if weight else "—"
+    
+    @property
+    def bonus(self) -> int:
+        """Get magical bonus value (+0, +1, +2, etc.).
+        
+        Stored in notes JSON by set_armor_bonus().
+        """
+        bonus = self.notes.get("bonus", 0)
+        try:
+            return int(bonus) if bonus else 0
+        except (ValueError, TypeError):
+            return 0
 
 
 class ArmorEntity(EntityManager):
@@ -237,14 +257,14 @@ class ArmorEntity(EntityManager):
     def display_ac(self) -> str:
         """AC for table display.
         
-        Armor: Base AC (e.g., "14")
-        Shield: Bonus with + (e.g., "+2")
+        Armor: Base AC + bonus (e.g., "14" or "15" if +1 bonus)
+        Shield: Bonus with + (e.g., "+2" or "+3" if +1 bonus)
         """
         if self.data.is_shield:
-            ac = self.data.base_ac
+            ac = self.data.base_ac + self.data.bonus
             return f"+{ac}" if ac > 0 else "—"
         else:
-            ac = self.data.base_ac
+            ac = self.data.base_ac + self.data.bonus
             return str(ac) if ac > 0 else "—"
     
     @property
@@ -329,18 +349,19 @@ class ArmorEntity(EntityManager):
     # === Calculation Methods ===
     
     def calculate_total_ac(self) -> int:
-        """Calculate total AC including DEX modifier.
+        """Calculate total AC including DEX modifier and magical bonus.
         
         Used by character.py for total AC calculation.
         
         Returns:
-            For armor: base AC + DEX modifier (capped by type)
-            For shields: base AC bonus
+            For armor: base AC + bonus + DEX modifier (capped by type)
+            For shields: base AC bonus + magical bonus
         """
         if self.data.is_shield:
-            return self.data.base_ac
+            # Shields: base (2) + magical bonus
+            return self.data.base_ac + self.data.bonus
         
-        base = self.data.base_ac
+        base = self.data.base_ac + self.data.bonus  # Include magical bonus in base
         if base <= 0:
             return 0
         
@@ -444,7 +465,7 @@ class ArmorCollectionManager:
         """Get total AC bonus from equipped shields.
         
         Returns:
-            Sum of all equipped shield AC values (typically 2 per shield)
+            Sum of all equipped shield AC values including bonuses (typically 2 per shield + bonus)
         """
         if not self.inventory_manager:
             return 0
@@ -462,7 +483,8 @@ class ArmorCollectionManager:
             armor_entity = ArmorEntity(item, self.character_stats)
             
             if armor_entity.data.is_shield:
-                total_shield_bonus += armor_entity.data.base_ac
+                # Include bonus in shield AC calculation
+                total_shield_bonus += armor_entity.data.base_ac + armor_entity.data.bonus
         
         return total_shield_bonus
     
@@ -665,7 +687,14 @@ class ArmorCollectionManager:
             material_td.textContent = armor.display_material
             row.appendChild(material_td)
             
-            # Column 5: Stealth
+            # Column 5: Bonus
+            bonus_td = document.createElement("td")
+            bonus_str = f"+{armor.data.bonus}" if armor.data.bonus > 0 else ("0" if armor.data.bonus == 0 else str(armor.data.bonus))
+            bonus_td.textContent = bonus_str
+            bonus_td.style.textAlign = "center"
+            row.appendChild(bonus_td)
+            
+            # Column 6: Stealth
             stealth_td = document.createElement("td")
             stealth_td.textContent = armor.display_stealth
             if armor.data.stealth_disadvantage:
@@ -804,10 +833,12 @@ def render_armor_grid():
         _ARMOR_MANAGER.render()
     else:
         console.warn("[ARMOR] render_armor_grid called but manager not initialized")
+
+
+def calculate_total_ac_from_armor_manager(inventory_manager, character_stats) -> int:
     """Calculate total AC using armor_manager logic (single source of truth).
     
     This is the authoritative AC calculation that uses the same logic as the armor table.
-    Now simplified to use the ArmorCollectionManager properties.
     
     Args:
         inventory_manager: Inventory manager with armor/shield items
@@ -830,8 +861,6 @@ def render_armor_grid():
     console.log(f"[ARMOR-AC] Total AC: {temp_manager.armor_ac} (armor) + {temp_manager.shield_ac} (shields) = {total_ac}")
     return total_ac
 
-
-# === Manager Set Methods (for event handlers) ===
 
 def set_armor_ac(inventory_manager, item_id: str, ac_value: int) -> bool:
     """
@@ -909,9 +938,11 @@ def set_armor_bonus(inventory_manager, item_id: str, bonus_value: int) -> bool:
             
             if is_shield:
                 # Shields: base AC is 2, total = base + bonus
-                total_ac = 2 + bonus_value
-                extra_props["armor_class"] = total_ac
-                console.log(f"[ARMOR-SET] Shield {item.get('name')}: AC = 2 + {bonus_value} = {total_ac}")
+                base_ac = 2
+                total_ac = base_ac + bonus_value
+                extra_props["base_armor_class"] = base_ac  # Store actual base
+                extra_props["armor_class"] = total_ac  # Store total for display
+                console.log(f"[ARMOR-SET] Shield {item.get('name')}: AC = {base_ac} + {bonus_value} = {total_ac}")
             else:
                 # Regular armor: find base AC from ARMOR_AC_VALUES
                 base_ac = None
@@ -922,7 +953,8 @@ def set_armor_bonus(inventory_manager, item_id: str, bonus_value: int) -> bool:
                 if base_ac is None:
                     base_ac = 10  # Default fallback
                 total_ac = base_ac + bonus_value
-                extra_props["armor_class"] = total_ac
+                extra_props["base_armor_class"] = base_ac  # Store actual base
+                extra_props["armor_class"] = total_ac  # Store total for display
                 console.log(f"[ARMOR-SET] Armor {item.get('name')}: AC = {base_ac} + {bonus_value} = {total_ac}")
         else:
             # bonus_value is 0, remove bonus and reset to base
@@ -930,6 +962,7 @@ def set_armor_bonus(inventory_manager, item_id: str, bonus_value: int) -> bool:
                 del extra_props["bonus"]
             
             if is_shield:
+                extra_props["base_armor_class"] = 2
                 extra_props["armor_class"] = 2
                 console.log(f"[ARMOR-SET] Shield {item.get('name')}: Reset to base AC 2")
             else:
@@ -940,6 +973,7 @@ def set_armor_bonus(inventory_manager, item_id: str, bonus_value: int) -> bool:
                         base_ac = ac_value
                         break
                 if base_ac:
+                    extra_props["base_armor_class"] = base_ac
                     extra_props["armor_class"] = base_ac
                     console.log(f"[ARMOR-SET] Armor {item.get('name')}: Reset to base AC {base_ac}")
                 elif "armor_class" in extra_props:

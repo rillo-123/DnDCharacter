@@ -7357,23 +7357,33 @@ def initialize_module_references():
 
 def trigger_auto_export(source: str = "auto"):
     """Trigger auto-export with fallback logic. Tries direct import first, then module reference."""
+    console.log(f"[AUTO-EXPORT] trigger_auto_export called from: {source}")
+    
     try:
         # Try direct import first
         if export_management is not None:
+            console.log(f"[AUTO-EXPORT] Calling schedule_auto_export via export_management ({source})")
             export_management.schedule_auto_export()
+            console.log(f"[AUTO-EXPORT] ✓ Auto-export triggered ({source})")
             return True
     except Exception as e:
-        console.warn(f"DEBUG: Direct export_management call failed ({source}): {e}")
+        console.error(f"[AUTO-EXPORT] Direct export_management call failed ({source}): {e}")
     
     try:
         # Fallback: try module reference
+        console.log(f"[AUTO-EXPORT] Trying fallback via module reference ({source})")
         initialize_module_references()
         if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+            console.log(f"[AUTO-EXPORT] Calling schedule_auto_export via _EXPORT_MODULE_REF ({source})")
             _EXPORT_MODULE_REF.schedule_auto_export()
+            console.log(f"[AUTO-EXPORT] ✓ Auto-export triggered via fallback ({source})")
             return True
+        else:
+            console.warn(f"[AUTO-EXPORT] _EXPORT_MODULE_REF is None or missing schedule_auto_export ({source})")
     except Exception as e:
-        console.error(f"ERROR in trigger_auto_export ({source}): {e}")
+        console.error(f"[AUTO-EXPORT] ERROR in trigger_auto_export ({source}): {e}")
     
+    console.warn(f"[AUTO-EXPORT] Failed to trigger auto-export ({source})")
     return False
 
 def handle_adjust_button(event=None):

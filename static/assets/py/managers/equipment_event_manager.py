@@ -321,10 +321,11 @@ class EquipmentEventListener:
                             # Trigger auto-export
                             trigger_export_func = getattr(char_module, 'trigger_auto_export', None)
                             if trigger_export_func:
-                                trigger_export_func("armor_bonus_change")
-                                console.log("[EVENT-LISTENER] Triggered auto-export")
+                                console.log("[EVENT-LISTENER] Calling trigger_auto_export...")
+                                result = trigger_export_func("armor_bonus_change")
+                                console.log(f"[EVENT-LISTENER] trigger_auto_export returned: {result}")
                             else:
-                                console.warn("[EVENT-LISTENER] trigger_auto_export not found in character module")
+                                console.error("[EVENT-LISTENER] trigger_auto_export not found in character module")
                         else:
                             console.warn("[EVENT-LISTENER] character module not in sys.modules")
                     except Exception as e2:
