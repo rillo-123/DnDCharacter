@@ -66,8 +66,13 @@ cd "$SCRIPT_DIR"
 # Build path to the venv python executable
 if [ -f "$SCRIPT_DIR/.venv/bin/python" ]; then
     PYTHON="$SCRIPT_DIR/.venv/bin/python"
-else
+elif command -v python3 &> /dev/null; then
     PYTHON="python3"
+elif command -v python &> /dev/null; then
+    PYTHON="python"
+else
+    echo "Error: Python not found. Please install Python or create a virtual environment."
+    exit 1
 fi
 
 # If --all is specified, enable all tools
@@ -154,13 +159,14 @@ if [ "$TOOLS_ENABLED" = true ]; then
     
     if [ "$RUFF" = true ]; then
         echo -e "\n${YELLOW}--- Ruff Linter ---${NC}"
-        ruff check static/assets/py --statistics
+        "$PYTHON" -m ruff check static/assets/py --statistics
         echo ""
     fi
     
     if [ "$MYPY" = true ]; then
         echo -e "\n${YELLOW}--- Mypy Type Checker ---${NC}"
-        if "$PYTHON" -m mypy static/assets/py --ignore-missing-imports --no-error-summary 2>/dev/null; then
+        # Capture output but suppress only the error summary
+        if "$PYTHON" -m mypy static/assets/py --ignore-missing-imports --no-error-summary; then
             echo -e "${GREEN}[OK] No type errors found${NC}"
         fi
         echo ""
