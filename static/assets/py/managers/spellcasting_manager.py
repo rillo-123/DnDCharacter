@@ -958,10 +958,10 @@ class SpellcastingManager:
                     + "<div class=\"spellbook-summary-main\">"
                     + f"<span class=\"spellbook-name\">{escape(name)}</span>"
                     + mnemonics_html
+                    + cast_button_html
                     + "</div>"
                     + "<div class=\"spellbook-actions\">"
                     + remove_button_html
-                    + cast_button_html
                     + "</div>"
                     + "</summary>"
                     + body_html
