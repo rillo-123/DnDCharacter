@@ -7583,62 +7583,72 @@ def load_initial_state():
 # Spell library safety: ensure fallback data is seeded if map is empty
 def _ensure_spell_library_seeded(reason: str = "unspecified"):
     global LOCAL_SPELLS_FALLBACK, CLASS_CASTING_PROGRESSIONS, STANDARD_SLOT_TABLE, PACT_MAGIC_TABLE, SPELLCASTING_PROGRESSION_TABLES
+    
+    console.log(f"DEBUG: _ensure_spell_library_seeded(reason={reason})")
+    
+    # FIRST: Always ensure progression tables are loaded (don't skip on early return)
+    if not CLASS_CASTING_PROGRESSIONS:
+        console.log("DEBUG: CLASS_CASTING_PROGRESSIONS is empty, attempting to load from spell_data")
+        try:
+            spell_data_module = _load_module_from_http_sync("spell_data", "http://localhost:8080/assets/py/spell_data.py")
+            if spell_data_module is not None:
+                # Load all progression tables
+                loaded_progressions = getattr(spell_data_module, "CLASS_CASTING_PROGRESSIONS", {})
+                if loaded_progressions:
+                    CLASS_CASTING_PROGRESSIONS.clear()
+                    CLASS_CASTING_PROGRESSIONS.update(loaded_progressions)
+                    console.log(f"DEBUG: Loaded CLASS_CASTING_PROGRESSIONS with {len(CLASS_CASTING_PROGRESSIONS)} classes")
+                
+                loaded_standard = getattr(spell_data_module, "STANDARD_SLOT_TABLE", {})
+                if loaded_standard:
+                    STANDARD_SLOT_TABLE.clear()
+                    STANDARD_SLOT_TABLE.update(loaded_standard)
+                    console.log(f"DEBUG: Loaded STANDARD_SLOT_TABLE with {len(STANDARD_SLOT_TABLE)} levels")
+                
+                loaded_pact = getattr(spell_data_module, "PACT_MAGIC_TABLE", {})
+                if loaded_pact:
+                    PACT_MAGIC_TABLE.clear()
+                    PACT_MAGIC_TABLE.update(loaded_pact)
+                    console.log(f"DEBUG: Loaded PACT_MAGIC_TABLE")
+                
+                loaded_progressions_tables = getattr(spell_data_module, "SPELLCASTING_PROGRESSION_TABLES", {})
+                if loaded_progressions_tables:
+                    SPELLCASTING_PROGRESSION_TABLES.clear()
+                    SPELLCASTING_PROGRESSION_TABLES.update(loaded_progressions_tables)
+                    console.log(f"DEBUG: Loaded SPELLCASTING_PROGRESSION_TABLES")
+        except Exception as e:
+            console.warn(f"DEBUG: Failed to load spell progressions from HTTP: {e}")
+    
+    # SECOND: Check if spells are already sanitized to avoid re-sanitizing
     spell_map = SPELL_LIBRARY_STATE.get("spell_map", {})
-    # Check if spells are already sanitized by looking for search_blob field in first spell
     if spell_map:
         first_spell = next(iter(spell_map.values()), None)
         if first_spell and "search_blob" in first_spell:
             return  # Already sanitized, don't re-sanitize
     
-    console.log(f"DEBUG: _ensure_spell_library_seeded(reason={reason}) - seeding/sanitizing fallback spells")
+    console.log(f"DEBUG: _ensure_spell_library_seeded - seeding/sanitizing fallback spells")
     
-    # If fallback spells are empty, try to load them from spell_data
+    # THIRD: Load fallback spells if they haven't been loaded yet
     if not LOCAL_SPELLS_FALLBACK:
         console.log("DEBUG: LOCAL_SPELLS_FALLBACK is empty, attempting to load spell_data from HTTP")
         try:
             spell_data_module = _load_module_from_http_sync("spell_data", "http://localhost:8080/assets/py/spell_data.py")
             if spell_data_module is not None:
                 loaded_spells = getattr(spell_data_module, "LOCAL_SPELLS_FALLBACK", [])
-                if loaded_spells:
-                    LOCAL_SPELLS_FALLBACK = loaded_spells
+                if loaded_spells and isinstance(LOCAL_SPELLS_FALLBACK, list):
+                    LOCAL_SPELLS_FALLBACK.extend(loaded_spells)
                     console.log(f"DEBUG: Successfully loaded {len(LOCAL_SPELLS_FALLBACK)} spells from spell_data via HTTP")
-                
-                # Also load the spellcasting progressions needed for slot calculations
-                # Update globals in-place so existing references see the updates
-                loaded_progressions = getattr(spell_data_module, "CLASS_CASTING_PROGRESSIONS", {})
-                if loaded_progressions and not CLASS_CASTING_PROGRESSIONS:
-                    CLASS_CASTING_PROGRESSIONS.clear()
-                    CLASS_CASTING_PROGRESSIONS.update(loaded_progressions)
-                    console.log(f"DEBUG: Loaded CLASS_CASTING_PROGRESSIONS with {len(CLASS_CASTING_PROGRESSIONS)} classes")
-                
-                loaded_standard = getattr(spell_data_module, "STANDARD_SLOT_TABLE", {})
-                if loaded_standard and not STANDARD_SLOT_TABLE:
-                    STANDARD_SLOT_TABLE.clear()
-                    STANDARD_SLOT_TABLE.update(loaded_standard)
-                    console.log(f"DEBUG: Loaded STANDARD_SLOT_TABLE with {len(STANDARD_SLOT_TABLE)} levels")
-                
-                loaded_pact = getattr(spell_data_module, "PACT_MAGIC_TABLE", {})
-                if loaded_pact and not PACT_MAGIC_TABLE:
-                    PACT_MAGIC_TABLE.clear()
-                    PACT_MAGIC_TABLE.update(loaded_pact)
-                    console.log(f"DEBUG: Loaded PACT_MAGIC_TABLE")
-                
-                loaded_progressions_tables = getattr(spell_data_module, "SPELLCASTING_PROGRESSION_TABLES", {})
-                if loaded_progressions_tables and not SPELLCASTING_PROGRESSION_TABLES:
-                    SPELLCASTING_PROGRESSION_TABLES.clear()
-                    SPELLCASTING_PROGRESSION_TABLES.update(loaded_progressions_tables)
-                    console.log(f"DEBUG: Loaded SPELLCASTING_PROGRESSION_TABLES")
         except Exception as e:
-            console.warn(f"DEBUG: Failed to load spell_data from HTTP: {e}")
+            console.warn(f"DEBUG: Failed to load spells from HTTP: {e}")
     
     # Sanitize fallback spells just like API spells to ensure search_blob is created
     sanitized_fallback = sanitize_spell_list(LOCAL_SPELLS_FALLBACK)
     set_spell_library_data(sanitized_fallback)
     SPELL_LIBRARY_STATE["loaded"] = True
     
-    # Re-render spell slots UI if progressions were just loaded
+    # Re-render spell slots UI if progressions were loaded
     if SPELLCASTING_MANAGER is not None and (CLASS_CASTING_PROGRESSIONS or STANDARD_SLOT_TABLE):
-        console.log("DEBUG: Re-rendering spell slots after loading progression tables")
+        console.log("DEBUG: Re-rendering spell slots after loading/ensuring progression tables")
         SPELLCASTING_MANAGER.render_spell_slots()
         SPELLCASTING_MANAGER.render_slots_tracker()
 
