@@ -10,8 +10,10 @@ Features:
     - Logging: All output logged to logs/activate-env.log
 
 Usage:
-    python activate-env.py              # Check/install dependencies
-    python activate-env.py --server     # Setup and start Flask server
+    python activate-env.py                              # Check/install dependencies
+    python activate-env.py -Startserver                 # Setup and start Flask server
+    python activate-env.py -Startserver -NoCheck        # Start server without dependency check
+    python activate-env.py -Startserver -NoCheckExceptSyntax  # Start server, check syntax only
 """
 
 import sys
@@ -247,7 +249,9 @@ def main():
     logger.info("DnD Character Sheet - Environment Setup")
     logger.info("="*70)
     
-    start_server_after = "--server" in sys.argv
+    # Parse command line arguments
+    start_server_after = "--server" in sys.argv or "-Startserver" in sys.argv
+    skip_checks = "-NoCheck" in sys.argv or "-NoCheckExceptSyntax" in sys.argv
     
     # Step 1: Create venv if it doesn't exist
     if not venv_exists():
@@ -256,15 +260,20 @@ def main():
     else:
         print(f"[OK] Virtual environment already exists at {get_venv_path()}")
     
-    # Step 2: Install/check dependencies
-    if not check_and_install_requirements():
-        sys.exit(1)
+    # Step 2: Install/check dependencies (skip if -NoCheck flag is set)
+    if skip_checks:
+        print("[INFO] Skipping dependency check (-NoCheck or -NoCheckExceptSyntax)")
+    else:
+        if not check_and_install_requirements():
+            sys.exit(1)
     
-    # Step 3: Print activation instructions
-    print_activation_instructions()
+    # Step 3: Print activation instructions (unless starting server)
+    if not start_server_after:
+        print_activation_instructions()
     
     # Step 4: Optionally start server
     if start_server_after:
+        print("[INFO] Environment ready!")
         start_server()
 
 
