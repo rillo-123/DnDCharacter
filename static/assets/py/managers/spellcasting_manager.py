@@ -1011,9 +1011,18 @@ class SpellcastingManager:
         console.log(f"DEBUG: [render_spellbook] Found {len(cast_buttons)} cast buttons")
         for button in cast_buttons:
             console.log(f"DEBUG: [render_spellbook] Attaching click handler to button: {button}")
-            proxy = create_proxy(
-                lambda event, btn=button: self.handle_cast_button_click(event, btn)
-            )
+            # Use a factory function to create a proper closure
+            def make_cast_handler(btn):
+                def handler(event):
+                    try:
+                        console.log(f"[SPELL-UI] Cast button clicked")
+                        self.handle_cast_button_click(event, btn)
+                    except Exception as e:
+                        console.error(f"[SPELL-UI] Error in cast button handler: {e}")
+                return handler
+            
+            handler_func = make_cast_handler(button)
+            proxy = create_proxy(handler_func)
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
             console.log(f"DEBUG: [render_spellbook] Handler attached to cast button")
@@ -1027,9 +1036,19 @@ class SpellcastingManager:
             if not slug or not cast_level:
                 continue
             cast_level = int(cast_level)
-            proxy = create_proxy(
-                lambda event, s=slug, cl=cast_level: self.handle_cast_level_selected(event, s, cl)
-            )
+            
+            # Use a factory function to create a proper closure
+            def make_level_handler(s, cl):
+                def handler(event):
+                    try:
+                        console.log(f"[SPELL-UI] Cast level {cl} selected")
+                        self.handle_cast_level_selected(event, s, cl)
+                    except Exception as e:
+                        console.error(f"[SPELL-UI] Error in cast level handler: {e}")
+                return handler
+            
+            handler_func = make_level_handler(slug, cast_level)
+            proxy = create_proxy(handler_func)
             button.addEventListener("click", proxy)
             _EVENT_PROXIES.append(proxy)
 
