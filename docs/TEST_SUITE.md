@@ -50,30 +50,57 @@ Startup and health check tests:
 ## Running Tests
 
 ### All tests (recommended)
+
+**Windows (PowerShell):**
 ```powershell
 .\run_all_tests.ps1
 ```
 
-This script runs both test suites:
+**Linux/Unix/macOS (Bash):**
+```bash
+./run_all_tests.sh
+```
+
+Both scripts run the same test suites:
 1. Main test suite (763 tests) - excludes equipment events to avoid mock contamination
 2. Equipment events tests (28 tests) - runs separately with browser module mocking
 
+### Script Options
+
+Both test runner scripts support the following options:
+
+**Filtering tests:**
+```bash
+./run_all_tests.sh -f "spell"              # Filter by test name pattern
+.\run_all_tests.ps1 -Filter "spell"        # PowerShell equivalent
+```
+
+**Code quality tools:**
+```bash
+./run_all_tests.sh --radon                 # Run complexity analysis
+./run_all_tests.sh --ruff                  # Run linter
+./run_all_tests.sh --mypy                  # Run type checker
+./run_all_tests.sh --bandit                # Run security scanner
+./run_all_tests.sh --coverage              # Run test coverage report
+./run_all_tests.sh --all                   # Run all code quality tools
+```
+
 ### Main test suite only
-```powershell
-python -m pytest tests\ --ignore=tests\test_equipment_chooser.py --ignore=tests\test_equipment_events.py
+```bash
+python -m pytest tests/ --ignore=tests/test_equipment_chooser.py --ignore=tests/test_equipment_events.py
 ```
 
 ### Equipment events only
-```powershell
-python -m pytest tests\test_equipment_events.py -v
+```bash
+python -m pytest tests/test_equipment_events.py -v
 ```
 
 ### By category
-```powershell
-python -m pytest tests\ -k "spell" -v           # Spell-related tests
-python -m pytest tests\ -k "equipment" -v       # Equipment tests
-python -m pytest tests\ -k "export" -v          # Export tests
-python -m pytest tests\ -k "ac_calculation" -v  # AC calculation tests
+```bash
+python -m pytest tests/ -k "spell" -v           # Spell-related tests
+python -m pytest tests/ -k "equipment" -v       # Equipment tests
+python -m pytest tests/ -k "export" -v          # Export tests
+python -m pytest tests/ -k "ac_calculation" -v  # AC calculation tests
 ```
 
 ## Special Test: Equipment Events
