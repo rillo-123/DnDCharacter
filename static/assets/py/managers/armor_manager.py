@@ -27,7 +27,7 @@ Data Flow:
 
 import json
 from typing import Optional, Dict, List, Union, Any
-from entity_manager import EntityManager
+from .entity_manager import EntityManager
 from game_constants import ARMOR_AC_VALUES
 
 try:
@@ -939,3 +939,25 @@ def set_armor_bonus(inventory_manager, item_id: str, bonus_value: int) -> bool:
     except Exception as e:
         console.error(f"[ARMOR-SET] Error setting bonus: {e}")
         return False
+
+
+# === Module-level AC Calculation Function ===
+
+def calculate_total_ac_from_armor_manager(inventory_manager, character_stats: Union[Dict, Any] = None) -> int:
+    """Calculate total AC using the armor manager logic.
+    
+    This is the module-level function that wraps ArmorCollectionManager's AC calculation.
+    Used by character.py for AC tooltip generation.
+    
+    Args:
+        inventory_manager: The InventoryManager instance with equipped items
+        character_stats: Character stats dict or Character/CharacterManager instance
+    
+    Returns:
+        Total AC value (armor AC + shields + modifiers)
+    """
+    # Create an ArmorCollectionManager (read-only view of armor)
+    armor_manager = ArmorCollectionManager(inventory_manager, character_stats)
+    
+    # Return the calculated AC
+    return armor_manager.total_ac

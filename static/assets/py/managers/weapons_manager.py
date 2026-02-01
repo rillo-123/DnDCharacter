@@ -18,7 +18,7 @@ import json
 import re
 from typing import Optional, Dict, List, Union, Any
 
-from entity_manager import EntityManager
+from .entity_manager import EntityManager
 
 try:
     from character_models import Character
