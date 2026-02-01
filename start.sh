@@ -8,4 +8,4 @@ pkill -f "backend.py" 2>/dev/null || true
 sleep 1
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-python "$SCRIPT_DIR/activate-env.py" -Startserver -NoCheck "$@"
+python3 "$SCRIPT_DIR/activate-env.py" -Startserver -NoCheck "$@"
