@@ -7711,6 +7711,7 @@ def _ensure_spell_library_seeded(reason: str = "unspecified"):
         console.log("DEBUG: Re-rendering spell slots after loading/ensuring progression tables")
         SPELLCASTING_MANAGER.render_spell_slots()
         SPELLCASTING_MANAGER.render_slots_tracker()
+        SPELLCASTING_MANAGER.render_spellbook()
 
 
 # Auto-populate domain spells if domain is set and spell library is loaded
