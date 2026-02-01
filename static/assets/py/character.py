@@ -155,9 +155,20 @@ def _load_managers_package():
     This is a workaround for Pyodide which doesn't support relative imports
     with HTTP-loaded modules. We load the key modules that don't use relative
     imports and register them so that `from managers import ...` works.
+    
+    In non-Pyodide environments (like pytest), this will try filesystem import first.
     """
     try:
         console.log("DEBUG: [MANAGERS] Setting up managers package")
+        
+        # IMPORTANT: Try to import managers from filesystem first (for pytest and normal Python)
+        # Only create a fake HTTP-based managers if filesystem import fails
+        try:
+            import managers
+            console.log("DEBUG: [MANAGERS] managers package already available from filesystem")
+            return managers
+        except (ImportError, ModuleNotFoundError):
+            console.log("DEBUG: [MANAGERS] managers not found in filesystem, will try HTTP")
         
         # Create a minimal managers module object
         managers_module = ModuleType("managers")
