@@ -1108,7 +1108,11 @@ class SpellcastingManager:
                 console.log("[SPELL-UI] Menu hidden")
             else:
                 menu.style.display = "block"
-                console.log("[SPELL-UI] Menu shown")
+                console.log("[SPELL-UI] Menu shown - Click a spell level to cast")
+                # Show available options info
+                options = menu.querySelectorAll(".spell-cast-level-option")
+                if options.length > 0:
+                    console.log(f"[SPELL-UI] Available casting levels: {options.length} option(s)")
         except Exception as e:
             console.error(f"[SPELL-UI] Error toggling menu: {e}")
 

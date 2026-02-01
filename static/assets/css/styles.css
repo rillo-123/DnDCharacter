@@ -2778,17 +2778,29 @@ body {
     top: 0;
     left: calc(100% + 0.75rem);
     background: rgba(15, 23, 42, 0.98);
-    border: 1px solid rgba(148, 163, 184, 0.4);
+    border: 2px solid rgba(59, 130, 246, 0.6);
     border-radius: 0.5rem;
     padding: 0.5rem;
-    min-width: 180px;
+    min-width: 200px;
     z-index: 1000;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(59, 130, 246, 0.3);
     backdrop-filter: blur(8px);
 }
 
 .spell-cast-menu.show {
     display: block !important;
+    animation: slideInRight 0.2s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 .spell-cast-level-option {
@@ -2798,13 +2810,13 @@ body {
     background: transparent;
     border: none;
     color: #bae6fd;
-    padding: 0.65rem 1rem;
+    padding: 0.75rem 1rem;
     border-radius: 0.35rem;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.35rem;
 }
 
 .spell-cast-level-option:last-child {
@@ -2812,13 +2824,14 @@ body {
 }
 
 .spell-cast-level-option:hover {
-    background: rgba(59, 130, 246, 0.2);
+    background: rgba(59, 130, 246, 0.3);
     color: #ffffff;
-    padding-left: 1.25rem;
+    padding-left: 1.35rem;
+    box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.2);
 }
 
 .spell-cast-level-option:active {
-    background: rgba(59, 130, 246, 0.3);
+    background: rgba(59, 130, 246, 0.4);
 }
 
 .spellbook-card .outline {
