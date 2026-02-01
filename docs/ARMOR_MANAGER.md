@@ -152,7 +152,7 @@ def test_armor_collection_manager():
 
 ## Files
 
-- **Created:** [armor_manager.py](../static/assets/py/armor_manager.py)
+- **Created:** [armor_manager.py](../static/assets/py/managers/armor_manager.py)
 - **Updated:** [character.py](../static/assets/py/character.py) - Initialize armor manager
 - **Updated:** [equipment_management.py](../static/assets/py/equipment_management.py) - Sync grids on changes
 
