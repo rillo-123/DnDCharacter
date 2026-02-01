@@ -5904,31 +5904,40 @@ def get_equipment_items_from_dom() -> list:
 
 
 def fetch_equipment_from_open5e():
-    """Fetch equipment data from Open5e API and cache locally"""
+    """Fetch equipment data - prioritize local equipment.json over cached API data"""
     global EQUIPMENT_LIBRARY_STATE
     import json
     
-    # Check localStorage cache first
+    # Load from equipment.json FIRST (authoritative source)
+    try:
+        builtin_list = _get_builtin_equipment_list()
+        if builtin_list:
+            EQUIPMENT_LIBRARY_STATE["equipment"] = [item.to_dict() if hasattr(item, 'to_dict') else item for item in builtin_list]
+            console.log(f"PySheet: Loaded {len(builtin_list)} items from equipment.json")
+            return
+    except Exception as e:
+        console.log(f"PySheet: Failed to load equipment.json: {e}")
+    
+    # Fallback to cache only if equipment.json failed
     try:
         cache_key = "dnd_equipment_cache_v10"
         cached = window.localStorage.getItem(cache_key)
         if cached:
             cache_data = json.loads(cached)
             console.log(f"PySheet: Loaded {len(cache_data)} items from cache")
-            # Only use cache if it has a reasonable number of items (more than just common items)
             if len(cache_data) > 20:
                 EQUIPMENT_LIBRARY_STATE["equipment"] = cache_data
                 return
             else:
-                console.log(f"PySheet: Cache too small ({len(cache_data)} items), using fallback")
+                console.log(f"PySheet: Cache too small ({len(cache_data)} items), using empty fallback")
         else:
             console.log("PySheet: No cache found in localStorage")
     except Exception as e:
         console.log(f"PySheet: Cache load error: {str(e)}")
     
-    # Use comprehensive fallback of common D&D 5e items
-    console.log("PySheet: Using comprehensive fallback equipment list")
-    EQUIPMENT_LIBRARY_STATE["equipment"] = [item.to_dict() if hasattr(item, 'to_dict') else item for item in _get_builtin_equipment_list()]
+    # If both failed, use empty list
+    console.log("PySheet: Both equipment.json and cache failed, using empty list")
+    EQUIPMENT_LIBRARY_STATE["equipment"] = []
 
 
 def _get_builtin_equipment_list():

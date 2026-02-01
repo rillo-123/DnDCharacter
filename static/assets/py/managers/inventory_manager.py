@@ -410,6 +410,7 @@ class InventoryManager:
     def __init__(self):
         self.items: list[dict] = []
         self.event_listener = None  # Will be initialized later
+        self._change_listeners: list = []  # Event listeners for inventory changes
     
     def load_state(self, state: Optional[dict]):
         """Load inventory from character state."""
@@ -465,6 +466,29 @@ class InventoryManager:
             return "Mounts & Vehicles"
         return "Other"
     
+    # === Event Listener Management ===
+    
+    def add_change_listener(self, callback):
+        """Register a listener to be notified when inventory changes.
+        
+        Args:
+            callback: A callable that takes no arguments and is called when
+                     the inventory is modified (items added, removed, or updated)
+        """
+        if callable(callback) and callback not in self._change_listeners:
+            self._change_listeners.append(callback)
+            console.log(f"[INVENTORY] Registered change listener: {callback}")
+    
+    def _notify_change_listeners(self):
+        """Notify all registered listeners that inventory has changed."""
+        for listener in self._change_listeners:
+            try:
+                listener()
+            except Exception as e:
+                console.error(f"[INVENTORY] Error calling listener {listener}: {e}")
+    
+    # === Item Management ===
+    
     def add_item(self, name: str, cost: str = "", weight: str = "", qty: int = 1, 
                  category: str = "", notes: str = "", source: str = "custom") -> str:
         """Add an item to inventory and return its ID."""
@@ -491,11 +515,13 @@ class InventoryManager:
             "equipped": False,
         }
         self.items.append(item)
+        self._notify_change_listeners()
         return item_id
     
     def remove_item(self, item_id: str):
         """Remove an item by ID."""
         self.items = [item for item in self.items if item.get("id") != item_id]
+        self._notify_change_listeners()
     
     def get_item(self, item_id: str) -> Optional[dict]:
         """Get an item by ID."""
@@ -516,6 +542,7 @@ class InventoryManager:
                         item[key] = value
                         console.log(f"[UPDATE-ITEM-DEBUG] Set {key}={value}")
                 console.log(f"[UPDATE-ITEM-DEBUG] After update: notes={item.get('notes', 'NONE')}")
+                self._notify_change_listeners()
                 break
     
     def get_items_by_category(self) -> dict[str, list[dict]]:
@@ -1015,48 +1042,88 @@ class InventoryManager:
         console.log(f"[EQUIPMENT] Removing item: {item_id}")
         event.stopPropagation()
         event.preventDefault()
+        
+        # Get item category before removing it
+        item = self.get_item(item_id)
+        item_category = item.get("category", "").lower() if item else ""
+        
+        # Remove the item
         self.remove_item(item_id)
         self.render_inventory()
-        update_calculations()
         
         # Ensure module references are initialized
         initialize_module_references()
+        
+        # Call update_calculations() through character module reference
+        if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'update_calculations'):
+            try:
+                _CHAR_MODULE_REF.update_calculations()
+                console.log("[EQUIPMENT] Called update_calculations() after item removal")
+            except Exception as e:
+                console.error(f"[EQUIPMENT] Error calling update_calculations(): {e}")
         
         # Sync weapons and armor grids if removed item was a weapon or armor
         try:
             from .weapons_manager import get_weapons_manager
             from .armor_manager import get_armor_manager
             
-            weapons_mgr = get_weapons_manager()
-            if weapons_mgr:
-                console.log("[EQUIPMENT] Re-rendering weapons grid after removal")
-                weapons_mgr.render()
+            if item_category in ["weapons", "weapon"]:
+                weapons_mgr = get_weapons_manager()
+                if weapons_mgr:
+                    console.log("[EQUIPMENT] Re-rendering weapons grid after removal")
+                    # Ensure weapons_mgr has reference to this inventory_manager
+                    weapons_mgr.inventory_manager = self
+                    weapons_mgr.render()
             
-            armor_mgr = get_armor_manager()
-            if armor_mgr:
-                console.log("[EQUIPMENT] Re-rendering armor grid after removal")
-                armor_mgr.render()
+            if item_category in ["armor", "shield"]:
+                armor_mgr = get_armor_manager()
+                if armor_mgr:
+                    console.log("[EQUIPMENT] Re-rendering armor grid after removal")
+                    # Ensure armor_mgr has reference to THIS inventory_manager instance
+                    armor_mgr.inventory_manager = self
+                    armor_mgr.render()
         except Exception as e:
             console.error(f"[EQUIPMENT] Error syncing grids: {e}")
         
-        # Trigger save to persist changes
-        try:
-            schedule_auto_export()
-            console.log("[EQUIPMENT] Auto-export triggered after item removal")
-        except Exception as e:
-            console.warn(f"[EQUIPMENT] Failed to trigger auto-export: {e}")
+        # Trigger save to persist changes using module reference
+        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+            try:
+                _EXPORT_MODULE_REF.schedule_auto_export()
+                console.log("[EQUIPMENT] Auto-export triggered after item removal")
+            except Exception as e:
+                console.warn(f"[EQUIPMENT] Failed to trigger auto-export: {e}")
     def _handle_qty_change(self, event, item_id: str):
         """Handle quantity changes."""
         qty_input = event.target
         qty = parse_int(qty_input.value, 1)
         self.update_item(item_id, {"qty": qty})
         self.render_inventory()
+        
+        # Ensure module references are initialized
+        initialize_module_references()
+        
+        # Trigger auto-export
+        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+            try:
+                _EXPORT_MODULE_REF.schedule_auto_export()
+            except Exception as e:
+                console.warn(f"[QTY-CHANGE] Failed to trigger auto-export: {e}")
     def _handle_category_change(self, event, item_id: str):
         """Handle category changes."""
         cat_select = event.target
         category = cat_select.value or "Other"
         self.update_item(item_id, {"category": category})
         self.render_inventory()
+        
+        # Ensure module references are initialized
+        initialize_module_references()
+        
+        # Trigger auto-export
+        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+            try:
+                _EXPORT_MODULE_REF.schedule_auto_export()
+            except Exception as e:
+                console.warn(f"[CATEGORY-CHANGE] Failed to trigger auto-export: {e}")
     def _handle_custom_props_change(self, event, item_id: str):
         """Handle custom properties/effects changes."""
         props_input = event.target
@@ -1082,6 +1149,17 @@ class InventoryManager:
             notes = json.dumps(extra_props) if extra_props else ""
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()
+            
+            # Ensure module references are initialized
+            initialize_module_references()
+            
+            # Trigger auto-export
+            if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+                try:
+                    _EXPORT_MODULE_REF.schedule_auto_export()
+                except Exception as e:
+                    console.warn(f"[CUSTOM-PROPS] Failed to trigger auto-export: {e}")
+    
     def _handle_modifier_change(self, event, item_id: str, modifier_type: str):
         """Handle AC or Saves modifier changes."""
         mod_input = event.target
@@ -1119,8 +1197,15 @@ class InventoryManager:
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()  # Update display
             
+            # Ensure module references are initialized
+            initialize_module_references()
+            
             # Update calculations (which will recalculate AC and stats)
-            update_calculations()
+            if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'update_calculations'):
+                try:
+                    _CHAR_MODULE_REF.update_calculations()
+                except Exception as e:
+                    console.error(f"[MODIFIER] Error calling update_calculations(): {e}")
     def _handle_armor_only_toggle(self, event, item_id: str):
         """Handle armor-only flag toggle for magic armor/shields."""
         checkbox = event.target
@@ -1154,8 +1239,16 @@ class InventoryManager:
             self.update_item(item_id, {"notes": notes})
             self.render_inventory()  # Update display
             
+            # Ensure module references are initialized
+            initialize_module_references()
+            
             # Update calculations (which will recalculate AC and stats)
-            update_calculations()
+            if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'update_calculations'):
+                try:
+                    _CHAR_MODULE_REF.update_calculations()
+                except Exception as e:
+                    console.error(f"[ARMOR-ONLY] Error calling update_calculations(): {e}")
+    
     def _handle_armor_ac_change(self, event, item_id: str):
         """Handle armor AC base value changes."""
         ac_input = event.target
@@ -1253,7 +1346,13 @@ class InventoryManager:
             
             # Update calculations (which will recalculate AC with new armor base)
             console.log("[AC-CHANGE] Calling update_calculations()")
-            update_calculations()
+            # Ensure module references are initialized
+            initialize_module_references()
+            if _CHAR_MODULE_REF is not None and hasattr(_CHAR_MODULE_REF, 'update_calculations'):
+                try:
+                    _CHAR_MODULE_REF.update_calculations()
+                except Exception as e:
+                    console.error(f"[AC-CHANGE] Error calling update_calculations(): {e}")
             
             # Re-render armor manager to show updated AC
             try:
@@ -1321,6 +1420,16 @@ class InventoryManager:
                 console.log("[BONUS-WEAPON] Saved to localStorage")
         except Exception as e:
             console.error(f"[BONUS-WEAPON] Error saving: {e}")
+        
+        # Ensure module references are initialized
+        initialize_module_references()
+        
+        # Trigger auto-export
+        if _EXPORT_MODULE_REF is not None and hasattr(_EXPORT_MODULE_REF, 'schedule_auto_export'):
+            try:
+                _EXPORT_MODULE_REF.schedule_auto_export()
+            except Exception as e:
+                console.warn(f"[BONUS-WEAPON] Failed to trigger auto-export: {e}")
     
     def _handle_equipped_toggle(self, event, item_id: str):
         """Handle equipped checkbox toggle."""
@@ -1360,6 +1469,8 @@ class InventoryManager:
                         weapons_mgr = get_weapons_manager()
                         if weapons_mgr:
                             console.log("[EQUIPMENT] Re-rendering weapons grid after equip toggle")
+                            # Ensure weapons_mgr has reference to this inventory_manager
+                            weapons_mgr.inventory_manager = self
                             weapons_mgr.render()
                         # Also call render_equipped_attack_grid from character module for Skills tab
                         # Use setTimeout to ensure state is flushed first
@@ -1383,6 +1494,8 @@ class InventoryManager:
                         armor_mgr = get_armor_manager()
                         if armor_mgr:
                             console.log("[EQUIPMENT] Re-rendering armor grid after equip toggle")
+                            # Ensure armor_mgr has reference to THIS inventory_manager instance
+                            armor_mgr.inventory_manager = self
                             armor_mgr.render()
                 except Exception as e:
                     console.log(f"[EQUIPMENT] Grid sync not available: {e}")

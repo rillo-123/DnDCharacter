@@ -482,6 +482,62 @@
       "type": "instrument",
       "weight": 1,
       "cost": "35 gp"
+    },
+    {
+      "name": "Explorer's Pack",
+      "type": "pack",
+      "weight": 59,
+      "cost": "10 gp",
+      "source": "PHB"
+    },
+    {
+      "name": "Adventurer's Pack",
+      "type": "pack",
+      "weight": 54,
+      "cost": "5 gp",
+      "source": "PHB"
+    },
+    {
+      "name": "Burglar's Pack",
+      "type": "pack",
+      "weight": 44,
+      "cost": "16 gp",
+      "source": "PHB"
+    },
+    {
+      "name": "Diplomat's Pack",
+      "type": "pack",
+      "weight": 46,
+      "cost": "39 gp",
+      "source": "PHB"
+    },
+    {
+      "name": "Dungeoneer's Pack",
+      "type": "pack",
+      "weight": 61,
+      "cost": "12 gp",
+      "source": "PHB"
+    },
+    {
+      "name": "Entertainer's Pack",
+      "type": "pack",
+      "weight": 38,
+      "cost": "40 gp",
+      "source": "PHB"
+    },
+    {
+      "name": "Priest's Pack",
+      "type": "pack",
+      "weight": 24,
+      "cost": "19 gp",
+      "source": "PHB"
+    },
+    {
+      "name": "Scholar's Pack",
+      "type": "pack",
+      "weight": 10,
+      "cost": "40 gp",
+      "source": "PHB"
     }
   ]
 }

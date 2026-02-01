@@ -726,11 +726,69 @@ _ARMOR_MANAGER: Optional[ArmorCollectionManager] = None
 
 
 def get_armor_manager() -> Optional[ArmorCollectionManager]:
-    """Get the global armor manager instance."""
+    """Get the global armor manager instance (singleton).
+    
+    Returns the already-initialized manager, or None if not yet initialized.
+    Call initialize_armor_manager() first to create the instance.
+    """
     return _ARMOR_MANAGER
 
 
-def calculate_total_ac_from_armor_manager(inventory_manager, character_stats: Dict) -> int:
+def initialize_armor_manager(inventory_manager, character_stats: Dict = None):
+    """Initialize the global armor manager (singleton).
+    
+    Creates the ONE AND ONLY ArmorCollectionManager instance that will exist
+    for the lifetime of the application. This instance listens to inventory
+    changes and updates the UI whenever armor/shields are added/removed/modified.
+    
+    Args:
+        inventory_manager: The InventoryManager instance (source of truth)
+        character_stats: Character stats dict with ability scores
+    
+    Returns:
+        The initialized ArmorCollectionManager singleton
+    """
+    global _ARMOR_MANAGER
+    if _ARMOR_MANAGER is not None:
+        console.log("[ARMOR] Manager already initialized, returning existing instance")
+        return _ARMOR_MANAGER
+    
+    _ARMOR_MANAGER = ArmorCollectionManager(inventory_manager, character_stats)
+    
+    # Register this manager as a listener on inventory changes
+    if hasattr(inventory_manager, 'add_change_listener'):
+        inventory_manager.add_change_listener(_on_inventory_changed)
+    
+    console.log("[ARMOR] Armor manager singleton initialized")
+    return _ARMOR_MANAGER
+
+
+def _on_inventory_changed():
+    """Event callback: Inventory changed, update armor table.
+    
+    This is called whenever inventory_manager detects a change
+    (item added, removed, modified, etc.). The armor manager
+    will re-render using its properties which dynamically filter
+    from the current inventory state.
+    """
+    if _ARMOR_MANAGER:
+        console.log("[ARMOR] Inventory changed event received, re-rendering armor table")
+        _ARMOR_MANAGER.render()
+    else:
+        console.warn("[ARMOR] Received inventory change event but manager not initialized")
+
+
+def render_armor_grid():
+    """Render the armor grid (public API).
+    
+    Call this whenever the armor table needs to be updated,
+    though it should normally be called automatically via
+    the inventory change event listener.
+    """
+    if _ARMOR_MANAGER:
+        _ARMOR_MANAGER.render()
+    else:
+        console.warn("[ARMOR] render_armor_grid called but manager not initialized")
     """Calculate total AC using armor_manager logic (single source of truth).
     
     This is the authoritative AC calculation that uses the same logic as the armor table.
@@ -881,17 +939,3 @@ def set_armor_bonus(inventory_manager, item_id: str, bonus_value: int) -> bool:
     except Exception as e:
         console.error(f"[ARMOR-SET] Error setting bonus: {e}")
         return False
-
-
-def initialize_armor_manager(inventory_manager, character_stats: Dict = None):
-    """Initialize the global armor manager."""
-    global _ARMOR_MANAGER
-    _ARMOR_MANAGER = ArmorCollectionManager(inventory_manager, character_stats)
-    console.log("[ARMOR] Armor manager initialized")
-    return _ARMOR_MANAGER
-
-
-def render_armor_grid():
-    """Render the armor grid (public API)."""
-    if _ARMOR_MANAGER:
-        _ARMOR_MANAGER.render()

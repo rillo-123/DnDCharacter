@@ -542,15 +542,45 @@ def get_weapons_manager() -> Optional[WeaponsCollectionManager]:
 
 
 def initialize_weapons_manager(inventory_manager, character_stats: Dict = None):
-    """Initialize the global weapons manager.
+    """Initialize the global weapons manager (singleton).
     
-    Call this once during application startup.
+    Creates the ONE AND ONLY WeaponsCollectionManager instance that will exist
+    for the lifetime of the application. This instance listens to inventory
+    changes and updates the UI whenever weapons are added/removed/equipped.
     
     Args:
-        inventory_manager: InventoryManager instance
+        inventory_manager: The InventoryManager instance (source of truth)
         character_stats: Character ability scores and proficiency
+    
+    Returns:
+        The initialized WeaponsCollectionManager singleton
     """
     global _WEAPONS_MANAGER
+    if _WEAPONS_MANAGER is not None:
+        console.log("[WEAPONS] Manager already initialized, returning existing instance")
+        return _WEAPONS_MANAGER
+    
     _WEAPONS_MANAGER = WeaponsCollectionManager(inventory_manager)
     _WEAPONS_MANAGER.initialize(character_stats)
+    
+    # Register this manager as a listener on inventory changes
+    if hasattr(inventory_manager, 'add_change_listener'):
+        inventory_manager.add_change_listener(_on_weapons_inventory_changed)
+    
+    console.log("[WEAPONS] Weapons manager singleton initialized")
     return _WEAPONS_MANAGER
+
+
+def _on_weapons_inventory_changed():
+    """Event callback: Inventory changed, update weapons table.
+    
+    This is called whenever inventory_manager detects a change
+    (item added, removed, modified, etc.). The weapons manager
+    will re-render using its properties which dynamically filter
+    from the current inventory state.
+    """
+    if _WEAPONS_MANAGER:
+        console.log("[WEAPONS] Inventory changed event received, re-rendering weapons table")
+        _WEAPONS_MANAGER.render()
+    else:
+        console.warn("[WEAPONS] Received inventory change event but manager not initialized")
