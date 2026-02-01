@@ -1613,9 +1613,8 @@ def reset_spell_slots(_event=None):
             SPELLCASTING_MANAGER.reset_spell_slots()
         reset_channel_divinity()
         
-        # Dispatch custom event so spell manager can respond
-        event = window.CustomEvent("long-rest", {})
-        document.dispatchEvent(event)
+        # Re-run calculations to ensure spellbook renders with correct slot counts
+        update_calculations()
         
         trigger_auto_export("reset_spell_slots")
     except Exception as e:
