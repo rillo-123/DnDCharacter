@@ -125,7 +125,20 @@ _AUTO_EXPORT_DISABLED = False
 _AUTO_EXPORT_SUPPORT_WARNED = False
 _AUTO_EXPORT_DIRECTORY_HANDLE = None
 _AUTO_EXPORT_LAST_FILENAME = ""
-_AUTO_EXPORT_SETUP_PROMPTED = False
+_AUTO_EXPORT_SETUP_PROMPTED = False  # Will be read from localStorage on init
+
+def _restore_auto_export_setup_flag():
+    """Restore _AUTO_EXPORT_SETUP_PROMPTED from localStorage to prevent re-prompting."""
+    global _AUTO_EXPORT_SETUP_PROMPTED
+    try:
+        storage = _resolve_local_storage()
+        if storage:
+            saved_value = storage.getItem("_AUTO_EXPORT_SETUP_PROMPTED")
+            if saved_value == "true":
+                _AUTO_EXPORT_SETUP_PROMPTED = True
+                console.log("[DEBUG] Restored _AUTO_EXPORT_SETUP_PROMPTED from localStorage")
+    except Exception as e:
+        console.warn(f"[DEBUG] Failed to restore _AUTO_EXPORT_SETUP_PROMPTED: {e}")
 
 # Event proxy list (for memory management)
 _EVENT_PROXIES = []
@@ -1348,6 +1361,14 @@ def prompt_for_auto_export_on_load_sync(api_available: bool = None, confirm_meth
     
     console.log("[DEBUG] Showing confirm dialog...")
     _AUTO_EXPORT_SETUP_PROMPTED = True
+    # Persist to localStorage so we don't re-prompt on page reload or re-import
+    try:
+        storage = _resolve_local_storage()
+        if storage:
+            storage.setItem("_AUTO_EXPORT_SETUP_PROMPTED", "true")
+            console.log("[DEBUG] Saved _AUTO_EXPORT_SETUP_PROMPTED to localStorage")
+    except Exception as e:
+        console.warn(f"[DEBUG] Failed to save _AUTO_EXPORT_SETUP_PROMPTED: {e}")
     
     wants_setup = False
     try:
@@ -1435,6 +1456,9 @@ def _pick_auto_export_directory_sync(confirm_method = None, directory_picker_met
         asyncio.create_task(_handle_setup())
     except Exception as e:
         console.warn(f"PySheet: failed to set up auto-export - {e}")
+
+# Initialize: restore the setup-prompted flag from localStorage on module load
+_restore_auto_export_setup_flag()
 
 
 async def prompt_for_auto_export_on_load(api_available: bool = None, confirm_method = None, directory_picker_method = None):

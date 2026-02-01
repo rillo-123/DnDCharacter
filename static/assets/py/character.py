@@ -226,6 +226,8 @@ def _load_managers_package():
             url = "http://localhost:8080/assets/py/managers/spellcasting_manager.py"
             spellcasting_mod = _load_module_from_http_sync("spellcasting_manager", url, _retry=False)
             if spellcasting_mod:
+                # Store module object itself for sync code to access
+                setattr(managers_module, "spellcasting_manager", spellcasting_mod)
                 # Copy exports to managers module
                 for attr in ["SpellcastingManager", "SpellcasterManager", "SPELL_LIBRARY_STATE", "set_spell_library_data", "load_spell_library", "CLASS_CASTING_PROGRESSIONS", "SPELLCASTING_PROGRESSION_TABLES"]:
                     if hasattr(spellcasting_mod, attr):
@@ -7597,7 +7599,7 @@ def _ensure_spell_library_seeded(reason: str = "unspecified"):
     console.log(f"DEBUG: _ensure_spell_library_seeded(reason={reason})")
     
     # FIRST: Always ensure progression tables are loaded (don't skip on early return)
-    if not CLASS_CASTING_PROGRESSIONS:
+    if not CLASS_CASTING_PROGRESSIONS or not STANDARD_SLOT_TABLE:
         console.log("DEBUG: CLASS_CASTING_PROGRESSIONS is empty, attempting to load from spell_data")
         try:
             spell_data_module = _load_module_from_http_sync("spell_data", "http://localhost:8080/assets/py/spell_data.py")

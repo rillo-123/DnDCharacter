@@ -60,11 +60,11 @@ try {
     Write-Host "========================================`n" -ForegroundColor Cyan
 
     if ($mainExitCode -eq 0 -and $eventsExitCode -eq 0) {
-        Write-Host "✓ All tests passed!" -ForegroundColor Green
+        Write-Host "[OK] All tests passed!" -ForegroundColor Green
         Write-Host "  - Main test suite: PASSED" -ForegroundColor Green
         Write-Host "  - Equipment events tests: PASSED" -ForegroundColor Green
     } else {
-        Write-Host "✗ Some tests failed:" -ForegroundColor Red
+        Write-Host "[FAIL] Some tests failed:" -ForegroundColor Red
         if ($mainExitCode -ne 0) {
             Write-Host "  - Main test suite: FAILED (exit code $mainExitCode)" -ForegroundColor Red
         } else {
@@ -99,7 +99,7 @@ try {
             Write-Host "`n--- Mypy Type Checker ---" -ForegroundColor Yellow
             & $python -m mypy static/assets/py --ignore-missing-imports --no-error-summary 2>$null
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✓ No type errors found" -ForegroundColor Green
+                Write-Host "[OK] No type errors found" -ForegroundColor Green
             }
             Write-Host ""
         }
@@ -121,11 +121,11 @@ try {
         Write-Host "Code Quality Summary" -ForegroundColor Cyan
         Write-Host "========================================`n" -ForegroundColor Cyan
         
-        if ($Radon) { Write-Host "✓ Complexity analysis complete" -ForegroundColor Green }
-        if ($Ruff) { Write-Host "✓ Linting complete" -ForegroundColor Green }
-        if ($Mypy) { Write-Host "✓ Type checking complete" -ForegroundColor Green }
-        if ($Bandit) { Write-Host "✓ Security scan complete" -ForegroundColor Green }
-        if ($Coverage) { Write-Host "✓ Coverage report complete" -ForegroundColor Green }
+        if ($Radon) { Write-Host "[OK] Complexity analysis complete" -ForegroundColor Green }
+        if ($Ruff) { Write-Host "[OK] Linting complete" -ForegroundColor Green }
+        if ($Mypy) { Write-Host "[OK] Type checking complete" -ForegroundColor Green }
+        if ($Bandit) { Write-Host "[OK] Security scan complete" -ForegroundColor Green }
+        if ($Coverage) { Write-Host "[OK] Coverage report complete" -ForegroundColor Green }
     }
     
     # Exit with appropriate code
