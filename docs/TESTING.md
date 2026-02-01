@@ -112,8 +112,15 @@ Examples:
 
 ## Running Tests
 
-### Run all tests:
+### Run all tests (recommended):
 ```bash
+# Using PowerShell script (Windows)
+.\run_all_tests.ps1
+
+# With code quality tools
+.\run_all_tests.ps1 -All
+
+# Using pytest directly (cross-platform)
 pytest tests/ -v
 ```
 
