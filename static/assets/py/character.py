@@ -247,6 +247,17 @@ def _load_managers_package():
         except Exception as e:
             console.error(f"DEBUG: [MANAGERS] Error loading game_constants: {e}")
         
+        # Load tooltip_values EARLY - needed by weapons_manager for tooltips
+        try:
+            url = "http://localhost:8080/assets/py/tooltip_values.py"
+            tooltip_mod = _load_module_from_http_sync("tooltip_values", url, _retry=False)
+            if tooltip_mod:
+                console.log("DEBUG: [MANAGERS] ✓ tooltip_values loaded and available in sys.modules")
+            else:
+                console.warn("DEBUG: [MANAGERS] tooltip_values module returned None (optional)")
+        except Exception as e:
+            console.warn(f"DEBUG: [MANAGERS] Warning loading tooltip_values: {e} (tooltips may not work)")
+        
         # Load inventory_manager FIRST - this is the critical one
         try:
             url = "http://localhost:8080/assets/py/managers/inventory_manager.py"
@@ -1702,10 +1713,18 @@ def _extract_weapon_properties(weapon: dict) -> tuple[int, str, str, str, str, b
             if isinstance(prop, str) and ("ranged" in prop.lower() or "ammunition" in prop.lower()):
                 is_ranged = True
                 break
-    elif not is_ranged and weapon_range == "Melee":
-        # Check by category
+    elif weapon_properties_str and not is_ranged:
+        # Check properties string if list is empty
+        if "ranged" in weapon_properties_str.lower() or "ammunition" in weapon_properties_str.lower():
+            is_ranged = True
+    
+    # If still not determined, check by category or range
+    if not is_ranged:
         weapon_category = weapon.get("category", "").lower()
         if "ranged" in weapon_category or "bow" in weapon_category or "crossbow" in weapon_category:
+            is_ranged = True
+        elif weapon_range != "Melee" and weapon_range:
+            # If range is specified and not "Melee", assume it's ranged
             is_ranged = True
     
     # Default damage if not found
@@ -1841,8 +1860,8 @@ def render_weapons_grid():
         
         # Debug logging
         weapon_name = weapon.get("name", "Unknown")
-        if "rapier" in weapon_name.lower():
-            console.log(f"DEBUG: Rapier weapon object: {weapon}")
+        if "rapier" in weapon_name.lower() or "crossbow" in weapon_name.lower():
+            console.log(f"DEBUG: {weapon_name} weapon object: {weapon}")
             console.log(f"DEBUG: Extracted properties: properties_str='{weapon_properties_str}', properties_list={weapon_properties_list}, is_ranged={is_ranged}")
             dex_score = scores.get("dex", 10) + race_bonuses.get("dex", 0)
             str_score = scores.get("str", 10) + race_bonuses.get("str", 0)
@@ -1852,7 +1871,7 @@ def render_weapons_grid():
         # Calculate to-hit
         to_hit = _calculate_weapon_to_hit(weapon_bonus, is_ranged, weapon_properties_str, weapon_properties_list, scores, race_bonuses, proficiency)
         
-        if "rapier" in weapon_name.lower():
+        if "rapier" in weapon_name.lower() or "crossbow" in weapon_name.lower():
             console.log(f"DEBUG: Final to_hit={to_hit}")
         
         # Create and append row
@@ -3364,6 +3383,27 @@ def populate_form(data: dict):
         load_inventory_state(normalized)
         render_inventory()
         console.log("[POPULATE] Inventory loaded and rendered")
+
+        # Re-render the weapons manager with the newly loaded inventory
+        console.log("[POPULATE] Re-rendering weapons manager after inventory load")
+        try:
+            import sys
+            weapons_mgr_module = sys.modules.get('weapons_manager')
+            if weapons_mgr_module:
+                get_mgr_func = getattr(weapons_mgr_module, 'get_weapons_manager', None)
+                if get_mgr_func:
+                    weapons_mgr = get_mgr_func()
+                    if weapons_mgr:
+                        weapons_mgr.render()
+                        console.log("[POPULATE] ✓ Weapons manager re-rendered after inventory load")
+                    else:
+                        console.warn("[POPULATE] Weapons manager instance not found, skipping re-render")
+                else:
+                    console.warn("[POPULATE] get_weapons_manager not found")
+            else:
+                console.log("[POPULATE] weapons_manager module not yet loaded, will render in _auto_load_weapons")
+        except Exception as e:
+            console.warn(f"[POPULATE] Could not re-render weapons manager: {e}")
 
         # NOW update calculations (which calls update_equipment_totals)
         console.log("[POPULATE] Updating calculations...")
@@ -5061,10 +5101,22 @@ def _create_weapon_row(item: dict) -> object:
     level = get_numeric_value("level", 1)
     proficiency = compute_proficiency(level)
     
+    # DEBUG for crossbows
+    item_name_lower = item.get("name", "").lower()
+    if "crossbow" in item_name_lower:
+        console.log(f"[DEBUG CROSSBOW-FULL] {item.get('name')}")
+        console.log(f"  - item dict: {item}")
+        console.log(f"  - enriched dict: {enriched}")
+    
     # Calculate to-hit
     ability_key = _determine_weapon_ability(item, enriched)
     ability_score = get_numeric_value(f"{ability_key}-score", 10)
     ability_mod = ability_modifier(ability_score)
+    
+    if "crossbow" in item_name_lower:
+        console.log(f"  - ability_key: {ability_key}")
+        console.log(f"  - ability_score (queried): {ability_score}")
+        console.log(f"  - ability_mod: {ability_mod}")
     
     weapon_bonus = enriched.get("bonus", 0) or 0
     if not weapon_bonus:
@@ -5075,6 +5127,11 @@ def _create_weapon_row(item: dict) -> object:
     has_proficiency = _check_weapon_proficiency(item, enriched)
     actual_proficiency = proficiency if has_proficiency else 0
     to_hit = ability_mod + actual_proficiency + weapon_bonus
+    
+    if "crossbow" in item_name_lower:
+        console.log(f"  - proficiency: {actual_proficiency}")
+        console.log(f"  - weapon_bonus: {weapon_bonus}")
+        console.log(f"  - FINAL TO_HIT: {to_hit}")
     
     # Create row
     tr = document.createElement("tr")

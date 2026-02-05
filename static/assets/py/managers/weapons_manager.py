@@ -42,7 +42,17 @@ except ImportError:
 try:
     from tooltip_values import WeaponToHitValue
 except ImportError:
-    WeaponToHitValue = None
+    # Fallback for HTTP loading context
+    try:
+        # Try to load from sys.modules first
+        tooltip_module = sys.modules.get('tooltip_values')
+        if tooltip_module and hasattr(tooltip_module, 'WeaponToHitValue'):
+            WeaponToHitValue = getattr(tooltip_module, 'WeaponToHitValue')
+        else:
+            # If not available, we'll load it dynamically when needed
+            WeaponToHitValue = None
+    except Exception:
+        WeaponToHitValue = None
 
 try:
     from js import console, document
@@ -218,6 +228,9 @@ class WeaponEntity(EntityManager):
     def _calculate_tohit(self) -> int:
         """Calculate to-hit bonus: ability_mod + proficiency + weapon_bonus."""
         try:
+            # Get weapon name for logging
+            weapon_name = self.entity.get("name", "").lower()
+            
             # Get weapon properties for ability determination
             weapon_type = self.entity.get("weapon_type", "").lower()
             properties = self.entity.get("weapon_properties", "")
@@ -239,7 +252,14 @@ class WeaponEntity(EntityManager):
             dex_mod = (dex_score - 10) // 2
             
             # Determine which ability to use
-            is_ranged = weapon_type == "ranged" or "range" in weapon_type.lower()
+            # Check for ranged: weapon_type, properties string, or weapon name keywords
+            is_ranged = (
+                weapon_type == "ranged" or 
+                "range" in weapon_type.lower() or
+                (properties and ("ammunition" in properties.lower() or "ranged" in properties.lower())) or
+                any(kw in weapon_name for kw in ["crossbow", "bow", "ranged"])
+            )
+            
             is_finesse = properties and "finesse" in properties.lower()
             
             if is_ranged:
@@ -291,6 +311,7 @@ class WeaponEntity(EntityManager):
             Tuple of (ability_key, ability_mod, proficiency, weapon_bonus)
         """
         try:
+            weapon_name = self.entity.get("name", "").lower()
             weapon_type = self.entity.get("weapon_type", "").lower()
             properties = self.entity.get("weapon_properties", "")
             
@@ -308,7 +329,13 @@ class WeaponEntity(EntityManager):
             str_mod = (str_score - 10) // 2
             dex_mod = (dex_score - 10) // 2
             
-            is_ranged = weapon_type == "ranged" or "range" in weapon_type.lower()
+            # Check for ranged weapons: weapon_type, properties string, or weapon name
+            is_ranged = (
+                weapon_type == "ranged" or 
+                "range" in weapon_type.lower() or
+                (properties and ("ammunition" in properties.lower() or "ranged" in properties.lower())) or
+                any(kw in weapon_name for kw in ["crossbow", "bow", "ranged"])
+            )
             is_finesse = properties and "finesse" in properties.lower()
             
             if is_ranged:
@@ -408,6 +435,41 @@ class WeaponsCollectionManager:
         else:
             console.error("[WEAPONS] weapons-grid element not found")
     
+    def update_character_stats(self, stats: Dict):
+        """Update character stats (called when abilities change).
+        
+        Args:
+            stats: Dictionary with keys like 'str', 'dex', 'con', 'proficiency', etc.
+        """
+        if stats:
+            self.character_stats = stats
+            console.log(f"[WEAPONS] Updated character stats: {list(stats.keys())}")
+            # Re-render with new stats
+            self.render()
+    
+    def update_character_stats_from_form(self):
+        """Fetch character stats directly from the form fields."""
+        try:
+            from character import gather_scores, compute_proficiency, get_numeric_value
+            
+            scores = gather_scores()
+            level = get_numeric_value("level", 1)
+            proficiency = compute_proficiency(level)
+            
+            self.character_stats = {
+                "str": scores.get("str", 10),
+                "dex": scores.get("dex", 10),
+                "con": scores.get("con", 10),
+                "int": scores.get("int", 10),
+                "wis": scores.get("wis", 10),
+                "cha": scores.get("cha", 10),
+                "proficiency": proficiency,
+            }
+            console.log(f"[WEAPONS] Fetched character stats from form: dex={self.character_stats.get('dex')}, prof={proficiency}")
+            self.render()
+        except Exception as e:
+            console.error(f"[WEAPONS] Error fetching stats from form: {e}")
+    
     def _get_element(self, element_id: str):
         """Get element by ID, with fallback for testing."""
         try:
@@ -504,11 +566,15 @@ class WeaponsCollectionManager:
             
             # Generate tooltip if WeaponToHitValue is available
             tooltip_html = ""
-            if WeaponToHitValue:
+            
+            # Ensure WeaponToHitValue is loaded
+            W2H = self._ensure_tooltip_class_loaded()
+            
+            if W2H:
                 try:
                     ability_key, ability_mod, proficiency, weapon_bonus = weapon.get_tohit_breakdown()
                     console.log(f"[WEAPONS] Tooltip breakdown: {ability_key}={ability_mod}, prof={proficiency}, bonus={weapon_bonus}")
-                    w2h = WeaponToHitValue(
+                    w2h = W2H(
                         weapon_name=weapon.entity.get("name", ""),
                         ability=ability_key,
                         ability_mod=ability_mod,
@@ -520,7 +586,7 @@ class WeaponsCollectionManager:
                 except Exception as e:
                     console.log(f"[WEAPONS] Error creating tooltip: {e}")
             else:
-                console.warn("[WEAPONS] WeaponToHitValue not available")
+                console.warn("[WEAPONS] WeaponToHitValue not available - skipping tooltip")
             
             to_hit_td.innerHTML = f'<span class="stat-value">{to_hit_text}{tooltip_html}</span>'
             row.appendChild(to_hit_td)
@@ -544,6 +610,36 @@ class WeaponsCollectionManager:
         except Exception as e:
             console.error(f"[WEAPONS] Error creating weapon row: {e}")
             return document.createElement("tr")
+    
+    def _ensure_tooltip_class_loaded(self):
+        """Ensure WeaponToHitValue class is loaded. Load dynamically if needed."""
+        global WeaponToHitValue
+        
+        if WeaponToHitValue is not None:
+            return WeaponToHitValue
+        
+        # Try to load from sys.modules
+        try:
+            tooltip_module = sys.modules.get('tooltip_values')
+            if tooltip_module and hasattr(tooltip_module, 'WeaponToHitValue'):
+                WeaponToHitValue = getattr(tooltip_module, 'WeaponToHitValue')
+                console.log("[WEAPONS] ✓ Loaded WeaponToHitValue from sys.modules")
+                return WeaponToHitValue
+        except Exception as e:
+            console.error(f"[WEAPONS] Error loading WeaponToHitValue from sys.modules: {e}")
+        
+        # If still not available, try dynamic HTTP load
+        try:
+            if hasattr(sys, 'modules'):
+                # This is a browser context, try to load dynamically
+                console.log("[WEAPONS] Attempting to load tooltip_values module dynamically...")
+                # We would need access to the HTTP loader here
+                # For now, return None which will cause it to skip tooltips
+                pass
+        except Exception as e:
+            console.error(f"[WEAPONS] Error in dynamic load attempt: {e}")
+        
+        return None
 
 
 # Global instance

@@ -48,16 +48,7 @@ class TooltipValue:
         if not self.components:
             return ""
         
-        rows = []
-        for comp_label, comp_value in self.components:
-            rows.append(
-                f'<div class="tooltip-row">'
-                f'<span class="tooltip-label">{comp_label}</span>'
-                f'<span class="tooltip-value">{self.format_bonus(comp_value)}</span>'
-                f'</div>'
-            )
-        
-        return f'<div class="stat-tooltip multiline">{"".join(rows)}</div>'
+        return ""
     
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(label='{self.label}', total={self.total}, components={len(self.components)})"

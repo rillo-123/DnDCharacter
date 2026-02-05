@@ -3717,15 +3717,27 @@ body {
 /* Multi-line tooltip */
 .stat-tooltip.multiline {
     white-space: normal;
-    width: 240px;
+    width: auto;
+    max-width: 500px;
+    text-align: left;
 }
 
-/* Tooltip content styling */
+.stat-tooltip.multiline span {
+    display: inline;
+    white-space: normal;
+}
+
 .tooltip-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: baseline;
+    display: inline;
+}
+
+.tooltip-label {
+    display: inline;
+}
+
+.tooltip-value {
+    display: inline;
+    font-weight: 600;
 }
 
 .tooltip-row:not(:last-child) {
