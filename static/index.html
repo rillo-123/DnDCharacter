@@ -863,35 +863,35 @@
 
     <!-- Custom Item Modal -->
     <div id="custom-item-modal" class="spell-cast-modal" style="display: none;">
-        <div class="spell-cast-modal-content">
+        <div class="spell-cast-modal-content" style="max-width: 1000px;">
             <div class="spell-cast-modal-header">
                 <h3>Add Custom Item</h3>
                 <button id="custom-item-close" class="spell-cast-modal-close">&times;</button>
             </div>
             <div class="spell-cast-modal-body">
-                <div style="display: flex; flex-direction: column; gap: 16px;">
-                    <!-- URL Import Section -->
-                    <div style="background-color: #1e293b; padding: 12px; border-radius: 4px; border: 2px solid #3b82f6;">
-                        <label style="display: flex; flex-direction: column; gap: 8px;">
-                            <strong style="color: #60a5fa;">📡 Fetch from URL (Roll20, D&D Beyond, etc.)</strong>
-                            <div style="display: flex; gap: 8px;">
-                                <input id="custom-item-url" type="text" placeholder="https://roll20.net/compendium/..." style="flex: 1; padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0; font-family: monospace; font-size: 0.9em;">
-                                <button id="custom-item-fetch-btn" type="button" py-click="fetch_custom_item_from_url_handler" style="padding: 8px 16px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Get Data</button>
-                            </div>
-                            <div id="custom-item-fetch-status" style="display: none; padding: 8px; border-radius: 4px; font-size: 0.85em; background-color: rgba(59, 130, 246, 0.1); color: #60a5fa;"></div>
-                        </label>
-                    </div>
-                    
-                    <!-- Manual Entry Section -->
-                    <hr style="border: none; border-top: 1px solid #334155;">
-                    
+                <!-- URL Import Section -->
+                <div style="background-color: #1e293b; padding: 12px; border-radius: 4px; border: 2px solid #3b82f6; margin-bottom: 16px;">
+                    <label style="display: flex; flex-direction: column; gap: 8px;">
+                        <strong style="color: #60a5fa;">📡 Fetch from URL (Roll20, D&D Beyond, etc.)</strong>
+                        <div style="display: flex; gap: 8px;">
+                            <input id="custom-item-url" type="text" placeholder="https://roll20.net/compendium/..." style="flex: 1; padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0; font-family: monospace; font-size: 0.9em;">
+                            <button id="custom-item-fetch-btn" type="button" py-click="fetch_custom_item_from_url_handler" style="padding: 8px 16px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Get Data</button>
+                        </div>
+                        <div id="custom-item-fetch-status" style="display: none; padding: 8px; border-radius: 4px; font-size: 0.85em; background-color: rgba(59, 130, 246, 0.1); color: #60a5fa;"></div>
+                    </label>
+                </div>
+                
+                <hr style="border: none; border-top: 1px solid #334155; margin-bottom: 16px;">
+                
+                <!-- Grid layout for compact rectangular design -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                     <label style="display: flex; flex-direction: column; gap: 4px;">
                         <strong>Item Name *</strong>
-                        <input id="custom-item-name" type="text" placeholder="e.g., Bedroll, Rope, Healing Potion" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <input id="custom-item-name" type="text" placeholder="e.g., Rope" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
                     </label>
                     <label style="display: flex; flex-direction: column; gap: 4px;">
                         <strong>Category</strong>
-                        <select id="custom-item-category" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <select id="custom-item-category" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
                             <option value="">Other (auto-detect)</option>
                             <option value="Magic Items">Magic Items</option>
                             <option value="Weapons">Weapons</option>
@@ -904,49 +904,53 @@
                             <option value="Other">Other</option>
                         </select>
                     </label>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                        <label style="display: flex; flex-direction: column; gap: 4px;">
-                            <strong>Cost</strong>
-                            <input id="custom-item-cost" type="text" placeholder="e.g., 5 gp, 1 cp" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </label>
-                        <label style="display: flex; flex-direction: column; gap: 4px;">
-                            <strong>Weight</strong>
-                            <input id="custom-item-weight" type="text" placeholder="e.g., 2 lb, 0.5 lb" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </label>
-                    </div>
                     <label style="display: flex; flex-direction: column; gap: 4px;">
                         <strong>Quantity</strong>
-                        <input id="custom-item-qty" type="number" min="1" value="1" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    </label>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                        <label style="display: flex; flex-direction: column; gap: 4px;">
-                            <strong>Damage (optional)</strong>
-                            <input id="custom-item-damage" type="text" placeholder="e.g., 1d8, 2d6" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </label>
-                        <label style="display: flex; flex-direction: column; gap: 4px;">
-                            <strong>Damage Type (optional)</strong>
-                            <input id="custom-item-damage-type" type="text" placeholder="e.g., piercing, slashing" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </label>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                        <label style="display: flex; flex-direction: column; gap: 4px;">
-                            <strong>Range (optional)</strong>
-                            <input id="custom-item-range" type="text" placeholder="e.g., 30/120 ft, melee" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </label>
-                        <label style="display: flex; flex-direction: column; gap: 4px;">
-                            <strong>AC (Armor)</strong>
-                            <input id="custom-item-ac" type="text" placeholder="e.g., 13, 10+Dex" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </label>
-                    </div>
-                    <label style="display: flex; flex-direction: column; gap: 4px;">
-                        <strong>Properties (optional)</strong>
-                        <input id="custom-item-properties" type="text" placeholder="e.g., ammunition, two-handed, finesse" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    </label>
-                    <label style="display: flex; flex-direction: column; gap: 4px;">
-                        <strong>Notes</strong>
-                        <textarea id="custom-item-notes" placeholder="Optional notes (useful for Roll20/other source details)" rows="3" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></textarea>
+                        <input id="custom-item-qty" type="number" min="1" value="1" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
                     </label>
                 </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Cost</strong>
+                        <input id="custom-item-cost" type="text" placeholder="e.g., 5 gp" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
+                    </label>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Weight</strong>
+                        <input id="custom-item-weight" type="text" placeholder="e.g., 2 lb" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
+                    </label>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>AC (Armor)</strong>
+                        <input id="custom-item-ac" type="text" placeholder="e.g., 13" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
+                    </label>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Damage</strong>
+                        <input id="custom-item-damage" type="text" placeholder="e.g., 1d8" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
+                    </label>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Damage Type</strong>
+                        <input id="custom-item-damage-type" type="text" placeholder="e.g., piercing" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
+                    </label>
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Range</strong>
+                        <input id="custom-item-range" type="text" placeholder="e.g., melee" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0;">
+                    </label>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <label style="display: flex; flex-direction: column; gap: 4px;">
+                        <strong>Properties</strong>
+                        <input id="custom-item-properties" type="text" placeholder="e.g., ammunition, two-handed, finesse" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0; width: 100%;">
+                    </label>
+                </div>
+                
+                <label style="display: flex; flex-direction: column; gap: 4px;">
+                    <strong>Notes</strong>
+                    <textarea id="custom-item-notes" placeholder="Optional notes" rows="2" style="padding: 8px; border: 1px solid #475569; border-radius: 4px; background-color: #0f172a; color: #e2e8f0; font-family: inherit; resize: vertical;"></textarea>
+                </label>
             </div>
             <div class="spell-cast-modal-footer">
                 <button id="custom-item-add" class="spell-cast-modal-btn spell-cast-modal-btn-confirm">Add Item</button>
