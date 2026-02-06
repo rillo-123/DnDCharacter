@@ -20,6 +20,7 @@ import sys
 import logging
 from logging.handlers import RotatingFileHandler
 import zipfile
+import re
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
@@ -68,6 +69,39 @@ app.logger.setLevel(logging.INFO)
 # Use exports.dir if configured, otherwise fall back to autoexport.autosave_dir for backwards compatibility
 EXPORT_DIR = Path(__file__).parent / config.get('exports', {}).get('dir', config['autoexport'].get('autosave_dir', 'exports/autosaves'))
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+def cleanup_old_exports_for_character(filename: str):
+    """Keep only 10 most recent exports per character, archive older ones to zip.
+    
+    Args:
+        filename: Export filename to extract character name from
+    """
+    try:
+        # Extract character name from filename (e.g., "Enwer_Cleric_lvl8_20260206_1234.json" -> "Enwer")
+        match = re.match(r'([A-Za-z0-9_]+?)_', filename)
+        character_prefix = match.group(1) if match else 'Unknown'
+        
+        # Find all files for this character
+        char_files = sorted(
+            [f for f in EXPORT_DIR.glob(f'{character_prefix}_*.json') if f.is_file()],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True
+        )
+        
+        # Keep only 10 most recent
+        if len(char_files) > 10:
+            old_files = char_files[10:]
+            zip_path = EXPORT_DIR / f'{character_prefix}_old.zip'
+            
+            app.logger.info(f"Character '{character_prefix}' has {len(char_files)} exports, archiving {len(old_files)} older files")
+            
+            # Archive older files to zip
+            with zipfile.ZipFile(zip_path, 'a', zipfile.ZIP_DEFLATED) as zf:
+                for old_file in old_files:
+                    zf.write(old_file, arcname=old_file.name)
+                    app.logger.info(f"Archived to {zip_path.name}: {old_file.name}")
+    except Exception as e:
+        app.logger.warning(f"Export cleanup error (non-critical): {e}")
 
 @app.route('/')
 def index():
@@ -135,25 +169,8 @@ def export_character():
         file_size = file_path.stat().st_size
         app.logger.info(f"✓ {filename} successfully written to disk ({file_size} bytes)")
         
-        # Cleanup: If more than 10 export files, move older ones to export_old.zip
-        try:
-            json_files = sorted(EXPORT_DIR.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
-            if len(json_files) > 10:
-                old_files = json_files[10:]  # Files beyond the 10 most recent
-                zip_path = EXPORT_DIR / 'export_old.zip'
-                
-                # Create or update the zip archive
-                with zipfile.ZipFile(zip_path, 'a', zipfile.ZIP_DEFLATED) as zf:
-                    for old_file in old_files:
-                        # Add file to zip with just the filename (no directory structure)
-                        zf.write(old_file, arcname=old_file.name)
-                        app.logger.info(f"Archived to zip: {old_file.name}")
-                        
-                        # Delete the file after adding to zip
-                        old_file.unlink()
-                        app.logger.info(f"Deleted old export: {old_file.name}")
-        except Exception as cleanup_error:
-            app.logger.warning(f"Export cleanup error (non-critical): {cleanup_error}")
+        # Cleanup: Keep only 10 most recent exports per character
+        cleanup_old_exports_for_character(filename)
         
         return jsonify({
             'success': True,
