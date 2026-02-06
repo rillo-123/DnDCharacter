@@ -41,48 +41,48 @@ def test_equipment_management_imports():
 
 
 def test_inventory_manager_imports():
-    """Test that inventory_manager.py can be imported without errors."""
+    """Test that inventory_manager can be imported without errors."""
     try:
-        import inventory_manager
+        from managers import inventory_manager
         assert inventory_manager is not None
-    except ModuleNotFoundError as e:
-        pytest.fail(f"inventory_manager.py has import error: {e}")
+    except (ModuleNotFoundError, ImportError) as e:
+        pytest.fail(f"inventory_manager import error: {e}")
 
 
 def test_equipment_event_manager_imports():
-    """Test that equipment_event_manager.py can be imported without errors."""
+    """Test that equipment_event_manager can be imported without errors."""
     try:
-        import equipment_event_manager
+        from managers import equipment_event_manager
         assert equipment_event_manager is not None
-    except ModuleNotFoundError as e:
-        pytest.fail(f"equipment_event_manager.py has import error: {e}")
+    except (ModuleNotFoundError, ImportError) as e:
+        pytest.fail(f"equipment_event_manager import error: {e}")
 
 
 def test_armor_manager_imports():
-    """Test that armor_manager.py can be imported without errors."""
+    """Test that armor_manager can be imported without errors."""
     try:
-        import armor_manager
+        from managers import armor_manager
         assert armor_manager is not None
-    except ModuleNotFoundError as e:
-        pytest.fail(f"armor_manager.py has import error: {e}")
+    except (ModuleNotFoundError, ImportError) as e:
+        pytest.fail(f"armor_manager import error: {e}")
 
 
 def test_weapons_manager_imports():
-    """Test that weapons_manager.py can be imported without errors."""
+    """Test that weapons_manager can be imported without errors."""
     try:
-        import weapons_manager
+        from managers import weapons_manager
         assert weapons_manager is not None
-    except ModuleNotFoundError as e:
-        pytest.fail(f"weapons_manager.py has import error: {e}")
+    except (ModuleNotFoundError, ImportError) as e:
+        pytest.fail(f"weapons_manager import error: {e}")
 
 
 def test_spellcasting_manager_imports():
-    """Test that spellcasting_manager.py can be imported without errors."""
+    """Test that spellcasting_manager can be imported without errors."""
     try:
-        import spellcasting_manager
+        from managers import spellcasting_manager
         assert spellcasting_manager is not None
-    except ModuleNotFoundError as e:
-        pytest.fail(f"spellcasting_manager.py has import error: {e}")
+    except (ModuleNotFoundError, ImportError) as e:
+        pytest.fail(f"spellcasting_manager import error: {e}")
 
 
 def test_export_management_imports():

@@ -126,7 +126,7 @@ class ArmorData:
         For armor: The armor's base AC (e.g., 14 for Breastplate)
         For shields: The shield's AC bonus (e.g., 2 for normal Shield)
         """
-        # Priority: base_armor_class (actual base) > armor_class (fallback) > direct field > default
+        # Priority: base_armor_class (actual base) > direct field > calculate from bonus > default
         ac = self.notes.get("base_armor_class", None)  # New field for actual base AC
         if ac is not None:
             try:
@@ -134,14 +134,21 @@ class ArmorData:
             except (ValueError, TypeError):
                 pass
         
-        # Fallback to armor_class if base_armor_class not set (for old data)
-        ac = self.notes.get("armor_class", None)
-        if ac is not None:
-            try:
-                return int(ac)
-            except (ValueError, TypeError):
-                pass
+        # For shields with bonus: base is always 2 (unless explicitly set)
+        if self.is_shield and "bonus" in self.notes:
+            return 2
         
+        # Fallback to armor_class if base_armor_class not set (for old data without bonus)
+        # Only use armor_class if there's no bonus in the notes
+        if "bonus" not in self.notes:
+            ac = self.notes.get("armor_class", None)
+            if ac is not None:
+                try:
+                    return int(ac)
+                except (ValueError, TypeError):
+                    pass
+        
+        # For armor with bonus but no base_armor_class: try to extract from direct field
         ac = self.item.get("armor_class", None)
         if ac is not None:
             try:
