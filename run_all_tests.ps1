@@ -12,6 +12,11 @@ param(
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Push-Location $root
 
+# Set up logging with timestamp
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$logFile = Join-Path -Path $root -ChildPath "test_results_$timestamp.txt"
+Start-Transcript -Path $logFile -Append | Out-Null
+
 try {
     # Build path to the venv python executable
     $python = Join-Path -Path $root -ChildPath '.venv\Scripts\python.exe'
@@ -136,5 +141,7 @@ try {
     }
 }
 finally {
+    Stop-Transcript | Out-Null
+    Write-Host "`nTest results also saved to: $logFile" -ForegroundColor Cyan
     Pop-Location
 }
