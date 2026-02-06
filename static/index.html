@@ -866,7 +866,7 @@
         <div class="spell-cast-modal-content" style="max-width: 1000px;">
             <div class="spell-cast-modal-header">
                 <h3>Add Custom Item</h3>
-                <button id="custom-item-close" class="spell-cast-modal-close">&times;</button>
+                <button id="custom-item-close" class="spell-cast-modal-close" type="button" py-click="close_custom_item_modal">&times;</button>
             </div>
             <div class="spell-cast-modal-body">
                 <!-- URL Import Section -->
@@ -953,8 +953,8 @@
                 </label>
             </div>
             <div class="spell-cast-modal-footer">
-                <button id="custom-item-add" class="spell-cast-modal-btn spell-cast-modal-btn-confirm">Add Item</button>
-                <button id="custom-item-cancel" class="spell-cast-modal-btn spell-cast-modal-btn-cancel">Cancel</button>
+                <button id="custom-item-add" class="spell-cast-modal-btn spell-cast-modal-btn-confirm" type="button" py-click="submit_custom_item">Add Item</button>
+                <button id="custom-item-cancel" class="spell-cast-modal-btn spell-cast-modal-btn-cancel" type="button" py-click="close_custom_item_modal">Cancel</button>
             </div>
         </div>
     </div>
@@ -1012,49 +1012,8 @@
     <!-- Modal event handlers -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Custom Item Modal handlers
-            const customItemModal = document.getElementById('custom-item-modal');
-            const customItemAddBtn = document.getElementById('custom-item-add');
-            const customItemCancelBtn = document.getElementById('custom-item-cancel');
-            const customItemCloseBtn = document.getElementById('custom-item-close');
-
-            if (customItemAddBtn && typeof submit_custom_item !== 'undefined') {
-                // Wait for PyScript to be ready before setting up handler
-                function setupCustomItemBtn() {
-                    if (typeof PyScript !== 'undefined' && PyScript.interpreter && PyScript.interpreter.interface) {
-                        customItemAddBtn.addEventListener('click', () => {
-                            try {
-                                PyScript.interpreter.interface.submit_custom_item();
-                            } catch (e) {
-                                console.error("Failed to call submit_custom_item:", e);
-                            }
-                        });
-                    } else {
-                        // PyScript not ready yet, retry in 100ms
-                        setTimeout(setupCustomItemBtn, 100);
-                    }
-                }
-                setupCustomItemBtn();
-            }
-
-            if (customItemCancelBtn) {
-                customItemCancelBtn.addEventListener('click', () => {
-                    if (customItemModal) {
-                        customItemModal.style.display = 'none';
-                    }
-                });
-            }
-
-            if (customItemCloseBtn) {
-                customItemCloseBtn.addEventListener('click', () => {
-                    if (customItemModal) {
-                        customItemModal.style.display = 'none';
-                    }
-                });
-            }
-
-
-            // Equipment search is handled in Python with populate_equipment_results
+            // PyScript py-click handlers now manage custom item modal button interactions
+            // (submit_custom_item and close_custom_item_modal functions handle the logic)
         });
     </script>
 

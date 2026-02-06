@@ -5746,6 +5746,13 @@ def add_custom_item(_event=None):
             status.style.display = "none"
 
 
+def close_custom_item_modal(_event=None):
+    """Close the custom item modal"""
+    modal = get_element("custom-item-modal")
+    if modal:
+        modal.style.display = "none"
+
+
 def fetch_custom_item_from_url_handler(event=None):
     """PyScript event handler for Get Data button"""
     console.log("DEBUG: fetch_custom_item_from_url_handler() called")
