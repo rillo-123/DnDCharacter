@@ -8,4 +8,5 @@ pkill -f "backend.py" 2>/dev/null || true
 sleep 1
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-python3 "$SCRIPT_DIR/activate-env.py" -Startserver -NoCheck "$@"
+# NOTE: Do NOT use -NoCheck on fresh installs; this ensures requirements.txt is installed into .venv
+python3 "$SCRIPT_DIR/activate-env.py" -Startserver "$@"
