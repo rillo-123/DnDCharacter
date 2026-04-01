@@ -11,7 +11,7 @@ set -euo pipefail
 pkill -f "backend.py" 2>/dev/null || true
 sleep 1
 
-SCRIPT_DIR="$( cd "$( dirname "">${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 VENV_DIR="$SCRIPT_DIR/.venv"
 VENV_PY="$VENV_DIR/bin/python"
 
