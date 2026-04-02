@@ -2883,7 +2883,7 @@ def update_calculations(*_args):
     set_form_value("hit_dice", hit_dice_type)
     
     # Update proficiencies based on class - render as table
-    domain = get_text_value("subclass") if class_name == "cleric" else ""
+    domain = _get_cleric_domain()
     armor_prof_text = get_armor_proficiencies_for_class(class_name, domain)
     weapon_prof_text = get_weapon_proficiencies_for_class(class_name)
     
@@ -2966,7 +2966,7 @@ def update_calculations(*_args):
     )
     
     # Count only user-prepared spells (exclude domain bonus spells and cantrips)
-    domain = get_text_value("subclass") if class_name == "cleric" else ""
+    domain = _get_cleric_domain()
     if SPELL_LIBRARY_STATE.get("loaded"):
         _ensure_domain_spells_in_spellbook(reason="calc_sync")
     domain_bonus_slugs = set(get_domain_bonus_spells(domain, level)) if domain else set()
@@ -3080,18 +3080,24 @@ def update_calculations(*_args):
     render_spellbook()
 
 
+def _get_cleric_domain() -> str:
+    """Return the subclass value when class is Cleric, otherwise empty string."""
+    return get_text_value("subclass") if (get_text_value("class") or "").lower().strip() == "cleric" else ""
+
+
 def collect_character_data() -> dict:
     ability_scores: dict[str, int] = {}
+    _collected_class = get_text_value("class")
     data = {
         "identity": {
             "name": get_text_value("name"),
-            "class": get_text_value("class"),
+            "class": _collected_class,
             "race": get_text_value("race"),
             "background": get_text_value("background"),
             "alignment": get_text_value("alignment"),
             "player_name": get_text_value("player_name"),
             "subclass": get_text_value("subclass"),
-            "domain": get_text_value("subclass") if get_text_value("class").lower().strip() == "cleric" else "",
+            "domain": get_text_value("subclass") if _collected_class.lower().strip() == "cleric" else "",
         },
         "level": get_numeric_value("level", 1),
         "inspiration": get_numeric_value("inspiration", 0),
@@ -3324,7 +3330,8 @@ def populate_form(data: dict):
 
         # Populate subclass: prefer subclass field; fall back to domain for legacy Cleric exports
         _subclass_value = character.subclass
-        if not _subclass_value and character.domain and character.class_text.lower().strip().split()[0] == "cleric":
+        _class_tokens = character.class_text.lower().strip().split()
+        if not _subclass_value and character.domain and _class_tokens and _class_tokens[0] == "cleric":
             _subclass_value = character.domain
         # Update subclass label/options before setting value so the option is visible
         update_subclass_ui()
@@ -3836,8 +3843,7 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
     can_add = prepared or not allowed_set or bool(spell_classes.intersection(allowed_set))
     
     # Check if this is a domain bonus spell (cannot be removed)
-    _spell_class = (get_text_value("class") or "").lower().strip()
-    domain = get_text_value("subclass") if _spell_class == "cleric" else ""
+    domain = _get_cleric_domain()
     character_level = get_numeric_value("level", 1)
     is_domain_bonus = slug in get_domain_bonus_spells(domain, character_level) if domain else False
     can_remove = prepared and not is_domain_bonus
@@ -7840,8 +7846,7 @@ def _ensure_domain_spells_in_spellbook(reason: str = "unspecified"):
         _DOMAIN_SPELL_SYNCING = False
         return
 
-    _ds_class = (get_text_value("class") or "").lower().strip()
-    domain = get_text_value("subclass") if _ds_class == "cleric" else ""
+    domain = _get_cleric_domain()
     loaded = SPELL_LIBRARY_STATE.get("loaded")
     level = get_numeric_value("level", 1)
     console.log(f"DEBUG: _ensure_domain_spells_in_spellbook - domain={domain}, level={level}, loaded={loaded}")
