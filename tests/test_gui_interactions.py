@@ -64,9 +64,16 @@ def flask_server():
 
 @pytest.fixture()
 def app_page(page: Page, flask_server):
-    """Navigate to the app root and wait for the DOM."""
+    """Navigate to the app root and wait for PyScript to finish initialising."""
     page.goto(flask_server + "/")
     page.wait_for_load_state("domcontentloaded")
+    # Wait until PyScript has run update_calculations() at least once.
+    # The proficiency-bonus element is updated by that function, so its
+    # non-empty textContent is a reliable signal that PyScript is ready.
+    page.wait_for_function(
+        "() => (document.getElementById('proficiency-bonus')?.textContent ?? '').trim() !== ''",
+        timeout=30_000,
+    )
     return page
 
 
@@ -312,6 +319,64 @@ class TestOverviewTab:
     def test_subclass_row_has_bard_college_options(self, app_page):
         options = app_page.locator('#subclass option[data-class="bard"]').all_text_contents()
         assert len(options) > 0, "Subclass select must contain Bard college options"
+
+    def test_subclass_label_says_domain_for_cleric(self, app_page):
+        """Selecting Cleric should label the subclass row 'Domain'."""
+        app_page.locator("#class").select_option("Cleric")
+        app_page.wait_for_function(
+            "() => document.getElementById('subclass-label')?.innerText === 'Domain'",
+            timeout=10_000,
+        )
+        label = app_page.locator("#subclass-label").inner_text()
+        assert label == "Domain", f"Expected label 'Domain' for Cleric, got '{label}'"
+
+    def test_subclass_label_says_college_for_bard(self, app_page):
+        """Selecting Bard should label the subclass row 'College', not 'Domain'."""
+        app_page.locator("#class").select_option("Bard")
+        app_page.wait_for_function(
+            "() => document.getElementById('subclass-label')?.innerText === 'College'",
+            timeout=10_000,
+        )
+        label = app_page.locator("#subclass-label").inner_text()
+        assert label == "College", f"Expected label 'College' for Bard, got '{label}'"
+
+    def test_subclass_row_visible_for_bard(self, app_page):
+        """Subclass row must be visible when Bard is selected."""
+        app_page.locator("#class").select_option("Bard")
+        app_page.wait_for_function(
+            "() => document.querySelector('[data-subclass-row]')?.style.display !== 'none'",
+            timeout=10_000,
+        )
+        display = app_page.evaluate(
+            "document.querySelector('[data-subclass-row]').style.display"
+        )
+        assert display != "none", (
+            f"[data-subclass-row] should be visible for Bard, got display='{display}'"
+        )
+
+    def test_subclass_placeholder_updates_for_bard(self, app_page):
+        """The dropdown placeholder text should say 'Select College' for Bard."""
+        app_page.locator("#class").select_option("Bard")
+        app_page.wait_for_function(
+            "() => document.querySelector('#subclass option[value=\"\"]')?.textContent === 'Select College'",
+            timeout=10_000,
+        )
+        placeholder = app_page.locator('#subclass option[value=""]').inner_text()
+        assert placeholder == "Select College", (
+            f"Expected placeholder 'Select College' for Bard, got '{placeholder}'"
+        )
+
+    def test_subclass_placeholder_updates_for_cleric(self, app_page):
+        """The dropdown placeholder text should say 'Select Domain' for Cleric."""
+        app_page.locator("#class").select_option("Cleric")
+        app_page.wait_for_function(
+            "() => document.querySelector('#subclass option[value=\"\"]')?.textContent === 'Select Domain'",
+            timeout=10_000,
+        )
+        placeholder = app_page.locator('#subclass option[value=""]').inner_text()
+        assert placeholder == "Select Domain", (
+            f"Expected placeholder 'Select Domain' for Cleric, got '{placeholder}'"
+        )
 
     def test_alignment_select_present(self, app_page):
         alignments = app_page.locator("#alignment option").all_text_contents()

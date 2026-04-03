@@ -7197,23 +7197,28 @@ def update_subclass_ui():
     for row in subclass_rows:
         row.style.display = "" if has_subclass else "none"
 
-    label_el = get_element("subclass-label")
     subclass_select = get_element("subclass")
 
-    if label_el is not None:
-        if class_name == "cleric":
-            label_el.textContent = "Domain"
-        elif class_name == "bard":
-            label_el.textContent = "College"
-        else:
-            label_el.textContent = "Subclass"
+    # Update the row label and the dropdown's placeholder option text
+    if class_name == "cleric":
+        label_text = "Domain"
+        placeholder_text = "Select Domain"
+    elif class_name == "bard":
+        label_text = "College"
+        placeholder_text = "Select College"
+    else:
+        label_text = "Subclass"
+        placeholder_text = "Select Subclass"
+
+    set_text("subclass-label", label_text)
 
     if subclass_select is not None:
         current_value = subclass_select.value
         for option in subclass_select.options:
             opt_class = option.getAttribute("data-class")
             if opt_class is None:
-                # Placeholder option — always visible
+                # Placeholder option — update text and keep visible
+                option.textContent = placeholder_text
                 option.hidden = False
             elif has_subclass:
                 option.hidden = opt_class != class_name

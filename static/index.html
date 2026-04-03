@@ -1393,6 +1393,60 @@
                 });
             });
         });
+
+        // Subclass row: show/hide and relabel based on selected class.
+        // This plain-JS handler runs immediately (before PyScript loads) so the UI
+        // is always consistent.  PyScript's update_subclass_ui() will run on top of
+        // this once it initialises and provides the same result.
+        (function () {
+            var CLASS_META = {
+                cleric: { label: 'Domain',  placeholder: 'Select Domain'  },
+                bard:   { label: 'College', placeholder: 'Select College' },
+            };
+
+            function applySubclassUi() {
+                var cls = (document.getElementById('class') || {}).value || '';
+                cls = cls.trim().toLowerCase();
+                var meta = CLASS_META[cls];
+
+                // Show/hide the row
+                var rows = document.querySelectorAll('[data-subclass-row]');
+                rows.forEach(function (row) {
+                    row.style.display = meta ? '' : 'none';
+                });
+
+                var label = document.getElementById('subclass-label');
+                if (label) label.innerText = meta ? meta.label : 'Subclass';
+
+                var subclassSelect = document.getElementById('subclass');
+                if (!subclassSelect) return;
+
+                var placeholderText = meta ? meta.placeholder : 'Select Subclass';
+                Array.from(subclassSelect.options).forEach(function (opt) {
+                    var optClass = opt.getAttribute('data-class');
+                    if (!optClass) {
+                        opt.textContent = placeholderText;
+                        opt.hidden = false;
+                    } else {
+                        opt.hidden = !meta || optClass !== cls;
+                    }
+                });
+
+                // Clear a stale selection
+                if (!meta) {
+                    subclassSelect.value = '';
+                } else {
+                    var selected = Array.from(subclassSelect.options).find(function (o) { return o.value === subclassSelect.value; });
+                    if (selected && selected.hidden) subclassSelect.value = '';
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                applySubclassUi();
+                var classEl = document.getElementById('class');
+                if (classEl) classEl.addEventListener('change', applySubclassUi);
+            });
+        }());
     </script>
 </body>
 </html>
