@@ -2875,6 +2875,11 @@ def update_calculations(*_args):
     # Get and normalize class name
     class_name = (get_text_value("class") or "").lower()
     
+    # Show domain row only for Cleric
+    domain_row = get_element("domain-row")
+    if domain_row:
+        domain_row.style.display = "table-row" if class_name == "cleric" else "none"
+    
     # Update hit dice based on class (show die type, not quantity)
     hit_dice_type = get_hit_dice_for_class(class_name)
     set_form_value("hit_dice", hit_dice_type)
