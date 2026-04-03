@@ -2879,6 +2879,11 @@ def update_calculations(*_args):
     domain_row = get_element("domain-row")
     if domain_row:
         domain_row.style.display = "table-row" if class_name == "cleric" else "none"
+
+    # Show college row only for Bard
+    college_row = get_element("college-row")
+    if college_row:
+        college_row.style.display = "table-row" if class_name == "bard" else "none"
     
     # Update hit dice based on class (show die type, not quantity)
     hit_dice_type = get_hit_dice_for_class(class_name)
@@ -3090,6 +3095,7 @@ def collect_character_data() -> dict:
             "alignment": get_text_value("alignment"),
             "player_name": get_text_value("player_name"),
             "domain": get_text_value("domain"),
+            "college": get_text_value("college"),
         },
         "level": get_numeric_value("level", 1),
         "inspiration": get_numeric_value("inspiration", 0),
@@ -3147,12 +3153,19 @@ def collect_character_data() -> dict:
     class_text = data["identity"].get("class", "")
     class_tokens = Character._extract_class_tokens(class_text)
     is_cleric = "cleric" in class_tokens if class_tokens else False
-    
+    is_bard = "bard" in class_tokens if class_tokens else False
+
     # For Cleric, sync domain to subclass since they're mapped together
     if is_cleric:
         domain_value = data["identity"].get("domain", "")
         console.log(f"DEBUG: Cleric domain collected from form: '{domain_value}'")
         data["identity"]["subclass"] = domain_value
+
+    # For Bard, sync college to subclass
+    if is_bard:
+        college_value = data["identity"].get("college", "")
+        console.log(f"DEBUG: Bard college collected from form: '{college_value}'")
+        data["identity"]["subclass"] = college_value
 
     character = CharacterFactory.from_dict(data)
     return character.to_dict()
@@ -3328,7 +3341,8 @@ def populate_form(data: dict):
         set_form_value("alignment", character.alignment)
         set_form_value("player_name", character.player_name)
         set_form_value("domain", character.domain)
-        console.log(f"[POPULATE] Identity set, domain: {character.domain}")
+        set_form_value("college", character.subclass)
+        console.log(f"[POPULATE] Identity set, domain: {character.domain}, college: {character.subclass}")
 
         set_form_value("level", character.level)
         set_form_value("inspiration", character.inspiration)
