@@ -116,25 +116,30 @@
                                     </select>
                                 </td>
                             </tr>
-                            <tr>
-                                <td class="character-label">Domain</td>
+                            <tr data-subclass-row style="display: none;">
+                                <td class="character-label"><span id="subclass-label">Subclass</span></td>
                                 <td>
-                                    <select data-character-input id="domain">
-                                        <option value="">Select Domain</option>
-                                        <option value="Arcana">Arcana</option>
-                                        <option value="City">City</option>
-                                        <option value="Death">Death</option>
-                                        <option value="Forge">Forge</option>
-                                        <option value="Grave">Grave</option>
-                                        <option value="Knowledge">Knowledge</option>
-                                        <option value="Life">Life</option>
-                                        <option value="Light">Light</option>
-                                        <option value="Nature">Nature</option>
-                                        <option value="Order">Order</option>
-                                        <option value="Peace">Peace</option>
-                                        <option value="Tempest">Tempest</option>
-                                        <option value="Trickery">Trickery</option>
-                                        <option value="War">War</option>
+                                    <select data-character-input id="subclass">
+                                        <option value="">Select Subclass</option>
+                                        <!-- Bard Colleges -->
+                                        <option value="College of Glamour" data-class="bard">College of Glamour</option>
+                                        <option value="College of Lore" data-class="bard">College of Lore</option>
+                                        <option value="College of Valor" data-class="bard">College of Valor</option>
+                                        <!-- Cleric Domains -->
+                                        <option value="Arcana" data-class="cleric">Arcana</option>
+                                        <option value="City" data-class="cleric">City</option>
+                                        <option value="Death" data-class="cleric">Death</option>
+                                        <option value="Forge" data-class="cleric">Forge</option>
+                                        <option value="Grave" data-class="cleric">Grave</option>
+                                        <option value="Knowledge" data-class="cleric">Knowledge</option>
+                                        <option value="Life" data-class="cleric">Life</option>
+                                        <option value="Light" data-class="cleric">Light</option>
+                                        <option value="Nature" data-class="cleric">Nature</option>
+                                        <option value="Order" data-class="cleric">Order</option>
+                                        <option value="Peace" data-class="cleric">Peace</option>
+                                        <option value="Tempest" data-class="cleric">Tempest</option>
+                                        <option value="Trickery" data-class="cleric">Trickery</option>
+                                        <option value="War" data-class="cleric">War</option>
                                     </select>
                                 </td>
                             </tr>
@@ -1388,6 +1393,60 @@
                 });
             });
         });
+
+        // Subclass row: show/hide and relabel based on selected class.
+        // This plain-JS handler runs immediately (before PyScript loads) so the UI
+        // is always consistent.  PyScript's update_subclass_ui() will run on top of
+        // this once it initialises and provides the same result.
+        (function () {
+            var CLASS_META = {
+                cleric: { label: 'Domain',  placeholder: 'Select Domain'  },
+                bard:   { label: 'College', placeholder: 'Select College' },
+            };
+
+            function applySubclassUi() {
+                var cls = (document.getElementById('class') || {}).value || '';
+                cls = cls.trim().toLowerCase();
+                var meta = CLASS_META[cls];
+
+                // Show/hide the row
+                var rows = document.querySelectorAll('[data-subclass-row]');
+                rows.forEach(function (row) {
+                    row.style.display = meta ? '' : 'none';
+                });
+
+                var label = document.getElementById('subclass-label');
+                if (label) label.innerText = meta ? meta.label : 'Subclass';
+
+                var subclassSelect = document.getElementById('subclass');
+                if (!subclassSelect) return;
+
+                var placeholderText = meta ? meta.placeholder : 'Select Subclass';
+                Array.from(subclassSelect.options).forEach(function (opt) {
+                    var optClass = opt.getAttribute('data-class');
+                    if (!optClass) {
+                        opt.textContent = placeholderText;
+                        opt.hidden = false;
+                    } else {
+                        opt.hidden = !meta || optClass !== cls;
+                    }
+                });
+
+                // Clear a stale selection
+                if (!meta) {
+                    subclassSelect.value = '';
+                } else {
+                    var selected = Array.from(subclassSelect.options).find(function (o) { return o.value === subclassSelect.value; });
+                    if (selected && selected.hidden) subclassSelect.value = '';
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                applySubclassUi();
+                var classEl = document.getElementById('class');
+                if (classEl) classEl.addEventListener('change', applySubclassUi);
+            });
+        }());
     </script>
 </body>
 </html>

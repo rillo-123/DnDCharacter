@@ -2685,14 +2685,17 @@ def gather_scores() -> dict:
 
 
 def snapshot_character_from_form() -> Character:
+    _class = get_text_value("class")
+    _subclass = get_text_value("subclass")
     identity = {
         "name": get_text_value("name"),
-        "class": get_text_value("class"),
+        "class": _class,
         "race": get_text_value("race"),
         "background": get_text_value("background"),
         "alignment": get_text_value("alignment"),
         "player_name": get_text_value("player_name"),
-        "domain": get_text_value("domain"),
+        "subclass": _subclass,
+        "domain": _subclass if _class.lower().strip() == "cleric" else "",
     }
 
     abilities = {}
@@ -2880,7 +2883,7 @@ def update_calculations(*_args):
     set_form_value("hit_dice", hit_dice_type)
     
     # Update proficiencies based on class - render as table
-    domain = get_text_value("domain")
+    domain = _get_cleric_domain()
     armor_prof_text = get_armor_proficiencies_for_class(class_name, domain)
     weapon_prof_text = get_weapon_proficiencies_for_class(class_name)
     
@@ -2963,7 +2966,7 @@ def update_calculations(*_args):
     )
     
     # Count only user-prepared spells (exclude domain bonus spells and cantrips)
-    domain = get_text_value("domain")
+    domain = _get_cleric_domain()
     if SPELL_LIBRARY_STATE.get("loaded"):
         _ensure_domain_spells_in_spellbook(reason="calc_sync")
     domain_bonus_slugs = set(get_domain_bonus_spells(domain, level)) if domain else set()
@@ -3068,23 +3071,33 @@ def update_calculations(*_args):
     render_spell_slots(slot_summary)
     update_header_display()
     
+    # Update subclass label and options based on class selection
+    update_subclass_ui()
+
     # Render class features and feats
     render_class_features()
     render_feats()
     render_spellbook()
 
 
+def _get_cleric_domain() -> str:
+    """Return the subclass value when class is Cleric, otherwise empty string."""
+    return get_text_value("subclass") if (get_text_value("class") or "").lower().strip() == "cleric" else ""
+
+
 def collect_character_data() -> dict:
     ability_scores: dict[str, int] = {}
+    _collected_class = get_text_value("class")
     data = {
         "identity": {
             "name": get_text_value("name"),
-            "class": get_text_value("class"),
+            "class": _collected_class,
             "race": get_text_value("race"),
             "background": get_text_value("background"),
             "alignment": get_text_value("alignment"),
             "player_name": get_text_value("player_name"),
-            "domain": get_text_value("domain"),
+            "subclass": get_text_value("subclass"),
+            "domain": get_text_value("subclass") if _collected_class.lower().strip() == "cleric" else "",
         },
         "level": get_numeric_value("level", 1),
         "inspiration": get_numeric_value("inspiration", 0),
@@ -3138,16 +3151,8 @@ def collect_character_data() -> dict:
 
     data["spellcasting"] = SPELLCASTING_MANAGER.export_state() if (SPELLCASTING_MANAGER is not None) else {}
 
-    # Determine if this will be a Cleric character
-    class_text = data["identity"].get("class", "")
-    class_tokens = Character._extract_class_tokens(class_text)
-    is_cleric = "cleric" in class_tokens if class_tokens else False
-    
-    # For Cleric, sync domain to subclass since they're mapped together
-    if is_cleric:
-        domain_value = data["identity"].get("domain", "")
-        console.log(f"DEBUG: Cleric domain collected from form: '{domain_value}'")
-        data["identity"]["subclass"] = domain_value
+    # Log collected subclass/domain for debug
+    console.log(f"DEBUG: collect_character_data - subclass='{data['identity'].get('subclass', '')}', domain='{data['identity'].get('domain', '')}'")
 
     character = CharacterFactory.from_dict(data)
     return character.to_dict()
@@ -3322,8 +3327,16 @@ def populate_form(data: dict):
         set_form_value("background", character.background)
         set_form_value("alignment", character.alignment)
         set_form_value("player_name", character.player_name)
-        set_form_value("domain", character.domain)
-        console.log(f"[POPULATE] Identity set, domain: {character.domain}")
+
+        # Populate subclass: prefer subclass field; fall back to domain for legacy Cleric exports
+        _subclass_value = character.subclass
+        _class_tokens = character.class_text.lower().strip().split()
+        if not _subclass_value and character.domain and _class_tokens and _class_tokens[0] == "cleric":
+            _subclass_value = character.domain
+        # Update subclass label/options before setting value so the option is visible
+        update_subclass_ui()
+        set_form_value("subclass", _subclass_value)
+        console.log(f"[POPULATE] Identity set, subclass: {_subclass_value}")
 
         set_form_value("level", character.level)
         set_form_value("inspiration", character.inspiration)
@@ -3830,7 +3843,7 @@ def build_spell_card_html(spell: dict, allowed_classes: set[str] | None = None) 
     can_add = prepared or not allowed_set or bool(spell_classes.intersection(allowed_set))
     
     # Check if this is a domain bonus spell (cannot be removed)
-    domain = get_text_value("domain")
+    domain = _get_cleric_domain()
     character_level = get_numeric_value("level", 1)
     is_domain_bonus = slug in get_domain_bonus_spells(domain, character_level) if domain else False
     can_remove = prepared and not is_domain_bonus
@@ -7169,6 +7182,59 @@ def get_domain_bonus_spells(domain_name: str, current_level: int) -> list[str]:
     return bonus_spells
 
 
+def update_subclass_ui():
+    """Update the subclass row label and visible options based on the selected class.
+
+    The row is shown only for classes that have a subclass choice in the
+    current select (Cleric → Domain, Bard → College).  For every other class
+    the row is hidden and the field is cleared so stale values don't persist.
+    """
+    class_name = (get_text_value("class") or "").strip().lower()
+    has_subclass = class_name in ("cleric", "bard")
+
+    # Show/hide the entire row
+    subclass_rows = document.querySelectorAll("[data-subclass-row]")
+    for row in subclass_rows:
+        row.style.display = "" if has_subclass else "none"
+
+    subclass_select = get_element("subclass")
+
+    # Update the row label and the dropdown's placeholder option text
+    if class_name == "cleric":
+        label_text = "Domain"
+        placeholder_text = "Select Domain"
+    elif class_name == "bard":
+        label_text = "College"
+        placeholder_text = "Select College"
+    else:
+        label_text = "Subclass"
+        placeholder_text = "Select Subclass"
+
+    set_text("subclass-label", label_text)
+
+    if subclass_select is not None:
+        current_value = subclass_select.value
+        for option in subclass_select.options:
+            opt_class = option.getAttribute("data-class")
+            if opt_class is None:
+                # Placeholder option — update text and keep visible
+                option.textContent = placeholder_text
+                option.hidden = False
+            elif has_subclass:
+                option.hidden = opt_class != class_name
+            else:
+                option.hidden = True
+        # If the currently selected value is now hidden (or the class has no
+        # subclass chooser), reset the field to empty so no stale value lingers.
+        selected_opt = None
+        for option in subclass_select.options:
+            if option.value == current_value:
+                selected_opt = option
+                break
+        if not has_subclass or (selected_opt is not None and selected_opt.hidden):
+            subclass_select.value = ""
+
+
 def render_class_features():
     """Render class features organized by level."""
     container = get_element("class-features-container")
@@ -7178,7 +7244,7 @@ def render_class_features():
     # Get current class, level, and domain
     class_name = get_text_value("class")
     level = get_numeric_value("level", 1)
-    domain = get_text_value("domain")
+    subclass = get_text_value("subclass")
     
     if not class_name:
         container.innerHTML = '<div class="class-features-empty">Select a class to see its features.</div>'
@@ -7220,8 +7286,8 @@ def render_class_features():
         </div>''')
     
     # Add domain features if applicable (only up to current level)
-    if domain and class_key == "cleric":
-        domain_features_by_level = DOMAIN_FEATURES_DATABASE.get(domain.lower().strip(), {})
+    if subclass and class_key == "cleric":
+        domain_features_by_level = DOMAIN_FEATURES_DATABASE.get(subclass.lower().strip(), {})
         if domain_features_by_level:
             for level_num in sorted(domain_features_by_level.keys()):
                 if level_num > level:
@@ -7230,7 +7296,7 @@ def render_class_features():
                 level_features = domain_features_by_level[level_num]
                 unlocked = "expanded"  # Always expanded since only showing unlocked features
                 
-                domain_title = escape(domain.title())
+                domain_title = escape(subclass.title())
                 html_parts.append(f'''<div class="class-feature-level">
                 <div class="class-feature-level-header {unlocked}" onclick="this.nextElementSibling.classList.toggle('expanded'); this.classList.toggle('expanded')">
                     <span><span class="level-indicator">{domain_title} Domain - Level {level_num}</span></span>
@@ -7370,10 +7436,12 @@ def handle_input_event(event=None):
     # Debug: log domain changes
     if event is not None and hasattr(event, "target"):
         target_id = getattr(event.target, "id", "")
-        if target_id == "domain":
+        if target_id == "subclass":
             value = getattr(event.target, "value", "")
-            console.log(f"DEBUG: domain input event fired! New value: {value}, SPELLCASTING_MANAGER={SPELLCASTING_MANAGER is not None}")
-            _ensure_domain_spells_in_spellbook(reason="domain_change")
+            console.log(f"DEBUG: subclass input event fired! New value: {value}, SPELLCASTING_MANAGER={SPELLCASTING_MANAGER is not None}")
+            _class = (get_text_value("class") or "").lower().strip()
+            if _class == "cleric":
+                _ensure_domain_spells_in_spellbook(reason="subclass_change")
         elif target_id == "level":
             # Ensure newly unlocked domain spells are added when leveling up
             _ensure_domain_spells_in_spellbook(reason="level_change")
@@ -7796,7 +7864,7 @@ def _ensure_domain_spells_in_spellbook(reason: str = "unspecified"):
         _DOMAIN_SPELL_SYNCING = False
         return
 
-    domain = get_text_value("domain")
+    domain = _get_cleric_domain()
     loaded = SPELL_LIBRARY_STATE.get("loaded")
     level = get_numeric_value("level", 1)
     console.log(f"DEBUG: _ensure_domain_spells_in_spellbook - domain={domain}, level={level}, loaded={loaded}")
