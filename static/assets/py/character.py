@@ -7183,8 +7183,20 @@ def get_domain_bonus_spells(domain_name: str, current_level: int) -> list[str]:
 
 
 def update_subclass_ui():
-    """Update the subclass row label and visible options based on the selected class."""
+    """Update the subclass row label and visible options based on the selected class.
+
+    The row is shown only for classes that have a subclass choice in the
+    current select (Cleric → Domain, Bard → College).  For every other class
+    the row is hidden and the field is cleared so stale values don't persist.
+    """
     class_name = (get_text_value("class") or "").strip().lower()
+    has_subclass = class_name in ("cleric", "bard")
+
+    # Show/hide the entire row
+    subclass_rows = document.querySelectorAll("[data-subclass-row]")
+    for row in subclass_rows:
+        row.style.display = "" if has_subclass else "none"
+
     label_el = get_element("subclass-label")
     subclass_select = get_element("subclass")
 
@@ -7203,17 +7215,18 @@ def update_subclass_ui():
             if opt_class is None:
                 # Placeholder option — always visible
                 option.hidden = False
-            elif class_name in ("cleric", "bard"):
+            elif has_subclass:
                 option.hidden = opt_class != class_name
             else:
                 option.hidden = True
-        # If the currently selected value is now hidden, reset to empty
+        # If the currently selected value is now hidden (or the class has no
+        # subclass chooser), reset the field to empty so no stale value lingers.
         selected_opt = None
         for option in subclass_select.options:
             if option.value == current_value:
                 selected_opt = option
                 break
-        if selected_opt is not None and selected_opt.hidden:
+        if not has_subclass or (selected_opt is not None and selected_opt.hidden):
             subclass_select.value = ""
 
 

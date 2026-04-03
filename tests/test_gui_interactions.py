@@ -291,6 +291,28 @@ class TestOverviewTab:
     def test_subclass_select_present(self, app_page):
         expect(app_page.locator("#subclass")).to_be_attached()
 
+    def test_subclass_row_hidden_by_default(self, app_page):
+        """Row must be hidden on page load (default class is not Cleric or Bard)."""
+        row = app_page.locator("[data-subclass-row]")
+        expect(row).to_be_attached()
+        display = app_page.evaluate(
+            "document.querySelector('[data-subclass-row]').style.display"
+        )
+        assert display == "none", (
+            f"[data-subclass-row] should be hidden by default, got display='{display}'"
+        )
+
+    def test_subclass_row_has_label_element(self, app_page):
+        expect(app_page.locator("#subclass-label")).to_be_attached()
+
+    def test_subclass_row_has_cleric_domain_options(self, app_page):
+        options = app_page.locator('#subclass option[data-class="cleric"]').all_text_contents()
+        assert len(options) > 0, "Subclass select must contain Cleric domain options"
+
+    def test_subclass_row_has_bard_college_options(self, app_page):
+        options = app_page.locator('#subclass option[data-class="bard"]').all_text_contents()
+        assert len(options) > 0, "Subclass select must contain Bard college options"
+
     def test_alignment_select_present(self, app_page):
         alignments = app_page.locator("#alignment option").all_text_contents()
         assert "Lawful Good" in alignments
