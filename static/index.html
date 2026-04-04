@@ -49,7 +49,7 @@
                             <tr>
                                 <td class="character-label">Class</td>
                                 <td>
-                                    <select data-character-input id="class">
+                                    <select data-character-input id="class" onchange="(function(v){document.getElementById('domain-row').style.display=v==='Cleric'?'table-row':'none';document.getElementById('college-row').style.display=v==='Bard'?'table-row':'none';})(this.value)">
                                         <option value="">Select Class</option>
                                         <option value="Barbarian">Barbarian</option>
                                         <option value="Bard">Bard</option>
@@ -1018,6 +1018,41 @@
         };
         
         console.log("[JS] Window.setupAutoExportDirectory registered and ready");
+    </script>
+
+    <!-- Ensure domain-row/college-row visibility stays in sync whenever the class
+         select value changes, including changes made programmatically by PyScript. -->
+    <script>
+        (function () {
+            function syncSubclassRows() {
+                var v = (document.getElementById('class') || {}).value || '';
+                var dr = document.getElementById('domain-row');
+                var cr = document.getElementById('college-row');
+                if (dr) dr.style.display = v === 'Cleric' ? 'table-row' : 'none';
+                if (cr) cr.style.display = v === 'Bard'   ? 'table-row' : 'none';
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                var sel = document.getElementById('class');
+                if (sel) {
+                    // Fire on any user or programmatic change
+                    sel.addEventListener('change', syncSubclassRows);
+                    // Also observe direct .value writes (PyScript uses element.value = x)
+                    var orig = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+                    if (orig && orig.set) {
+                        Object.defineProperty(sel, 'value', {
+                            get: function () { return orig.get.call(this); },
+                            set: function (v) {
+                                orig.set.call(this, v);
+                                syncSubclassRows();
+                            },
+                            configurable: true
+                        });
+                    }
+                    syncSubclassRows(); // initial sync
+                }
+            });
+        })();
     </script>
 
     <py-script src="assets/py/character.py?v=2"></py-script>
