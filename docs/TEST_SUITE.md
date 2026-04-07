@@ -58,6 +58,34 @@ This script runs both test suites:
 1. Main test suite (763 tests) - excludes equipment events to avoid mock contamination
 2. Equipment events tests (28 tests) - runs separately with browser module mocking
 
+### All tests with code quality tools
+```powershell
+.\run_all_tests.ps1 -All
+```
+
+The `-All` parameter enables all code quality tools:
+- **Radon**: Complexity analysis
+- **Ruff**: Python linter
+- **Mypy**: Type checking
+- **Bandit**: Security scanner
+- **Coverage**: Test coverage report
+
+### Other options
+```powershell
+# Run tests with specific filter
+.\run_all_tests.ps1 -Filter "spell"
+
+# Run tests with individual tools
+.\run_all_tests.ps1 -Radon
+.\run_all_tests.ps1 -Ruff
+.\run_all_tests.ps1 -Mypy
+.\run_all_tests.ps1 -Bandit
+.\run_all_tests.ps1 -Coverage
+
+# Combine multiple tools
+.\run_all_tests.ps1 -Ruff -Mypy
+```
+
 ### Main test suite only
 ```powershell
 python -m pytest tests\ --ignore=tests\test_equipment_chooser.py --ignore=tests\test_equipment_events.py
