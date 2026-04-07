@@ -8,7 +8,7 @@ The EntityManager pattern is a design pattern for managing game entities (Weapon
 
 ### 1. Base EntityManager Class
 
-Located in: [entity_manager.py](entity_manager.py)
+Located in: [entity_manager.py](../static/assets/py/managers/entity_manager.py)
 
 ```python
 class EntityManager:
@@ -39,7 +39,7 @@ class EntityManager:
 
 ### 2. WeaponEntity Implementation
 
-Located in: [weapons_manager.py](weapons_manager.py)
+Located in: [weapons_manager.py](../static/assets/py/managers/weapons_manager.py)
 
 ```python
 class WeaponEntity(EntityManager):
@@ -239,8 +239,8 @@ If updating existing code to use EntityManager pattern:
 
 ## File Locations
 
-- [entity_manager.py](entity_manager.py) - Base class (40 lines)
-- [weapons_manager.py](weapons_manager.py) - Weapons implementation (380 lines)
+- [entity_manager.py](../static/assets/py/managers/entity_manager.py) - Base class (40 lines)
+- [weapons_manager.py](../static/assets/py/managers/weapons_manager.py) - Weapons implementation (380 lines)
   - WeaponEntity: 155 lines
   - WeaponsCollectionManager: 180 lines
   - Global initialization: 20 lines
