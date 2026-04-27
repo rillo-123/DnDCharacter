@@ -44,11 +44,11 @@ class TooltipValue:
             return str(value)
     
     def generate_tooltip_html(self) -> str:
-        """Generate HTML tooltip with breakdown. Override in subclasses."""
+        """Generate HTML tooltip with breakdown."""
         if not self.components:
             return ""
-        
-        return ""
+
+        return format_tooltip_html(self.label, self.components)
     
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(label='{self.label}', total={self.total}, components={len(self.components)})"

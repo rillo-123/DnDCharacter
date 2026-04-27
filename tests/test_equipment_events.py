@@ -13,66 +13,42 @@ import os
 import unittest
 import json
 from unittest.mock import Mock, MagicMock, patch, call
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'static', 'assets', 'py'))
 
-# Mock browser modules ONLY for this test file
-_original_js = sys.modules.get('js')
-_original_pyodide = sys.modules.get('pyodide')
-_original_pyodide_ffi = sys.modules.get('pyodide.ffi')
-_original_armor = sys.modules.get('armor_manager')
-_original_character = sys.modules.get('character')
-
-# Temporarily mock browser modules
-sys.modules['js'] = MagicMock()
-sys.modules['pyodide'] = MagicMock()
-sys.modules['pyodide.ffi'] = MagicMock()
-
-# Mock armor_manager and character modules for event handler imports
+# Mock armor_manager and character modules for event handler assertions. They
+# are installed into sys.modules per test by _install_event_modules so collection
+# cannot poison unrelated tests that import character.py.
 mock_armor_manager = MagicMock()
 mock_armor_manager.set_armor_bonus = Mock(return_value=True)
-sys.modules['armor_manager'] = mock_armor_manager
 
 mock_character = MagicMock()
 mock_character.update_calculations = Mock()
-sys.modules['character'] = mock_character
 
 # Now import the module under test
 from managers.equipment_event_manager import EquipmentEventListener
 
 
-def tearDownModule():
-    """Restore original modules and clear equipment_event_manager from cache."""
-    # Remove equipment_event_manager from cache so other tests import it fresh
-    if 'equipment_event_manager' in sys.modules:
-        del sys.modules['equipment_event_manager']
-    
-    # Restore original modules
-    if _original_js is not None:
-        sys.modules['js'] = _original_js
-    elif 'js' in sys.modules:
-        del sys.modules['js']
-    
-    if _original_pyodide is not None:
-        sys.modules['pyodide'] = _original_pyodide
-    elif 'pyodide' in sys.modules:
-        del sys.modules['pyodide']
-    
-    if _original_pyodide_ffi is not None:
-        sys.modules['pyodide.ffi'] = _original_pyodide_ffi
-    elif 'pyodide.ffi' in sys.modules:
-        del sys.modules['pyodide.ffi']
-    
-    if _original_armor is not None:
-        sys.modules['armor_manager'] = _original_armor
-    elif 'armor_manager' in sys.modules:
-        del sys.modules['armor_manager']
-    
-    if _original_character is not None:
-        sys.modules['character'] = _original_character
-    elif 'character' in sys.modules:
-        del sys.modules['character']
+@pytest.fixture(autouse=True)
+def _install_event_modules():
+    originals = {
+        "armor_manager": sys.modules.get("armor_manager"),
+        "character": sys.modules.get("character"),
+    }
+    existed = {name: name in sys.modules for name in originals}
+
+    sys.modules["armor_manager"] = mock_armor_manager
+    sys.modules["character"] = mock_character
+    try:
+        yield
+    finally:
+        for name, module in originals.items():
+            if existed[name]:
+                sys.modules[name] = module
+            else:
+                sys.modules.pop(name, None)
 
 
 class MockInventoryManager:

@@ -11,38 +11,38 @@
   - `data-currency-field="pp|gp|ep|sp|cp"` - identifies currency type
   - Element IDs: `currency-pp`, `currency-gp`, `currency-ep`, `currency-sp`, `currency-cp`
 
-### 2. **Data Collection (Python/PyScript)**
-In `static/assets/py/character.py`:
+### 2. **Data Collection (JavaScript)**
+In `static/assets/js/app.js`:
 
-#### Collection on Save (Line 2869)
-```python
-"currency": {key: get_numeric_value(f"currency-{key}", 0) for key in CURRENCY_ORDER}
+#### Collection on Save
+```javascript
+currency: Object.fromEntries(CURRENCY.map((coin) => [coin, numberValue(`currency-${coin}`, 0)]))
 ```
 - Captures all 5 coin types from form inputs
 - Defaults to 0 if field is empty
 
-#### Data Structure (Line 1721)
-```python
-"currency": {key: 0 for key in CURRENCY_ORDER}
+#### Data Structure
+```javascript
+inventory: { items: [], currency: Object.fromEntries(CURRENCY.map((coin) => [coin, 0])) }
 ```
 - Default state includes all currency types initialized to 0
 
-#### Currency Order (Line 1686)
-```python
-CURRENCY_ORDER = ["pp", "gp", "ep", "sp", "cp"]
+#### Currency Order
+```javascript
+const CURRENCY = ["pp", "gp", "ep", "sp", "cp"];
 ```
 - Platinum, Gold, Electrum, Silver, Copper
 
-#### Population from JSON (Lines 3011-3014)
-```python
-currency = inv.get("currency", {})
-for key in CURRENCY_ORDER:
-    set_form_value(f"currency-{key}", currency.get(key, 0))
+#### Population from JSON
+```javascript
+for (const coin of CURRENCY) {
+  setValue(`currency-${coin}`, state.inventory?.currency?.[coin] ?? 0);
+}
 ```
 - Properly restores currency values when loading a saved character
 
 ### 3. **Backend Export**
-`backend.py` `/api/export` endpoint receives and saves character data including the currency object.
+`backend_fastapi.py` `/api/export` endpoint receives and saves character data including the currency object.
 
 ### 4. **Verification**
 ✅ All tests pass including:

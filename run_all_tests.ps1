@@ -14,7 +14,9 @@ Push-Location $root
 
 # Set up logging with timestamp
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$logFile = Join-Path -Path $root -ChildPath "test_results_$timestamp.txt"
+$logDir = Join-Path -Path $root -ChildPath "logs"
+New-Item -Path $logDir -ItemType Directory -Force | Out-Null
+$logFile = Join-Path -Path $logDir -ChildPath "test_results_$timestamp.log"
 Start-Transcript -Path $logFile -Append | Out-Null
 
 try {

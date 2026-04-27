@@ -12,12 +12,12 @@ Usage examples:
   .\run_vulture.ps1 -MinConfidence 50 -Open
 
   # Pass extra vulture args
-  .\run_vulture.ps1 -ExtraArgs "--exclude static/assets/js" -OutFile my_report.txt
+  .\run_vulture.ps1 -ExtraArgs "--exclude static/assets/js" -OutFile logs\my_report.log
 #>
 
 Param(
     [int]$MinConfidence = 70,
-    [string]$OutFile = "vulture_report.txt",
+    [string]$OutFile = "logs\vulture_report.log",
     [switch]$Open,
     [string]$ExtraArgs = "",
     [string]$Exclude = ".venv,.git",
@@ -104,6 +104,10 @@ Write-Info "Running: $cmdPreview"
 function Invoke-VultureRun {
     param([string]$OutFilePath)
     try {
+        $outDir = Split-Path -Parent $OutFilePath
+        if ($outDir) {
+            New-Item -Path $outDir -ItemType Directory -Force | Out-Null
+        }
         Write-Info "Running vulture -> $OutFilePath"
         & $venvPython -m vulture @argList > $OutFilePath 2>&1
         return $LASTEXITCODE
@@ -115,8 +119,15 @@ function Invoke-VultureRun {
 
 # If RunTests is requested, do an initial vulture run, execute tests, then re-run vulture
 if ($RunTests) {
-    $beforeFile = ([System.IO.Path]::GetFileNameWithoutExtension($OutFile) + ".before.txt")
-    $afterFile = ([System.IO.Path]::GetFileNameWithoutExtension($OutFile) + ".after.txt")
+    $outDir = Split-Path -Parent $OutFile
+    $outBase = [System.IO.Path]::GetFileNameWithoutExtension($OutFile)
+    if ($outDir) {
+        $beforeFile = Join-Path $outDir "$outBase.before.log"
+        $afterFile = Join-Path $outDir "$outBase.after.log"
+    } else {
+        $beforeFile = "$outBase.before.log"
+        $afterFile = "$outBase.after.log"
+    }
 
     $rc1 = Invoke-VultureRun -OutFilePath $beforeFile
     if ($rc1 -ne 0) { Write-Info "Initial vulture run completed with code $rc1" }

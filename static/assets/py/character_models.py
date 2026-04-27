@@ -32,7 +32,7 @@ except ImportError:
 def _get_managers_imports():
     """Lazy import function to get managers imports when needed."""
     try:
-        from managers import (
+        from managers.class_manager import (
             CharacterClassInfo,
             CLASS_REGISTRY,
             get_class_info,
@@ -42,6 +42,8 @@ def _get_managers_imports():
             Bard,
             Cleric,
             CharacterFactory,
+        )
+        from managers.race_manager import (
             RACE_ABILITY_BONUSES,
             get_race_ability_bonuses,
         )

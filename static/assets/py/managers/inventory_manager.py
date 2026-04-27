@@ -10,7 +10,7 @@ from html import escape
 
 # Import Entity from same package
 try:
-    from .entities import Entity
+    from entities import Entity
 except ImportError:
     # For testing/non-PyScript environments, define a minimal Entity
     class Entity:
@@ -19,6 +19,14 @@ except ImportError:
             self.entity_type = entity_type
             self.description = description
             self.properties = {}
+
+        def to_dict(self) -> dict:
+            return {
+                "name": self.name,
+                "entity_type": self.entity_type,
+                "description": self.description,
+                "properties": self.properties.copy(),
+            }
 
 # =============================================================================
 # PyScript/Pyodide Imports with Guards

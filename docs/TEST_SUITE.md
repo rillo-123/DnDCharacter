@@ -1,12 +1,39 @@
 # Test Suite Summary
 
 ## Overview
-The project now has a comprehensive test suite covering the Flask backend, character models, equipment, spells, and more.
+The project now has a comprehensive test suite covering the FastAPI backend, legacy Flask backend, character models, equipment, spells, and more.
 
 ## Test Files Created
 
+### `tests/test_fastapi_backend.py` (12 tests)
+Tests for the FastAPI backend route parity:
+- Static file serving for the JavaScript app
+- Export character data to JSON files
+- Serve saved exports from `/exports/{filename}`
+- List exported files with metadata
+- Filename sanitization (path traversal prevention)
+- Console log endpoints
+- Invalid request handling
+
+### `tests/test_rendered_ux.py` (4 tests)
+Rendered browser smoke tests for the native JavaScript UI:
+- Starts the FastAPI app on a free local port
+- Drives Chromium through Playwright
+- Verifies initial render, tab navigation, character edits, and reload persistence
+- Verifies inventory search/add and spell load/add workflows
+- Verifies Manage tab and custom item modal rendering on a mobile viewport
+
+Run with:
+```powershell
+python -m playwright install chromium
+python -m pytest tests\test_rendered_ux.py -q --browser chromium
+```
+
+Screenshots are written under `test-artifacts/screenshots/` for local review and
+are intentionally ignored by git.
+
 ### `tests/test_flask_export_api.py` (16 tests)
-Tests for the Flask `/api/export` and `/api/exports` endpoints:
+Legacy tests for the Flask `/api/export` and `/api/exports` endpoints:
 - Export character data to JSON files
 - List exported files with metadata
 - Filename sanitization (path traversal prevention)
@@ -16,7 +43,7 @@ Tests for the Flask `/api/export` and `/api/exports` endpoints:
 
 ### `tests/test_startup_health.py` (26 tests)
 Startup and health check tests:
-- Flask app initialization
+- Backend app initialization
 - Route registration and HTTP methods
 - Endpoint availability and responses
 - Error handling (404, 500, invalid JSON)
@@ -43,7 +70,8 @@ Startup and health check tests:
 - Spell class chooser: ~21 tests
 - Export/import: ~50 tests
 - Weapons: ~70 tests
-- Flask API tests: 16 tests
+- FastAPI backend tests: 12 tests
+- Legacy Flask API tests: 16 tests
 - Startup/health tests: 26 tests
 - Other features: ~270 tests
 
@@ -113,7 +141,8 @@ The `test_equipment_events.py` test file requires special handling due to browse
 
 ### During Development
 - Run `python -m pytest tests/ -v` before committing
-- Run `python -m pytest tests/ -k "flask" -v` to validate server changes
+- Run `python -m pytest tests/test_fastapi_backend.py -v` to validate FastAPI server changes
+- Run `python -m pytest tests/ -k "flask" -v` only when touching the legacy Flask path
 
 ### In CI/CD
 - All 443 tests should pass
@@ -121,13 +150,14 @@ The `test_equipment_events.py` test file requires special handling due to browse
 
 ### Before Deployment
 - Verify `python -m pytest tests/test_startup_health.py` passes
-- Verify Flask server starts: `python backend.py --debug`
+- Verify rendered UX smoke tests: `python -m pytest tests/test_rendered_ux.py -q --browser chromium`
+- Verify FastAPI server starts: `python backend_fastapi.py --debug`
 - Verify frontend loads: open `http://localhost:8080`
 
 ## Key Test Assertions
 
 ### Server Startup
-- ✓ Flask app is created and configured
+- ✓ FastAPI app is created and configured
 - ✓ Static folder is properly set
 - ✓ Export directory exists and is writable
 - ✓ All routes are registered
@@ -154,5 +184,5 @@ The `test_equipment_events.py` test file requires special handling due to browse
 - [ ] Add performance benchmarks
 - [ ] Add security tests (CORS, injection)
 - [ ] Add load testing
-- [ ] Add browser automation tests (Selenium/Playwright)
+- [x] Add browser automation tests (Playwright)
 - [ ] Add visual regression tests for UI

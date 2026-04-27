@@ -4,24 +4,11 @@ This catches missing module imports that tests might not detect.
 """
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 import pytest
 
 # Add the static/assets/py directory to the path
 py_dir = Path(__file__).parent.parent / "static" / "assets" / "py"
 sys.path.insert(0, str(py_dir))
-
-# Mock PyScript modules that are only available in browser
-js_mock = MagicMock()
-pyodide_mock = MagicMock()
-pyodide_mock.ffi = MagicMock()
-pyodide_mock.ffi.create_proxy = MagicMock()
-pyscript_mock = MagicMock()
-
-sys.modules['js'] = js_mock
-sys.modules['pyodide'] = pyodide_mock
-sys.modules['pyodide.ffi'] = pyodide_mock.ffi
-sys.modules['pyscript'] = pyscript_mock
 
 
 def test_character_module_imports():

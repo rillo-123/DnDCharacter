@@ -1,28 +1,4 @@
 """Test spell merging from fallback list into Open5e results."""
-import sys
-
-# Mock the PyScript/JS dependencies before importing
-class MockConsole:
-    @staticmethod
-    def log(*args): pass
-    @staticmethod
-    def warn(*args): pass
-    @staticmethod
-    def error(*args): pass
-
-class MockDocument:
-    pass
-
-class MockWindow:
-    pass
-
-sys.modules['js'] = type(sys)('js')
-sys.modules['js'].console = MockConsole()
-sys.modules['js'].document = MockDocument()
-sys.modules['js'].window = MockWindow()
-
-# Now we can import
-from character_models import CharacterFactory
 from spell_data import LOCAL_SPELLS_FALLBACK, SPELL_CLASS_DISPLAY_NAMES
 from character import sanitize_spell_list
 

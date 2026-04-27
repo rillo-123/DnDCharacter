@@ -1,29 +1,11 @@
 """Test that spellcasting module imports correctly and spell sanitization works."""
 import sys
-import os
+from pathlib import Path
 
 # Add the assets/py directory to the path so we can import character module
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'assets', 'py'))
-
-# Mock the PyScript/JS dependencies before importing
-class MockConsole:
-    @staticmethod
-    def log(*args): pass
-    @staticmethod
-    def warn(*args): pass
-    @staticmethod
-    def error(*args): pass
-
-class MockDocument:
-    pass
-
-class MockWindow:
-    pass
-
-sys.modules['js'] = type(sys)('js')
-sys.modules['js'].console = MockConsole()
-sys.modules['js'].document = MockDocument()
-sys.modules['js'].window = MockWindow()
+assets_py = Path(__file__).parent.parent / "static" / "assets" / "py"
+if str(assets_py) not in sys.path:
+    sys.path.insert(0, str(assets_py))
 
 # Now we can import
 from character_models import CharacterFactory
@@ -52,7 +34,7 @@ def test_spell_class_display_names_not_empty():
 def test_spellcasting_manager_imports():
     """Test that spellcasting module can be imported."""
     try:
-        from spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE
+        from managers.spellcasting_manager import SpellcastingManager, SPELL_LIBRARY_STATE
         assert SpellcastingManager is not None, "SpellcastingManager should not be None"
         assert SPELL_LIBRARY_STATE is not None, "SPELL_LIBRARY_STATE should not be None"
         print("[PASS] SpellcastingManager imports successfully")

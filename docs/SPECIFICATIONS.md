@@ -6,8 +6,8 @@ A comprehensive web-based D&D 5e character sheet application with inventory mana
 
 ## Technology Stack
 
-- **Backend:** Python (Pyodide for WASM execution in browser)
-- **Frontend:** HTML5, CSS3, JavaScript
+- **Backend:** FastAPI/Python for local serving, exports, and browser log collection
+- **Frontend:** HTML5, CSS3, native JavaScript
 - **Data Format:** JSON
 - **Storage:** Browser localStorage + file exports
 
@@ -578,18 +578,19 @@ pytest tests/ -v  # Run all tests
 ├── docs/SPECIFICATIONS.md             # This file
 ├── requirements.txt                   # Python dependencies
 ├── config.json                        # Configuration
-├── backend.py                         # Python backend server
+├── backend_fastapi.py                 # FastAPI backend server
+├── backend.py                         # Legacy Flask backend server
 ├── static/
 │   ├── index.html                    # Main character sheet UI
 │   └── assets/
-│       ├── py/                       # Python modules (Pyodide)
-│       │   ├── character.py          # Character system core
-│       │   ├── armor_manager.py      # Armor calculations
-│       │   ├── equipment_management.py # Equipment UI/logic
-│       │   ├── equipment_data.py     # Equipment database
-│       │   └── ...
+│       ├── js/
+│       │   ├── app.js                # JavaScript character sheet controller
+│       │   ├── console-logger.js     # Browser console log capture
+│       ├── data/
+│       │   ├── equipment.json        # Local equipment data
+│       │   ├── spells.json           # Local spell fallback and progression data
 │       ├── css/
-│       └── js/
+│       │   └── styles.css
 ├── docs/                              # Additional documentation
 ├── tests/                             # Test suite
 ├── exports/                           # Character exports

@@ -5,24 +5,22 @@ Works on Windows, Linux, and macOS.
 
 Features:
     - Idempotent: Safe to run multiple times
-    - Process cleanup: Kills existing Flask servers before starting new ones
+    - Process cleanup: Kills existing backend servers before starting new ones
     - Cross-platform: Works on all operating systems
     - Logging: All output logged to logs/activate-env.log
 
 Usage:
     python activate-env.py                              # Check/install dependencies
-    python activate-env.py -Startserver                 # Setup and start Flask server
+    python activate-env.py -Startserver                 # Setup and start FastAPI server
     python activate-env.py -Startserver -NoCheck        # Start server without dependency check
     python activate-env.py -Startserver -NoCheckExceptSyntax  # Start server, check syntax only
 """
 
 import sys
-import os
 import subprocess
 import platform
 from pathlib import Path
 import logging
-from datetime import datetime
 
 # Setup logging
 LOG_DIR = Path(__file__).parent / "logs"
@@ -84,29 +82,29 @@ def create_venv():
         return False
 
 
-def kill_flask_processes():
-    """Kill any existing Flask server processes (idempotent)."""
+def kill_backend_processes():
+    """Kill any existing backend server processes (idempotent)."""
     try:
         if platform.system() == "Windows":
-            # Windows: Use taskkill to find and kill python processes running backend.py
+            # Windows: Best-effort cleanup for Python windows with backend in the title.
             try:
                 subprocess.run(
                     ['taskkill', '/F', '/IM', 'python.exe', '/FI', 'WINDOWTITLE eq *backend*'],
                     capture_output=True,
                     timeout=5
                 )
-                print("[OK] Cleaned up any existing Flask processes")
+                print("[OK] Cleaned up any existing backend processes")
             except Exception:
                 pass  # If no processes found, that's fine
         else:
-            # Linux/macOS: Use pkill to find and kill Python processes running backend.py
+            # Linux/macOS: Use pkill to find and kill Python/uvicorn backend processes.
             try:
                 subprocess.run(
-                    ['pkill', '-f', 'backend.py'],
+                    ['pkill', '-f', 'backend_fastapi.py|uvicorn.*backend_fastapi|backend.py'],
                     capture_output=True,
                     timeout=5
                 )
-                print("[OK] Cleaned up any existing Flask processes")
+                print("[OK] Cleaned up any existing backend processes")
             except Exception:
                 pass  # If no processes found, that's fine
     except Exception as e:
@@ -208,29 +206,29 @@ def print_activation_instructions():
     
     if platform.system() == "Windows":
         activate_cmd = str(venv_path / "Scripts" / "Activate.ps1")
-        print(f"\n[INFO] To activate the venv in PowerShell, run:")
+        print("\n[INFO] To activate the venv in PowerShell, run:")
         print(f"   & \"{activate_cmd}\"")
-        print(f"\n[INFO] Or in cmd.exe, run:")
+        print("\n[INFO] Or in cmd.exe, run:")
         print(f"   {venv_path / 'Scripts' / 'activate.bat'}")
     else:
         activate_cmd = f"source {venv_path / 'bin' / 'activate'}"
-        print(f"\n[INFO] To activate the venv, run:")
+        print("\n[INFO] To activate the venv, run:")
         print(f"   {activate_cmd}")
     
-    print(f"\n[INFO] To start the Flask server:")
-    print(f"   python backend.py")
+    print("\n[INFO] To start the FastAPI server:")
+    print("   python backend_fastapi.py")
     print("\n" + "=" * 70)
 
 
 def start_server():
-    """Start the Flask server (idempotent - kills existing processes first)."""
-    print("\n[INFO] Starting Flask server...")
+    """Start the FastAPI server (idempotent - kills existing processes first)."""
+    print("\n[INFO] Starting FastAPI server...")
     
     # Kill any existing processes
-    kill_flask_processes()
+    kill_backend_processes()
     
     python_exe = get_python_executable()
-    backend_file = Path(__file__).parent / "backend.py"
+    backend_file = Path(__file__).parent / "backend_fastapi.py"
     
     try:
         subprocess.call([str(python_exe), str(backend_file)])

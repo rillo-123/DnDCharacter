@@ -2,10 +2,14 @@
 # This file loads automatically when PowerShell starts
 # Copy this file to your PowerShell profile directory or run it manually with: . .\profile.ps1
 
+# Disable the stock venv prompt; this profile owns the prompt decorations.
+$env:VIRTUAL_ENV_DISABLE_PROMPT = "1"
+$Global:DnDCharacterProjectRoot = $PSScriptRoot
+
 # Git branch and dirty marker helpers for prompt
 # These functions work with or without the Flask server running
 
-function Get-GitBranch {
+function global:Get-GitBranch {
     try {
         $branch = git rev-parse --abbrev-ref HEAD 2>$null | ForEach-Object { $_.Trim() }
         if ($LASTEXITCODE -eq 0 -and $branch) { return $branch }
@@ -15,11 +19,22 @@ function Get-GitBranch {
     }
 }
 
-function Get-GitDirtyMarker {
+function global:Get-GitDirtyMarker {
     try {
         $status = git status --porcelain 2>$null
-        if ($LASTEXITCODE -eq 0 -and $status -and $status.Trim()) { return '*' }
-        return ''
+        if ($LASTEXITCODE -ne 0 -or -not $status) { return '' }
+
+        $markers = ""
+
+        if ($status -match '^\?\?') {
+            $markers += '+'
+        }
+
+        if ($status -match '^[ MADRC]') {
+            $markers += '*'
+        }
+
+        return $markers
     } catch {
         return ''
     }
@@ -35,7 +50,7 @@ if (-not (Test-Path Variable:GitPromptCache)) {
     } -Scope Global
 }
 
-function Update-GitPromptCache {
+function global:Update-GitPromptCache {
     param([string]$path)
     $cache = Get-Variable -Name GitPromptCache -Scope Global -ValueOnly
     
@@ -67,12 +82,13 @@ function global:prompt {
         }
 
         # Show git branch + dirty marker (if in a git repo)
-        $branchPartRaw = ""
+        $branchName = ""
+        $branchDirty = ""
         if (Get-Command git -ErrorAction SilentlyContinue) {
             $cache = Update-GitPromptCache -path $path
             if ($cache.Branch) {
-                $marker = $cache.Dirty ? "*" : ""
-                $branchPartRaw = "($($cache.Branch)$marker) "
+                $branchName = $cache.Branch
+                $branchDirty = $cache.Dirty
             }
         }
 
@@ -82,21 +98,41 @@ function global:prompt {
 
         if ($useColor) {
             $esc = "`e"
-            # Cyan for virtualenv, yellow for git branch
+            # Cyan for virtualenv, yellow for git branch, red for dirty marker.
             $c_venv = ""
-            $c_branch = ""
+            $c_git = ""
             if ($venvPart) { $c_venv = "${esc}[36m$venvPart${esc}[0m" }
-            if ($branchPartRaw) { $c_branch = "${esc}[33m$branchPartRaw${esc}[0m" }
-            return "$c_venv$c_branch$path> "
+            if ($branchName) {
+                $c_git = "(${esc}[33m$branchName${esc}[0m"
+                if ($branchDirty) {
+                    $c_git += "${esc}[31m$branchDirty${esc}[0m"
+                }
+                $c_git += ") "
+            }
+            return "$c_venv$c_git${esc}[32m$path${esc}[0m`n> "
         } else {
             # Fallback without colors
-            return "$venvPart$branchPartRaw$path> "
+            $fallbackGit = ""
+            if ($branchName) { $fallbackGit = "($branchName$branchDirty) " }
+            return "$venvPart$fallbackGit$path`n> "
         }
     } catch {
         return "PS> "
     }
 }
 
-Write-Host "✓ Git prompt helper loaded. Your prompt will now show:" -ForegroundColor Green
-Write-Host "  - (venv-name) if inside a virtual environment" -ForegroundColor Gray
-Write-Host "  - (branch) or (branch*) if in a git repo (* = uncommitted changes)" -ForegroundColor Gray
+function global:ensure_venv {
+    $scriptPath = Join-Path $Global:DnDCharacterProjectRoot "ensure_venv.ps1"
+    if (Test-Path -LiteralPath $scriptPath) {
+        & $scriptPath @args
+    } else {
+        Write-Error "ensure_venv.ps1 not found at $scriptPath"
+    }
+}
+
+if (-not $env:DNDC_PROFILE_QUIET) {
+    Write-Host "[OK] Git prompt helper loaded. Your prompt will now show:" -ForegroundColor Green
+    Write-Host "  - (venv-name) if inside a virtual environment" -ForegroundColor Gray
+    Write-Host "  - (branch+*) if in a git repo (+ = untracked, * = modified)" -ForegroundColor Gray
+    Write-Host "  - ensure_venv command for this project" -ForegroundColor Gray
+}

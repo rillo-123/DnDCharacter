@@ -86,7 +86,7 @@ Get-ChildItem logs/browser-console-*.log | Sort-Object LastWriteTime -Descending
 
 ## Technical Details
 
-- **Backend Integration**: Browser sends logs to Flask backend via fetch API
+- **Backend Integration**: Browser sends logs to the FastAPI backend via fetch API
 - **Batch Writing**: Groups up to 10 log entries per write to reduce I/O
 - **Async Sending**: Doesn't block the browser while writing
 - **Error Resilience**: Failed writes don't crash the application
@@ -104,8 +104,8 @@ The console logger is automatically loaded when you open `index.html`. No config
 ### Session Comparison
 Compare logs from different debugging sessions by file timestamp.
 
-### PyScript Debugging
-Captures all PyScript/Pyodide console output including module loading, HTTP fallbacks, and Python errors.
+### JavaScript Debugging
+Captures JavaScript console output including app startup, data fetches, HTTP fallbacks, and runtime errors.
 
 ### Module Import Issues
 Track which modules are loading successfully and which are falling back to HTTP.

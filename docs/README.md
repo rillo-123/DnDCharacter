@@ -1,6 +1,6 @@
 # PySheet – D&D 5e Character Sheet
 
-PySheet is a browser-first character sheet for Dungeons & Dragons 5th Edition. It is written with HTML/CSS and powered by [PyScript](https://pyscript.net), allowing you to run Python directly in the browser—perfect for platforms such as Chromebooks that do not allow native executables.
+PySheet is a browser-first character sheet for Dungeons & Dragons 5th Edition. The frontend is native HTML, CSS, and JavaScript, with a FastAPI backend for local static serving, exports, and browser log collection.
 
 ## Features
 
@@ -18,26 +18,31 @@ PySheet is a browser-first character sheet for Dungeons & Dragons 5th Edition. I
 
 ```
 DnDCharacter/
-├── index.html              # Entry point that loads PyScript and the sheet UI
+├── index.html              # Entry point that loads the JavaScript sheet UI
 └── assets/
     ├── css/
     │   └── styles.css      # Styling for the application
-    └── py/
-      ├── character_models.py  # Domain models used by the PyScript controller
-      └── character.py         # PyScript logic executed in the browser
+    ├── data/
+    │   ├── equipment.json  # Local equipment data
+    │   └── spells.json     # Local spell fallback and slot data
+    └── js/
+        ├── app.js          # Native JavaScript app controller
+        └── console-logger.js
 ```
-
-> Tip: VS Code may flag the `js` and `pyodide` imports in `character.py`. These modules are provided by PyScript at runtime, so those warnings can be ignored for this project.
 
 ## Getting Started
 
 1. **Open the sheet**
-   - Double-click `index.html`, or
-   - Serve the folder with a simple web server (avoids CORS issues in some browsers):
+   - Recommended: start the FastAPI server:
      ```powershell
-     pwsh -NoLogo -Command "python -m http.server"
+     .\start.ps1 -NoUpdate
      ```
-   - Then visit `http://localhost:8000` in your browser.
+   - Then visit `http://localhost:8080` in your browser.
+   - You can also serve the `static/` folder with a simple web server for frontend-only work:
+     ```powershell
+     pwsh -NoLogo -Command "cd static; python -m http.server"
+     ```
+   - Then visit `http://localhost:8000` in your browser. Export APIs require FastAPI.
 
 
 ### Developing in WSL or with a Dev Container ✅
@@ -53,7 +58,7 @@ If you develop inside WSL2 or use a Dev Container, VS Code can attach directly t
     pip install -r requirements.txt
     code .  # opens VS Code attached to the WSL environment
     ```
-  - Start the Flask server in WSL: `python backend.py` and open `http://localhost:5000` on your host browser (WSL2 forwards ports to localhost).
+  - Start the FastAPI server in WSL: `python backend_fastapi.py` and open `http://localhost:8080` on your host browser (WSL2 forwards ports to localhost).
 
 - Dev Container (reproducible):
   - A minimal devcontainer is included in `.devcontainer/devcontainer.json` which installs Python and your pip dependencies automatically (`pip install -r requirements.txt`).
@@ -124,45 +129,53 @@ To prevent folder bloat:
 
 ### Setup Scripts
 
-All setup scripts automatically create a venv and install dependencies:
+PowerShell venv setup is centralized in one script:
 
-**Python (Cross-Platform):**
-```bash
-python activate-env.py                      # Setup only, show instructions
-python activate-env.py --server             # Setup and start Flask server
-```
-
-**PowerShell (Windows):**
 ```powershell
-.\activate-env.ps1                          # Setup only, show instructions
-.\activate-env.ps1 -StartServer             # Setup and start Flask server
+.\ensure_venv.ps1                           # Create/activate venv, update dependencies if due
+.\ensure_venv.ps1 -NoUpdate                 # Create/activate venv, skip dependency checking
+.\start.ps1                                 # Create/activate venv and start FastAPI server
+.\start.ps1 -NoUpdate                       # Start without dependency checking
 ```
 
-**Bash (Linux/macOS):**
-```bash
-./activate-env.sh                           # Setup only, show instructions
-./activate-env.sh --server                  # Setup and start Flask server
+### FastAPI Backend Server
+
+Use the startup shim for your shell:
+
+```powershell
+.\start.ps1              # Windows PowerShell
+.\start.ps1 -NoUpdate    # Start without dependency checking
 ```
 
-### Flask Backend Server
+```bash
+./start.sh               # Linux/macOS
+./start.sh --no-update   # Start without dependency checking
+```
 
-Start the Flask server with optional configuration:
+Start the FastAPI server with optional configuration:
 
 ```bash
-python backend.py                           # Start on localhost:8080 (default)
-python backend.py --port 5000               # Use port 5000
-python backend.py --host 0.0.0.0            # Listen on all network interfaces
-python backend.py --debug                   # Enable Flask debug mode (auto-reload)
-python backend.py --help                    # Show all available options
+python backend_fastapi.py                   # Start on localhost:8080 (default)
+python backend_fastapi.py --port 5000       # Use port 5000
+python backend_fastapi.py --host 0.0.0.0    # Listen on all network interfaces
+python backend_fastapi.py --debug           # Enable debug logging and auto-reload
+python backend_fastapi.py --help            # Show all available options
+
+# Equivalent uvicorn command:
+python -m uvicorn backend_fastapi:app --host localhost --port 8080 --reload
 ```
 
 ### Virtual Environment Management
 
-```bash
-# Activate the venv
-# Windows PowerShell:
-& ".\.venv\Scripts\Activate.ps1"
+PowerShell venv setup is centralized in `ensure_venv.ps1`. The same script creates the venv, activates it, applies prompt decoration, and optionally updates dependencies.
 
+```powershell
+# Windows PowerShell:
+.\ensure_venv.ps1
+.\ensure_venv.ps1 -NoUpdate
+```
+
+```bash
 # Linux/macOS:
 source .venv/bin/activate
 
@@ -190,16 +203,15 @@ python -m pytest tests/ --cov
 ```
 ## Development Notes
 
-- The application runs entirely client-side; no backend or traditional Python environment is required.
+- The character sheet runtime is native JavaScript and stores state in browser `localStorage`.
 - Spell data is fetched at runtime from Open5e and cached client-side. If you need offline access, download the Open5e spells JSON and serve it locally via the same API shape, then refresh the cache with Alt+Load.
-- If you want linting or testing on the Python file, you can create a virtual environment, but it is optional. The PyScript runtime ignores standard virtual environments since the Python code executes inside the browser’s Pyodide engine.
-- When updating dependencies, track PyScript releases and update the CDN URLs in `index.html` as needed.
+- FastAPI is still useful for exports, saved export downloads, browser log capture, and same-origin local data loading.
 
 ## Ideas for Future Enhancements
 
 - Add condition tracking, automated consumable management, or inventory weight calculations
 - Provide multiple character slots with quick switching
-- Integrate dice rolling via PyScript or Web APIs
+- Integrate dice rolling via Web APIs
 - Offer print-friendly or PDF export layouts
 
-Enjoy crafting heroes with PySheet! 🎲
+Enjoy crafting heroes with PySheet!

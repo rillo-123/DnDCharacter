@@ -28,6 +28,7 @@ pip-wheel-metadata/
 .coverage
 coverage.xml
 htmlcov/
+test-artifacts/
 .mypy_cache/
 *.pytype/
 .ruff_cache/
@@ -65,5 +66,4 @@ offline_data/
 *.tmp
 ~*
 *.bak
-vulture_report*.txt
 exports.zip
